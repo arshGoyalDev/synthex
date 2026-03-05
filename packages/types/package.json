@@ -1,0 +1,6 @@
+{
+  "name": "@code-ide/types",
+  "main": ".src/index.ts",
+  "types": ".src/index.ts",
+  "type": "module"
+}
