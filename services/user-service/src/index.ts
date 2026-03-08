@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import { User, ApiResponse } from "@code-ide/types";
 
 const app = express();
 const PORT = process.env.USER_SERVICE_PORT || 3001;

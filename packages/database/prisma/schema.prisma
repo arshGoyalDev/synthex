@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  avatarUrl    String?   @map("avatar_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  
+  projects      Project[]
+  executionLogs ExecutionLog[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  language    String
+  description String?  @db.Text
+  template    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files           ProjectFile[]
+  containerLogs   ContainerLog[]
+  executionLogs   ExecutionLog[]
+
+  @@index([userId])
+  @@index([language])
+  @@map("projects")
+}
+
+model ProjectFile {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  filePath   String   @map("file_path")
+  fileName   String   @map("file_name")
+
+  // content is populated for small files (<50KB), null for large files stored in MinIO
+  content    String?  @db.Text
+  minioPath  String   @map("minio_path")
+
+  sizeBytes  BigInt   @map("size_bytes")
+  mimeType   String?  @map("mime_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, filePath])
+  @@index([projectId])
+  @@index([filePath])
+  @@index([fileName])
+  @@map("project_files")
+}
+
+model ContainerLog {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  containerId String   @map("container_id")
+  logType     String   @map("log_type") // 'stdout', 'stderr', 'system'
+  message     String   @db.Text
+  timestamp   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([containerId])
+  @@index([timestamp(sort: Desc)])
+  @@map("container_logs")
+}
+
+model ExecutionLog {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  userId      String   @map("user_id")
+  executionId String   @unique @map("execution_id")
+  status      String   // 'queued', 'running', 'completed', 'failed', 'timeout'
+  output      String?  @db.Text
+  error       String?  @db.Text
+  exitCode    Int?     @map("exit_code")
+  durationMs  Int?     @map("duration_ms")
+  memoryUsed  BigInt?  @map("memory_used")
+  cpuUsed     Float?   @map("cpu_used")
+  createdAt   DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([executionId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("execution_logs")
+}
