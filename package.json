@@ -1,5 +1,5 @@
 {
-  "name": "code-ide",
+  "name": "synthex",
   "private": true,
   "scripts": {
     "build": "turbo run build",

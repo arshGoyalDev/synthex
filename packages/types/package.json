@@ -1,5 +1,5 @@
 {
-  "name": "@code-ide/types",
+  "name": "@synthex/types",
   "main": ".src/index.ts",
   "types": ".src/index.ts",
   "type": "module"

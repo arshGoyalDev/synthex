@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { User, ApiResponse } from "@code-ide/types";
+import { User, ApiResponse } from "@synthex/types";
 
 const app = express();
 const PORT = process.env.API_GATEWAY_PORT || 3000;

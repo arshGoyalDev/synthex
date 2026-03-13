@@ -1,4 +1,4 @@
 {
-  "extends": "@code-ide/config/tsconfig.base.json",
+  "extends": "@synthex/config/tsconfig.base.json",
   "include": ["src"]
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@code-ide/execution-service",
+  "name": "@synthex/execution-service",
   "version": "0.0.1",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
@@ -7,8 +7,8 @@
     "start": "bun run dist/index.js"
   },
   "dependencies": {
-    "@code-ide/database": "*",
-    "@code-ide/types": "*",
+    "@synthex/database": "*",
+    "@synthex/types": "*",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "zod": "^3.22.0",

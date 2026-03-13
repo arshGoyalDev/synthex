@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: code-ide-postgres
+    container_name: synthex-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -18,11 +18,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - code-ide-network
+      - synthex-network
 
   redis:
     image: redis:7-alpine
-    container_name: code-ide-redis
+    container_name: synthex-redis
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes --requirepass redis_password
@@ -34,11 +34,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - code-ide-network
+      - synthex-network
 
   minio:
     image: minio/minio:latest
-    container_name: code-ide-minio
+    container_name: synthex-minio
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
@@ -54,15 +54,15 @@ services:
       timeout: 20s
       retries: 3
     networks:
-      - code-ide-network
+      - synthex-network
 
   minio-setup:
     image: minio/mc:latest
-    container_name: code-ide-minio-setup
+    container_name: synthex-minio-setup
     depends_on:
       - minio
     networks:
-      - code-ide-network
+      - synthex-network
     entrypoint: >
       /bin/sh -c "
       sleep 10;
@@ -82,5 +82,5 @@ volumes:
   minio_data:
 
 networks:
-  code-ide-network:
+  synthex-network:
     driver: bridge

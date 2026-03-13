@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "code-ide",
+      "name": "synthex",
       "devDependencies": {
         "prettier": "^3.7.4",
         "turbo": "^2.8.13",
@@ -10,11 +10,11 @@
       },
     },
     "apps/api_gateway": {
-      "name": "@code-ide/api-gateway",
+      "name": "@synthex/api-gateway",
       "version": "0.0.1",
       "dependencies": {
-        "@code-ide/database": "*",
-        "@code-ide/types": "*",
+        "@synthex/database": "*",
+        "@synthex/types": "*",
         "cors": "^2.8.5",
         "express": "^4.18.2",
         "express-rate-limit": "^7.1.5",
@@ -32,7 +32,7 @@
       },
     },
     "apps/web": {
-      "name": "@code-ide/frontend",
+      "name": "@synthex/frontend",
       "version": "0.0.0",
       "dependencies": {
         "@tailwindcss/vite": "^4.2.1",
@@ -59,7 +59,7 @@
       },
     },
     "packages/database": {
-      "name": "@code-ide/database",
+      "name": "@synthex/database",
       "version": "0.0.1",
       "dependencies": {
         "@prisma/client": "^6.3.0",
@@ -89,18 +89,18 @@
       },
     },
     "packages/types": {
-      "name": "@code-ide/types",
+      "name": "@synthex/types",
     },
     "packages/typescript-config": {
       "name": "@repo/typescript-config",
       "version": "0.0.0",
     },
     "services/container-service": {
-      "name": "@code-ide/container-service",
+      "name": "@synthex/container-service",
       "version": "0.0.1",
       "dependencies": {
-        "@code-ide/database": "*",
-        "@code-ide/types": "*",
+        "@synthex/database": "*",
+        "@synthex/types": "*",
         "cors": "^2.8.5",
         "dockerode": "^4.0.2",
         "express": "^4.18.2",
@@ -116,11 +116,11 @@
       },
     },
     "services/execution-service": {
-      "name": "@code-ide/execution-service",
+      "name": "@synthex/execution-service",
       "version": "0.0.1",
       "dependencies": {
-        "@code-ide/database": "*",
-        "@code-ide/types": "*",
+        "@synthex/database": "*",
+        "@synthex/types": "*",
         "cors": "^2.8.5",
         "express": "^4.18.2",
         "uuid": "^9.0.0",
@@ -134,11 +134,11 @@
       },
     },
     "services/project-service": {
-      "name": "@code-ide/project-service",
+      "name": "@synthex/project-service",
       "version": "0.0.1",
       "dependencies": {
-        "@code-ide/database": "*",
-        "@code-ide/types": "*",
+        "@synthex/database": "*",
+        "@synthex/types": "*",
         "cors": "^2.8.5",
         "express": "^4.18.2",
         "uuid": "^9.0.0",
@@ -152,11 +152,11 @@
       },
     },
     "services/storage-service": {
-      "name": "@code-ide/storage-service",
+      "name": "@synthex/storage-service",
       "version": "0.0.1",
       "dependencies": {
-        "@code-ide/database": "*",
-        "@code-ide/types": "*",
+        "@synthex/database": "*",
+        "@synthex/types": "*",
         "cors": "^2.8.5",
         "express": "^4.18.2",
         "multer": "^1.4.5-lts.1",
@@ -172,11 +172,11 @@
       },
     },
     "services/user-service": {
-      "name": "@code-ide/user-service",
+      "name": "@synthex/user-service",
       "version": "0.0.1",
       "dependencies": {
-        "@code-ide/database": "*",
-        "@code-ide/types": "*",
+        "@synthex/database": "*",
+        "@synthex/types": "*",
         "argon2": "^0.44.0",
         "cors": "^2.8.5",
         "express": "^4.18.2",
@@ -238,23 +238,23 @@
 
     "@balena/dockerignore": ["@balena/dockerignore@1.0.2", "", {}, "sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q=="],
 
-    "@code-ide/api-gateway": ["@code-ide/api-gateway@workspace:apps/api_gateway"],
+    "@synthex/api-gateway": ["@synthex/api-gateway@workspace:apps/api_gateway"],
 
-    "@code-ide/container-service": ["@code-ide/container-service@workspace:services/container-service"],
+    "@synthex/container-service": ["@synthex/container-service@workspace:services/container-service"],
 
-    "@code-ide/database": ["@code-ide/database@workspace:packages/database"],
+    "@synthex/database": ["@synthex/database@workspace:packages/database"],
 
-    "@code-ide/execution-service": ["@code-ide/execution-service@workspace:services/execution-service"],
+    "@synthex/execution-service": ["@synthex/execution-service@workspace:services/execution-service"],
 
-    "@code-ide/frontend": ["@code-ide/frontend@workspace:apps/web"],
+    "@synthex/frontend": ["@synthex/frontend@workspace:apps/web"],
 
-    "@code-ide/project-service": ["@code-ide/project-service@workspace:services/project-service"],
+    "@synthex/project-service": ["@synthex/project-service@workspace:services/project-service"],
 
-    "@code-ide/storage-service": ["@code-ide/storage-service@workspace:services/storage-service"],
+    "@synthex/storage-service": ["@synthex/storage-service@workspace:services/storage-service"],
 
-    "@code-ide/types": ["@code-ide/types@workspace:packages/types"],
+    "@synthex/types": ["@synthex/types@workspace:packages/types"],
 
-    "@code-ide/user-service": ["@code-ide/user-service@workspace:services/user-service"],
+    "@synthex/user-service": ["@synthex/user-service@workspace:services/user-service"],
 
     "@epic-web/invariant": ["@epic-web/invariant@1.0.0", "", {}, "sha512-lrTPqgvfFQtR/eY/qkIzp98OGdNJu0m5ji3q/nJI8v3SXkRKEnWiOxMmbvcSoAIzv/cGiuvRy57k4suKQSAdwA=="],
 
@@ -1536,21 +1536,21 @@
 
     "@babel/traverse/debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 
-    "@code-ide/api-gateway/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/api-gateway/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/container-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/container-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/database/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/database/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/execution-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/execution-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/frontend/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/frontend/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/project-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/project-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/storage-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/storage-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "@code-ide/user-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "@synthex/user-service/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 

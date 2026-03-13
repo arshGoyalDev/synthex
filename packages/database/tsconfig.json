@@ -1,5 +1,5 @@
 {
-  "extends": "@code-ide/config/tsconfig.base.json",
+  "extends": "@synthex/config/tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src"
