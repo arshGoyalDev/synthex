@@ -1,17 +1,19 @@
 import express from "express";
 import cors from "cors";
-import { User, ApiResponse } from "@synthex/types";
+import "dotenv/config";
+import { env } from "./config";
+import { registerProxies } from "./proxy/proxy.middleware";
 
 const app = express();
-const PORT = process.env.API_GATEWAY_PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", service: "gateway" });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`api-gateway running on port ${PORT}`);
+registerProxies(app);
+
+app.listen(env.API_GATEWAY_PORT, () => {
+  console.log(`API Gateway running on port ${env.API_GATEWAY_PORT}`);
 });
