@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config";
+import { redis } from "../config/database";
 
 interface AuthRequest extends Request {
   user?: { id: string; email: string };
 }
 
-const authMiddleware = (
+const authMiddleware = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
@@ -20,6 +21,12 @@ const authMiddleware = (
 
   if (!token) {
     return res.status(401).json({ error: "No token provided" });
+  }
+
+  const blacklistAccessToken = await redis.get(`blacklist:${token}`);
+
+  if (blacklistAccessToken) {
+    return res.status(401).json({ error: "Token has been blacklisted" });
   }
 
   try {

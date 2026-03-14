@@ -13,19 +13,25 @@ export function createRedisClient() {
 export class PubSubManager {
   constructor(
     private publisher: Redis,
-    private subscriber: Redis
+    private subscriber: Redis,
   ) {}
 
   async publish(channel: string, message: any): Promise<void> {
     await this.publisher.publish(channel, JSON.stringify(message));
   }
 
-  async subscribe(channel: string, callback: (message: any) => void): Promise<void> {
+  async subscribe(
+    channel: string,
+    callback: (message: any) => void,
+  ): Promise<void> {
     await this.subscriber.subscribe(channel);
     this.subscriber.on("message", (ch, msg) => {
       if (ch === channel) {
-        try { callback(JSON.parse(msg)); }
-        catch { callback(msg); }
+        try {
+          callback(JSON.parse(msg));
+        } catch {
+          callback(msg);
+        }
       }
     });
   }

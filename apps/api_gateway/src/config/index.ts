@@ -4,6 +4,8 @@ const envSchema = z.object({
   API_GATEWAY_PORT: z.string().default("3000"),
   JWT_SECRET: z.string(),
 
+  ORIGIN: z.string().default("http://localhost:5173"),
+
   USER_SERVICE_URL: z.string().default("http://localhost:3001"),
   PROJECT_SERVICE_URL: z.string().default("http://localhost:3002"),
   CONTAINER_SERVICE_URL: z.string().default("http://localhost:3003"),
