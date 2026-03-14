@@ -19,6 +19,22 @@
     },
     "test": {
       "dependsOn": ["^build"]
+    },
+    "generate": {
+      "cache": false
+    },
+    "migrate": {
+      "cache": false
+    },
+    "migrate:deploy": {
+      "cache": false
+    },
+    "studio": {
+      "persistent": true,
+      "cache": false
+    },
+    "push": {
+      "cache": false
     }
   }
 }

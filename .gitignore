@@ -46,3 +46,5 @@ packages/database/prisma/migrations/
 postgres_data/
 redis_data/
 minio_data/
+
+packages/database/src/generated
