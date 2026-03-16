@@ -1,5 +1,6 @@
 import * as argon2 from "argon2";
 import { AuthRepository } from "./auth.repository";
+import { AppError } from "../../utils/AppError";
 import {
   blacklistAccessToken,
   deleteRefreshToken,
@@ -17,7 +18,7 @@ class AuthService {
     const existingUser = await this.repo.findUserByEmail(email);
 
     if (existingUser) {
-      throw new Error("Email already in use");
+      throw new AppError("Email already in use", 409);
     }
 
     const passwordHash = await argon2.hash(password);
@@ -34,13 +35,13 @@ class AuthService {
     const user = await this.repo.findUserByEmail(email);
 
     if (!user) {
-      throw new Error("No user found with this email");
+      throw new AppError("No user found with this email", 404);
     }
 
     const isValid = await argon2.verify(user.passwordHash, password);
 
     if (!isValid) {
-      throw new Error("Wrong password");
+      throw new AppError("Wrong password", 401);
     }
 
     return this.generateTokenPair(user);
@@ -79,19 +80,19 @@ class AuthService {
     try {
       payload = verifyToken(refreshToken);
     } catch (error) {
-      throw new Error("Invalid refresh token");
+      throw new AppError("Invalid refresh token", 401);
     }
 
     const stored = await redis.get(`refresh:${payload.id}`);
 
     if (stored !== refreshToken) {
-      throw new Error("Refresh token revoked");
+      throw new AppError("Refresh token revoked", 401);
     }
 
     const user = await this.repo.findUserById(payload.id);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     return this.generateTokenPair(user);

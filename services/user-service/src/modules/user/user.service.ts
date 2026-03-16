@@ -1,4 +1,5 @@
 import { UserRepository } from "./user.repository";
+import { AppError } from "../../utils/AppError";
 
 class UserService {
   private repo = new UserRepository();
@@ -7,7 +8,7 @@ class UserService {
     const user = await this.repo.findById(userId);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     return user;
@@ -17,7 +18,7 @@ class UserService {
     const user = await this.repo.findById(id);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     return user;
@@ -30,7 +31,7 @@ class UserService {
     const user = await this.repo.findById(userId);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     return this.repo.update(userId, data);
@@ -40,7 +41,7 @@ class UserService {
     const user = await this.repo.findById(userId);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new AppError("User not found", 404);
     }
 
     await this.repo.delete(userId);
