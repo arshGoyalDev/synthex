@@ -7,6 +7,10 @@ const envSchema = z.object({
   ACCESS_TOKEN_EXPIRATION: z.string().default("15m"),
   REFRESH_TOKEN_EXPIRATION: z.string().default("7d"),
 
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  GITHUB_CALLBACK_URL: z.string().default("http://localhost:3001/auth/github/callback"),
+
   ORIGIN: z.string().default("http://localhost:5173"),
 });
 

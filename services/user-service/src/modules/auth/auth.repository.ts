@@ -17,4 +17,21 @@ export class AuthRepository {
   }) {
     return db.user.create({ data });
   }
+
+  async findOAuthAccount(provider: string, providerId: string) {
+    return db.oAuthAccount.findUnique({
+      where: { provider_providerId: { provider, providerId } },
+      include: { user: true },
+    });
+  }
+
+  async createOAuthAccount(
+    userId: string,
+    provider: string,
+    providerId: string,
+  ) {
+    return db.oAuthAccount.create({
+      data: { userId, provider, providerId },
+    });
+  }
 }

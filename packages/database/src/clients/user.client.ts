@@ -16,6 +16,6 @@ export function getUserDbClient() {
 export function getUserRepository(prisma: PrismaClient) {
   return {
     user: prisma.user,
-    // oauthAccount: prisma.oAuthAccount,
+    oAuthAccount: prisma.oAuthAccount,
   };
 }

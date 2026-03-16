@@ -46,6 +46,33 @@ class AuthService {
     return this.generateTokenPair(user);
   }
 
+  async handleOAuthLogin(
+    provider: string,
+    providerId: string,
+    profile: { username: string; email: string; avatarUrl?: string },
+  ) {
+    let oauthAccount = await this.repo.findOAuthAccount(provider, providerId);
+
+    if (oauthAccount) {
+      return this.generateTokenPair(oauthAccount.user);
+    }
+
+    let user = await this.repo.findUserByEmail(profile.email);
+
+    if (!user) {
+      user = await this.repo.createUser({
+        username: profile.username,
+        email: profile.email,
+        avatarUrl: profile.avatarUrl,
+        passwordHash: "",
+      });
+    }
+
+    await this.repo.createOAuthAccount(user.id, provider, providerId);
+
+    return this.generateTokenPair(user);
+  }
+
   async refresh(refreshToken: string) {
     let payload;
 

@@ -4,11 +4,11 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "generate": "prisma generate",
-    "migrate": "prisma migrate dev",
-    "migrate:deploy": "prisma migrate deploy",
-    "studio": "prisma studio",
-    "push": "prisma db push"
+    "generate": "bun --env-file=../../.env prisma generate",
+    "migrate": "bun --env-file=../../.env prisma migrate dev",
+    "migrate:deploy": "bun --env-file=../../.env prisma migrate deploy",
+    "studio": "bun --env-file=../../.env prisma studio",
+    "push": "bun --env-file=../../.env prisma db push"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",

@@ -20,9 +20,24 @@ model User {
   
   projects      Project[]
   executionLogs ExecutionLog[]
+  oauthAccounts OAuthAccount[]
 
   @@index([email])
   @@map("users")
+}
+
+model OAuthAccount {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  provider   String
+  providerId String   @map("provider_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 model Project {
