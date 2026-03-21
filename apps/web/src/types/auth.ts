@@ -1,19 +1,12 @@
-export interface LoginPayload {
-  email: string;
-  password: string;
-}
-
-export interface SignupPayload {
-  username: string;
-  email: string;
-  password: string;
-}
-
 export interface AuthResponse {
   accessToken: string;
 }
 
 export interface User {
   id: string;
+  username: string;
   email: string;
+  avatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

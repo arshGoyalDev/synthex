@@ -1,6 +1,7 @@
 {
   "name": "@synthex/types",
-  "main": ".src/index.ts",
-  "types": ".src/index.ts",
+  "version": "0.0.1",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "type": "module"
 }

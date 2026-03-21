@@ -1,7 +1,8 @@
 import { create } from "zustand";
-import { api } from "../lib/api";
+import { api, API_BASE_URL } from "../lib/api";
 import { tokenRef } from "../lib/tokenRef";
 import type { AuthResponse, User } from "../types/auth";
+import axios from "axios";
 
 const AUTH_BASE = "/api/auth";
 
@@ -15,20 +16,9 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   signup: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  fetchMe: () => Promise<void>;
+  checkAuth: () => Promise<void>;
   clearError: () => void;
-}
-
-/** Decode the payload section of a JWT (no verification — that's server-side) */
-function decodeJwtPayload(token: string): User | null {
-  try {
-    const base64 = token.split(".")[1];
-    if (!base64) return null;
-    const json = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(json);
-    return { id: payload.id, email: payload.email };
-  } catch {
-    return null;
-  }
 }
 
 /** Sync Zustand state and the shared tokenRef in one place */
@@ -36,9 +26,8 @@ function applyToken(
   set: (partial: Partial<AuthState>) => void,
   accessToken: string,
 ) {
-  const user = decodeJwtPayload(accessToken);
   tokenRef.current = accessToken;
-  set({ accessToken, user, isAuthenticated: true, isLoading: false });
+  set({ accessToken, isAuthenticated: true, isLoading: false });
 }
 
 function clearToken(set: (partial: Partial<AuthState>) => void) {
@@ -51,12 +40,36 @@ function clearToken(set: (partial: Partial<AuthState>) => void) {
   });
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   accessToken: null,
   user: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
+
+  checkAuth: async () => {
+    try {
+      const { data } = await axios.post<{ accessToken: string }>(
+        `${API_BASE_URL}/api/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
+      applyToken(set, data.accessToken);
+      get().fetchMe();
+    } catch {
+      // Not authenticated, do nothing
+      clearToken(set);
+    }
+  },
+
+  fetchMe: async () => {
+    try {
+      const { data } = await api.get<{ data: User }>("/api/users/me");
+      set({ user: data.data, isAuthenticated: true, accessToken: tokenRef.current });
+    } catch {
+      // If fetching profile fails, keep what we have
+    }
+  },
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
@@ -66,6 +79,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
         password,
       });
       applyToken(set, data.accessToken);
+      // Fetch full profile in background
+      get().fetchMe();
     } catch (err: any) {
       const message =
         err.response?.data?.error ??
@@ -86,6 +101,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
         password,
       });
       applyToken(set, data.accessToken);
+      // Fetch full profile in background
+      get().fetchMe();
     } catch (err: any) {
       const message =
         err.response?.data?.error ??

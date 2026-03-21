@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: synthex-postgres
-    network_mode: "host"
+    # network_mode: "host"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -18,11 +18,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - synthex-network
 
   redis:
     image: redis:7-alpine
     container_name: synthex-redis
-    network_mode: "host"
+    # network_mode: "host"
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes --requirepass redis_password
@@ -33,6 +35,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - synthex-network
 
   minio:
     image: minio/minio:latest

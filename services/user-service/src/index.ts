@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { env } from "./config";
+import { userRoutes } from "./modules/user/user.routes";
 
 const app = express();
 const PORT = process.env.USER_SERVICE_PORT || 3001;
@@ -21,6 +22,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/", authRoutes);
+app.use("/", userRoutes);
 
 app.use(
   (
