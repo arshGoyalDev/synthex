@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { authRoutes } from "./modules/auth/auth.routes";
+
 import { env } from "./config";
+
+import { authRoutes } from "./modules/auth/auth.routes";
 import { userRoutes } from "./modules/user/user.routes";
 
 const app = express();
@@ -44,6 +46,6 @@ app.use(
   },
 );
 
-const server = app.listen(PORT, () => {
-  console.log(`user-service running on port ${PORT}`);
+const server = app.listen(env.PORT, () => {
+  console.log(`user-service running on port ${env.PORT}`);
 });

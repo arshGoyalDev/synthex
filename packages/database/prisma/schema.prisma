@@ -6,7 +6,12 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
 
+enum ProjectType {
+  template
+  blank
+  raw
 }
 
 model User {
@@ -44,9 +49,10 @@ model Project {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")
   name        String
-  language    String
   description String?  @db.Text
+  type        ProjectType @default(template)
   template    String?
+  language    String[]
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

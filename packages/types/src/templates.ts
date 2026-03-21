@@ -63,9 +63,28 @@ const TEMPLATES: Record<string, Template> = {
     runCommand: "npx ts-node src/index.ts",
   },
 
-  react: {
+    react: {
     id: "react",
     name: "React",
+    description: "Frontend development with React + Vite",
+    language: "typescript",
+    color: "#61DAFB",
+    icon: "react",
+    defaultPort: 5173,
+    getCommands: (projectName: string) => ({
+      install: ["apk add --no-cache nodejs npm"],
+      setup: [
+        `npm create vite@latest /workspace/${projectName} -- --template react`,
+      ],
+      postSetup: [`cd /workspace/${projectName} && npm install`],
+    }),
+    entryFile: (projectName) => `${projectName}/src/App.jsx`,
+    runCommand: "npm run dev -- --host",
+  },
+
+  react_ts: {
+    id: "react_ts",
+    name: "React + TypeScript",
     description: "Frontend development with React + Vite",
     language: "typescript",
     color: "#61DAFB",

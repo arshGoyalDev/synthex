@@ -23,7 +23,7 @@ passport.use(
       callbackURL: env.GITHUB_CALLBACK_URL,
       scope: ["user:email"],
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       try {
         const email = profile.emails?.[0].value ?? `${profile.id}@github.com`;
 
