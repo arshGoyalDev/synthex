@@ -11,6 +11,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAuthChecking: boolean;
   error: string | null;
 
   login: (email: string, password: string) => Promise<void>;
@@ -45,6 +46,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: false,
+  isAuthChecking: true,
   error: null,
 
   checkAuth: async () => {
@@ -55,10 +57,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         { withCredentials: true }
       );
       applyToken(set, data.accessToken);
-      get().fetchMe();
+      await get().fetchMe();
     } catch {
       // Not authenticated, do nothing
       clearToken(set);
+    } finally {
+      set({ isAuthChecking: false });
     }
   },
 

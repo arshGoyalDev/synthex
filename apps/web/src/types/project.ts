@@ -2,10 +2,13 @@ export interface Project {
   id: string;
   userId: string;
   name: string;
-  language: string;
   description: string | null;
+  type: "template" | "blank" | "raw";
   template: string | null;
-  isPinned: boolean;
+  languages: string[];
+  containerStatus: "pending" | "starting" | "ready" | "stopped" | "error" | "timeout";
+  folderName: string;
+  isPinned?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -5,9 +5,11 @@ let client: PrismaClient | null = null;
 export function getUserDbClient() {
   if (!client) {
     client = new PrismaClient({
-      log: process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+      log:
+        process.env.NODE_ENV === "development" &&
+        process.env.PRISMA_DEBUG === "true"
+          ? ["query", "error", "warn"]
+          : ["error"],
     });
   }
   return client;
