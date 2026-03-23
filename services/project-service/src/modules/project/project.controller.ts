@@ -51,9 +51,16 @@ class ProjectController {
     try {
       const projectId = req.params.id;
       
-      await projectService.startProject(projectId);
+      const result = await projectService.startProject(projectId);
 
-      res.json({ message: "Project starting" });
+      if (result.alreadyRunning) {
+        return res.json({
+          status: "ready",
+          message: "Container already running",
+        });
+      }
+
+      res.json({ message: "Project starting", status: "starting" });
     } catch (err) {
       next(err);
     }

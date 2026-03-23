@@ -5,6 +5,9 @@ import { env } from "./config";
 
 import { projectRoutes } from "./modules/project/project.routes";
 
+import { registerSubscribers } from "./config/subscriber";
+import { startTimeoutWatcher } from "./jobs/timeout.watcher";
+
 const app = express();
 
 app.use(
@@ -30,7 +33,6 @@ app.use(
   ) => {
     console.error("Error:", err.message);
 
-    // Zod validation errors
     if (err.name === "ZodError") {
       const message = err.issues?.[0]?.message ?? "Validation failed";
       return res.status(400).json({ error: message });
@@ -40,6 +42,12 @@ app.use(
     res.status(status).json({ error: err.message || "Internal server error" });
   },
 );
+
+registerSubscribers().then(() => {
+  console.log("[project-service] Subscribers registered");
+});
+
+startTimeoutWatcher();
 
 const server = app.listen(env.PORT, () => {
   console.log(`project-service running on port ${env.PORT}`);

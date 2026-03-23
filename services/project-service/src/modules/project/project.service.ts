@@ -1,4 +1,4 @@
-import { db, pubsub } from "../../config/database";
+import { db, pubsub, redis } from "../../config/database";
 import { AppError } from "../../utils/AppError";
 import { safeName } from "../../utils/project";
 
@@ -56,6 +56,13 @@ class ProjectService {
       languages: data.type === "blank" ? data.languages : null,
     });
 
+    await redis.set(
+      `container:timeout:${project.id}`,
+      JSON.stringify({ projectId: project.id, userId }),
+      "EX",
+      5 * 60,
+    );
+
     return project;
   }
 
@@ -63,6 +70,10 @@ class ProjectService {
     const project = await db.project.findUnique({ where: { id } });
 
     if (!project) throw new AppError("Project not found", 404);
+
+    if (project.containerStatus === "ready") {
+      return { alreadyRunning: true, project };
+    }
 
     const startStates = ["pending", "stopped", "error", "timeout"];
     if (!startStates.includes(project.containerStatus)) {
@@ -84,6 +95,15 @@ class ProjectService {
       template: project.type === "template" ? project.template : null,
       languages: project.type === "blank" ? project.languages : null,
     });
+
+    await redis.set(
+      `container:timeout:${project.id}`,
+      JSON.stringify({ projectId: project.id, userId: project.userId }),
+      "EX",
+      5 * 60, // 5 minutes
+    );
+
+    return { alreadyRunning: false, project };
   }
 
   async stopProject(id: string) {
@@ -94,11 +114,6 @@ class ProjectService {
     if (project.containerStatus !== "ready") {
       throw new AppError("Only running projects can be stopped", 400);
     }
-
-    await db.project.update({
-      where: { id },
-      data: { containerStatus: "stopped" },
-    });
 
     await pubsub.publish("project:stop", {
       projectId: project.id,

@@ -1,4 +1,4 @@
 {
   "extends": "@synthex/config/tsconfig.base.json",
-  "include": ["src"]
+  "include": ["src", "../project-service/src/jobs"]
 }
