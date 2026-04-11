@@ -3,6 +3,8 @@ import { FileExplorer } from "./FileExplorer";
 import { EditorTabs } from "./EditorTabs";
 import { CodeEditor } from "./CodeEditor";
 import { Terminal } from "./Terminal";
+import { EditorBreadcrumbs } from "./EditorBreadcrumbs";
+import { MarkdownPreview } from "./MarkdownPreview";
 import { useEditorStore } from "../../stores/editor.store";
 import { Files } from "lucide-react";
 
@@ -11,6 +13,8 @@ export function EditorLayout() {
   const [terminalHeight, setTerminalHeight] = useState(360);
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
+  const isPreviewMode = useEditorStore((s) => s.isPreviewMode);
+  const activeFile = useEditorStore((s) => s.activeFile);
 
   const layoutRef = useRef<HTMLDivElement>(null);
   const draggingSidebar = useRef(false);
@@ -97,9 +101,16 @@ export function EditorLayout() {
       {/* Right — Editor + Terminal */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top — Tabs + Editor */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-bg-primary">
           <EditorTabs />
-          <CodeEditor />
+          <EditorBreadcrumbs />
+          <div className="flex-1 relative flex flex-col min-h-0">
+            {isPreviewMode && activeFile?.endsWith(".md") ? (
+               <MarkdownPreview />
+            ) : (
+               <CodeEditor />
+            )}
+          </div>
         </div>
 
         {/* Bottom — Terminal */}

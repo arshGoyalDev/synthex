@@ -8,6 +8,8 @@ import { useEditorStore } from "../../stores/editor.store";
 import { Loader2, Play, Square, AlertCircle, ChevronLeft } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
 
+import { FilePalette } from "../../components/editor/FilePalette";
+
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
 });
@@ -196,8 +198,9 @@ function ProjectPage() {
       </header>
       
       {/* Workspace Area */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden relative">
         <EditorLayout />
+        <FilePalette />
       </main>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEditorStore } from "../../stores/editor.store";
-import { X, FileCode, FileJson, FileText, FileType } from "lucide-react";
+import { X, FileCode, FileJson, FileText, FileType, Code, Eye } from "lucide-react";
 
 /* ——— File icon by extension ——— */
 function getFileIcon(name: string) {
@@ -25,11 +25,17 @@ export function EditorTabs() {
   const setActiveFile = useEditorStore((s) => s.setActiveFile);
   const closeTab = useEditorStore((s) => s.closeTab);
   const files = useEditorStore((s) => s.files);
+  const isPreviewMode = useEditorStore((s) => s.isPreviewMode);
+  const togglePreviewMode = useEditorStore((s) => s.togglePreviewMode);
+
   if (openTabs.length === 0) return null;
 
+  const activeFileObj = files.get(activeFile || "");
+  const isMarkdown = activeFileObj?.name?.endsWith(".md");
+
   return (
-    <div className="flex items-stretch bg-bg-dark-secondary border-b border-border-subtle shrink-0 h-[38px] overflow-hidden">
-      <div className="flex items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex items-stretch bg-bg-dark-secondary border-b border-border-subtle shrink-0 h-[38px] overflow-hidden justify-between">
+      <div className="flex items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-1">
         {openTabs.map((path) => {
           const file = files.get(path);
           if (!file) return null;
@@ -68,6 +74,16 @@ export function EditorTabs() {
           );
         })}
       </div>
+      
+      {/* Markdown Preview Toggle */}
+      {isMarkdown && (
+        <button 
+          className="flex items-center gap-1.5 px-4 border-l border-border-subtle bg-transparent text-text-secondary hover:text-text-primary hover:bg-white/5 cursor-pointer text-xs h-full shrink-0 outline-none font-medium transition-colors"
+          onClick={togglePreviewMode}
+        >
+           {isPreviewMode ? <><Code size={14} /> Code</> : <><Eye size={14} /> Preview</>}
+        </button>
+      )}
     </div>
   );
 }

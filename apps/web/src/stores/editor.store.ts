@@ -3,8 +3,9 @@ import { create } from "zustand";
 export interface FileEntry {
   path: string;
   name: string;
-  language: string;
-  content: string;
+  language?: string;
+  content?: string;
+  isFolder?: boolean;
 }
 
 interface EditorState {
@@ -13,6 +14,7 @@ interface EditorState {
   activeFile: string | null;
   isExplorerOpen: boolean;
   isTerminalOpen: boolean;
+  isPreviewMode: boolean;
 
   openFile: (file: FileEntry) => void;
   closeTab: (path: string) => void;
@@ -20,6 +22,11 @@ interface EditorState {
   updateFileContent: (path: string, content: string) => void;
   toggleExplorer: () => void;
   toggleTerminal: () => void;
+  togglePreviewMode: () => void;
+
+  createNode: (path: string, name: string, isFolder: boolean) => void;
+  renameNode: (oldPath: string, newPath: string, newName: string) => void;
+  deleteNode: (path: string) => void;
 }
 
 /* ——— Dummy project files ——— */
@@ -236,6 +243,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   activeFile: "/src/main.tsx",
   isExplorerOpen: true,
   isTerminalOpen: true,
+  isPreviewMode: false,
 
   openFile: (file) =>
     set((state) => {
@@ -244,7 +252,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       const newTabs = state.openTabs.includes(file.path)
         ? state.openTabs
         : [...state.openTabs, file.path];
-      return { files: newFiles, openTabs: newTabs, activeFile: file.path };
+      return { files: newFiles, openTabs: newTabs, activeFile: file.path, isPreviewMode: false };
     }),
 
   closeTab: (path) =>
@@ -258,7 +266,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       return { openTabs: newTabs, activeFile: newActive };
     }),
 
-  setActiveFile: (path) => set({ activeFile: path }),
+  setActiveFile: (path) => set({ activeFile: path, isPreviewMode: false }),
 
   updateFileContent: (path, content) =>
     set((state) => {
@@ -272,6 +280,73 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   toggleExplorer: () => set((state) => ({ isExplorerOpen: !state.isExplorerOpen })),
   toggleTerminal: () => set((state) => ({ isTerminalOpen: !state.isTerminalOpen })),
+  togglePreviewMode: () => set((state) => ({ isPreviewMode: !state.isPreviewMode })),
+
+  createNode: (path, name, isFolder) =>
+    set((state) => {
+      const newFiles = new Map(state.files);
+      const ext = name.split(".").pop()?.toLowerCase() || "plaintext";
+      newFiles.set(path, {
+        path,
+        name,
+        isFolder,
+        language: isFolder ? undefined : ext,
+        content: isFolder ? undefined : "",
+      });
+      return { files: newFiles };
+    }),
+
+  renameNode: (oldPath, newPath, newName) =>
+    set((state) => {
+      const newFiles = new Map(state.files);
+
+      [...newFiles.entries()].forEach(([k, file]) => {
+        if (k === oldPath) {
+          newFiles.delete(k);
+          newFiles.set(newPath, { ...file, path: newPath, name: newName });
+        } else if (k.startsWith(oldPath + "/")) {
+          newFiles.delete(k);
+          const renamedPath = k.replace(oldPath, newPath);
+          newFiles.set(renamedPath, { ...file, path: renamedPath });
+        }
+      });
+
+      const newTabs = state.openTabs.map((t) => {
+        if (t === oldPath) return newPath;
+        if (t.startsWith(oldPath + "/")) return t.replace(oldPath, newPath);
+        return t;
+      });
+
+      let newActive = state.activeFile;
+      if (newActive === oldPath) newActive = newPath;
+      else if (newActive?.startsWith(oldPath + "/"))
+        newActive = newActive.replace(oldPath, newPath);
+
+      return { files: newFiles, openTabs: newTabs, activeFile: newActive };
+    }),
+
+  deleteNode: (path) =>
+    set((state) => {
+      const newFiles = new Map(state.files);
+      const newTabs = [...state.openTabs];
+
+      [...newFiles.keys()].forEach((k) => {
+        if (k === path || k.startsWith(path + "/")) {
+          newFiles.delete(k);
+        }
+      });
+
+      const filteredTabs = newTabs.filter(
+        (t) => t !== path && !t.startsWith(path + "/")
+      );
+      return {
+        files: newFiles,
+        openTabs: filteredTabs,
+        activeFile: filteredTabs.includes(state.activeFile as string)
+          ? state.activeFile
+          : null,
+      };
+    }),
 }));
 
 export { DUMMY_FILES };
