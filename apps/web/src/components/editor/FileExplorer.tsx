@@ -94,7 +94,7 @@ function getFileColor(name: string): string {
 
 /* ——— Context Menu Type ——— */
 type ContextMenuState = {
-  node: TreeNode;
+  node: TreeNode | null;
   x: number;
   y: number;
 } | null;
@@ -139,10 +139,20 @@ function InlineInput({
          ref={inputRef} 
          value={val} 
          onChange={(e) => setVal(e.target.value)} 
-         onBlur={() => { val.trim() ? onSubmit(val.trim()) : onCancel() }}
+         onBlur={() => {
+            if (val.trim()) {
+               onSubmit(val.trim());
+            } else {
+               onCancel();
+            }
+         }}
          onKeyDown={(e) => {
             if (e.key === "Enter") {
-               val.trim() ? onSubmit(val.trim()) : onCancel();
+               if (val.trim()) {
+                  onSubmit(val.trim());
+               } else {
+                  onCancel();
+               }
             } else if (e.key === "Escape") {
                onCancel();
             }
@@ -228,7 +238,7 @@ function TreeItem({
     <>
       <button
         onClick={handleClick}
-        onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, node); }}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, node); }}
         draggable={!node.isFolder}
         onDragStart={(e) => {
            if (!node.isFolder) {
@@ -323,6 +333,9 @@ export function FileExplorer() {
   const createNode = useEditorStore((s) => s.createNode);
   const renameNode = useEditorStore((s) => s.renameNode);
   const deleteNode = useEditorStore((s) => s.deleteNode);
+  const clipboard = useEditorStore((s) => s.clipboard);
+  const setClipboard = useEditorStore((s) => s.setClipboard);
+  const pasteNode = useEditorStore((s) => s.pasteNode);
 
   const fileTree = useMemo(() => buildTreeConfig(files), [files]);
   
@@ -340,10 +353,18 @@ export function FileExplorer() {
     setContextMenu(null);
   };
 
+  const handleBackgroundContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x = Math.min(e.clientX, window.innerWidth - 160);
+    const y = Math.min(e.clientY, window.innerHeight - 250);
+    setContextMenu({ node: null, x, y });
+  }, []);
+
   const handleContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
     // Show near mouse but constrained
     const x = Math.min(e.clientX, window.innerWidth - 160);
-    const y = Math.min(e.clientY, window.innerHeight - 200);
+    const y = Math.min(e.clientY, window.innerHeight - 250);
     setContextMenu({ node, x, y });
   }, []);
 
@@ -362,7 +383,7 @@ export function FileExplorer() {
   const handleCreateCancel = () => setCreatingNode(null);
 
   const handleRenameStart = () => {
-    if (!contextMenu) return;
+    if (!contextMenu || !contextMenu.node) return;
     setRenamingPath(contextMenu.node.path);
     setContextMenu(null);
   };
@@ -379,7 +400,7 @@ export function FileExplorer() {
   const handleRenameCancel = () => setRenamingPath(null);
 
   const handleDeleteStart = () => {
-    if (!contextMenu) return;
+    if (!contextMenu || !contextMenu.node) return;
     setDeletingNode(contextMenu.node);
     setContextMenu(null);
   };
@@ -391,9 +412,18 @@ export function FileExplorer() {
     setDeletingNode(null);
   };
 
-  const handleClipboardSim = (action: string) => {
-    if (!contextMenu) return;
-    console.log(`Simulated ${action} for ${contextMenu.node.path}`);
+  const handleClipboardCmd = (type: 'copy' | 'cut') => {
+    if (!contextMenu || !contextMenu.node) return;
+    setClipboard(contextMenu.node.path, type);
+    setContextMenu(null);
+  };
+
+  const handlePasteCmd = () => {
+    if (!contextMenu || !clipboard) return;
+    const targetPath = contextMenu.node 
+       ? (contextMenu.node.isFolder ? contextMenu.node.path : contextMenu.node.path.substring(0, contextMenu.node.path.lastIndexOf("/"))) 
+       : "/";
+    pasteNode(targetPath === "" ? "/" : targetPath);
     setContextMenu(null);
   };
 
@@ -410,6 +440,7 @@ export function FileExplorer() {
         className="flex flex-col h-full overflow-hidden select-none relative" 
         ref={explorerRef}
         onClick={handleBackgroundClick}
+        onContextMenu={handleBackgroundContextMenu}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-3 h-8 text-[11px] font-semibold tracking-wide uppercase text-text-tertiary border-b border-border-subtle shrink-0">
@@ -467,37 +498,84 @@ export function FileExplorer() {
             className="fixed z-50 w-48 bg-bg-secondary border border-border-default rounded shadow-xl py-1 flex flex-col"
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             <div className="px-3 py-1.5 text-xs text-text-tertiary border-b border-border-subtle mb-1 truncate">
-              {contextMenu.node.path}
+              {contextMenu.node ? contextMenu.node.path : "/"}
             </div>
             
-            <button className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" onClick={() => handleClipboardSim("Cut")}>
-              <Scissors size={14} /> Cut
-            </button>
-            <button className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" onClick={() => handleClipboardSim("Copy")}>
-              <Copy size={14} /> Copy
-            </button>
+            {(!contextMenu.node || contextMenu.node.isFolder) && (
+              <>
+                <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                  onClick={() => {
+                     setCreatingNode({ parentPath: contextMenu.node ? contextMenu.node.path : "/", isFolder: false });
+                     setContextMenu(null);
+                  }}
+                >
+                  <FilePlus size={14} /> New File
+                </button>
+                <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                  onClick={() => {
+                     setCreatingNode({ parentPath: contextMenu.node ? contextMenu.node.path : "/", isFolder: true });
+                     setContextMenu(null);
+                  }}
+                >
+                  <FolderPlus size={14} /> New Folder
+                </button>
+                {((!contextMenu.node && clipboard) || contextMenu.node) && (
+                   <div className="h-px bg-border-subtle my-1 w-full" />
+                )}
+              </>
+            )}
+
+            {contextMenu.node && (
+              <>
+                <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" 
+                  onClick={() => handleClipboardCmd("cut")}
+                >
+                  <Scissors size={14} /> Cut
+                </button>
+                <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" 
+                  onClick={() => handleClipboardCmd("copy")}
+                >
+                  <Copy size={14} /> Copy
+                </button>
+              </>
+            )}
+
+            {(!contextMenu.node || contextMenu.node.isFolder) && clipboard && (
+               <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" 
+                  onClick={handlePasteCmd}
+               >
+                  <Copy size={14} /> Paste
+               </button>
+            )}
             
-            <div className="h-px bg-border-subtle my-1 w-full" />
-            
-            <button 
-              className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
-              onClick={handleRenameStart}
-              disabled={contextMenu.node.path === "/"}
-            >
-              <Edit2 size={14} /> Rename
-            </button>
-            
-            <div className="h-px bg-border-subtle my-1 w-full" />
-            
-            <button 
-              className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#f87171] hover:bg-[#f87171]/10 bg-transparent border-none cursor-pointer w-full text-left"
-              onClick={handleDeleteStart}
-              disabled={contextMenu.node.path === "/"}
-            >
-              <Trash2 size={14} /> Delete
-            </button>
+            {contextMenu.node && (
+              <>
+                <div className="h-px bg-border-subtle my-1 w-full" />
+                <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                  onClick={handleRenameStart}
+                  disabled={contextMenu.node.path === "/"}
+                >
+                  <Edit2 size={14} /> Rename
+                </button>
+                <div className="h-px bg-border-subtle my-1 w-full" />
+                <button 
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#f87171] hover:bg-[#f87171]/10 bg-transparent border-none cursor-pointer w-full text-left"
+                  onClick={handleDeleteStart}
+                  disabled={contextMenu.node.path === "/"}
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

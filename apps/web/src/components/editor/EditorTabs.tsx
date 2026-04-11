@@ -84,7 +84,7 @@ export function EditorTabs({ groupId }: { groupId: string }) {
           className="flex items-center gap-1.5 px-4 border-l border-border-subtle bg-transparent text-text-secondary hover:text-text-primary hover:bg-white/5 cursor-pointer text-xs h-full shrink-0 outline-none font-medium transition-colors"
           onClick={() => openPreviewToSide(groupId)}
         >
-           {group.isPreviewMode ? <><Code size={14} /> Focus</> : <><Eye size={14} /> Splitting Preview</>}
+           {group.isPreviewMode ? <><Code size={14} /> Focus</> : <><Eye size={14} /> Preview</>}
         </button>
       )}
     </div>

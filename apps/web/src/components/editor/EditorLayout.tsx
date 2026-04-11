@@ -68,9 +68,9 @@ export function EditorLayout() {
   return (
     <div className="flex h-full overflow-hidden" ref={layoutRef}>
       {/* Activity Bar (Leftmost) */}
-      <div className="w-12 shrink-0 flex flex-col items-center py-2 gap-2 bg-bg-secondary border-r border-border-subtle z-20">
+      <div className="w-12 shrink-0 flex flex-col items-center py-1 gap-1 bg-bg-secondary border-r border-border-subtle z-20">
         <button
-          className={`flex items-center justify-center w-10 h-10 rounded-xl border-none cursor-pointer transition-all duration-200 ${
+          className={`flex items-center justify-center w-10 h-10 rounded-md border-none cursor-pointer transition-all duration-200 ${
             isExplorerOpen && sidebarTab === "files"
               ? "bg-accent-primary/10 text-accent-primary"
               : "bg-transparent text-text-tertiary hover:bg-white/5 hover:text-text-primary"
@@ -88,7 +88,7 @@ export function EditorLayout() {
         </button>
 
         <button
-          className={`flex items-center justify-center w-10 h-10 rounded-xl border-none cursor-pointer transition-all duration-200 ${
+          className={`flex items-center justify-center w-10 h-10 rounded-md border-none cursor-pointer transition-all duration-200 ${
             isExplorerOpen && sidebarTab === "search"
               ? "bg-accent-primary/10 text-accent-primary"
               : "bg-transparent text-text-tertiary hover:bg-white/5 hover:text-text-primary"

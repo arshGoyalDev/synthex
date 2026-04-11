@@ -35,6 +35,10 @@ interface EditorState {
   renameNode: (oldPath: string, newPath: string, newName: string) => void;
   deleteNode: (path: string) => void;
 
+  clipboard: { path: string; type: 'copy' | 'cut' } | null;
+  setClipboard: (path: string | null, type?: 'copy' | 'cut') => void;
+  pasteNode: (targetDir: string) => void;
+
   // Group-specific Actions
   openFile: (file: FileEntry, groupId?: string) => void;
   closeTab: (path: string, groupId: string) => void;
@@ -52,8 +56,8 @@ interface EditorState {
   setGlobalSearchQuery: (query: string) => void;
   activeSearchMatch: { path: string; line: number; ts: number } | null;
   setActiveSearchMatch: (path: string, line: number) => void;
-  replaceAll: (searchQuery: string, replaceQuery: string) => void;
-  replaceNext: (searchQuery: string, replaceQuery: string) => void;
+  replaceAll: (searchQuery: string, replaceQuery: string, excludedFiles?: Set<string>) => void;
+  replaceNext: (searchQuery: string, replaceQuery: string, excludedFiles?: Set<string>) => void;
 }
 
 /* ——— Dummy project files ——— */
@@ -130,6 +134,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isExplorerOpen: true,
   sidebarTab: "files",
   isTerminalOpen: true,
+  clipboard: null,
+
+  setClipboard: (path, type = 'copy') => set({ clipboard: path ? { path, type } : null }),
 
   globalSearchQuery: "",
   setGlobalSearchQuery: (query) => set({ globalSearchQuery: query }),
@@ -434,27 +441,94 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { files: newFiles, groups: newGroups };
     }),
 
-  replaceAll: (searchQuery, replaceQuery) =>
+  pasteNode: (targetDir: string) =>
+    set((state) => {
+      if (!state.clipboard) return state;
+      const { path: sourcePath, type } = state.clipboard;
+      const targetPath = targetDir === "/" ? "" : targetDir;
+      const sourceName = sourcePath.split("/").pop() || "";
+      let newPath = `${targetPath}/${sourceName}`;
+      
+      const newFiles = new Map(state.files);
+
+      // Prevent pasting into itself
+      if (targetDir === sourcePath || targetDir.startsWith(sourcePath + "/")) {
+         return state;
+      }
+
+      // Handle duplicate names on paste
+      if (newFiles.has(newPath)) {
+         if (type === 'cut') return state; // Don't allow cutting over existing files immediately
+         const nameBase = sourceName.includes('.') ? sourceName.split('.').slice(0, -1).join('.') : sourceName;
+         const ext = sourceName.includes('.') ? '.' + sourceName.split('.').pop() : '';
+         newPath = `${targetPath}/${nameBase}-copy${ext}`;
+      }
+
+      if (type === "cut") {
+        [...newFiles.entries()].forEach(([k, file]) => {
+          if (k === sourcePath) {
+            newFiles.delete(k);
+            newFiles.set(newPath, { ...file, path: newPath, name: newPath.split('/').pop()! });
+          } else if (k.startsWith(sourcePath + "/")) {
+            newFiles.delete(k);
+            const renamedPath = k.replace(sourcePath, newPath);
+            newFiles.set(renamedPath, { ...file, path: renamedPath, name: renamedPath.split('/').pop()! });
+          }
+        });
+        
+        const newGroups = { ...state.groups };
+        Object.keys(newGroups).forEach(gid => {
+           const group = newGroups[gid];
+           const newTabs = group.openTabs.map((t) => {
+              if (t === sourcePath) return newPath;
+              if (t.startsWith(sourcePath + "/")) return t.replace(sourcePath, newPath);
+              return t;
+            });
+            let newActive = group.activeFile;
+            if (newActive === sourcePath) newActive = newPath;
+            else if (newActive?.startsWith(sourcePath + "/"))
+               newActive = newActive.replace(sourcePath, newPath);
+            newGroups[gid] = { ...group, openTabs: newTabs, activeFile: newActive };
+        });
+
+        return { files: newFiles, groups: newGroups, clipboard: null }; 
+      } else {
+        const sourceFile = state.files.get(sourcePath);
+        if (sourceFile && !sourceFile.isFolder) {
+           newFiles.set(newPath, { ...sourceFile, path: newPath, name: newPath.split("/").pop()! });
+        } else {
+           [...state.files.entries()].forEach(([k, file]) => {
+             if (k === sourcePath || k.startsWith(sourcePath + "/")) {
+                const replacedPath = k.replace(sourcePath, newPath);
+                newFiles.set(replacedPath, { ...file, path: replacedPath, name: replacedPath.split("/").pop()! });
+             }
+           });
+        }
+        return { files: newFiles }; 
+      }
+    }),
+
+  replaceAll: (searchQuery, replaceQuery, excludedFiles = new Set()) =>
     set((state) => {
       if (!searchQuery) return state;
       const newFiles = new Map(state.files);
 
       [...newFiles.entries()].forEach(([k, file]) => {
-        if (!file.isFolder && file.content && file.content.includes(searchQuery)) {
+        if (!file.isFolder && file.content && file.content.includes(searchQuery) && !excludedFiles.has(k)) {
            newFiles.set(k, { ...file, content: file.content.split(searchQuery).join(replaceQuery) });
         }
       });
       return { files: newFiles };
     }),
 
-  replaceNext: (searchQuery, replaceQuery) => 
+  replaceNext: (searchQuery, replaceQuery, excludedFiles = new Set()) => 
     set((state) => {
       if (!searchQuery) return state;
       const newFiles = new Map(state.files);
       
       // Find the first file that contains the search query and replace its first instance
       for (const [k, file] of newFiles) {
-         if (!file.isFolder && file.content && file.content.includes(searchQuery)) {
+         if (!file.isFolder && file.content && file.content.includes(searchQuery) && !excludedFiles.has(k)) {
             newFiles.set(k, { ...file, content: file.content.replace(searchQuery, replaceQuery) });
             break; // Only replace one total instance across all files, then break
          }
