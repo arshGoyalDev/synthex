@@ -3,9 +3,18 @@ import { pubsub, redis } from "./database";
 
 const containerService = new ContainerService();
 
+interface ProjectData {
+  projectId: string;
+  projectName: string;
+  userId: string;
+  type: "raw" | "blank" | "template";
+  template: null | string;
+  languages: null | string[];
+}
+
 const registerSubscribers = async () => {
   await pubsub.subscribe("project:created", async (data) => {
-    const { projectId, userId } = data;
+    const { projectId } = data;
 
     console.log(
       "Received project:created event:",
@@ -13,7 +22,7 @@ const registerSubscribers = async () => {
       data.projectName,
     );
 
-    startContainerSetup(projectId, userId).catch((err) => {
+    startContainerSetup(data).catch((err) => {
       console.error(
         `[container-service] Unhandled error for ${projectId}:`,
         err.message,
@@ -30,7 +39,7 @@ const registerSubscribers = async () => {
       data.projectName,
     );
 
-    startContainerSetup(projectId, userId).catch((err) => {
+    startContainerSetup(data).catch((err) => {
       console.error(
         `[container-service] Unhandled error for ${projectId}:`,
         err.message,
@@ -40,7 +49,12 @@ const registerSubscribers = async () => {
 
   await pubsub.subscribe("project:stop", async (data) => {
     try {
-      // containerService.stopContainer
+      await containerService.stopContainer(data.projectId).catch((err) => {
+        console.error(
+          `[container-service] Unhandled error for ${data.projectId}:`,
+          err.message,
+        );
+      });
 
       await pubsub.publish("container:status", {
         projectId: data.projectId,
@@ -68,7 +82,9 @@ const registerSubscribers = async () => {
       `[container-service] Cleaning up timed out container for ${data.projectId}`,
     );
 
-    // await containerService.cleanupContainer(data.projectId)
+    await containerService.cleanupContainer(data.projectId).catch((err) => {
+      console.error("Cleanup failed:", err);
+    });
 
     await pubsub.publish("container:status", {
       projectId: data.projectId,
@@ -79,7 +95,8 @@ const registerSubscribers = async () => {
   });
 };
 
-const startContainerSetup = async (projectId: string, userId: string) => {
+const startContainerSetup = async (projectData: ProjectData) => {
+  const { projectId, userId, projectName, languages, template } = projectData;
   try {
     await pubsub.publish("container:status", {
       projectId,
@@ -88,7 +105,12 @@ const startContainerSetup = async (projectId: string, userId: string) => {
       message: "Setting up your environment...",
     });
 
-    // containerService.startContainer
+    await containerService.createProjectContainer(
+      projectId,
+      projectName,
+      languages ?? undefined,
+      template ?? undefined,
+    );
 
     await redis.del(`container:timeout:${projectId}`);
 
@@ -101,7 +123,7 @@ const startContainerSetup = async (projectId: string, userId: string) => {
   } catch (err: any) {
     console.error(`[container-service] Failed for ${projectId}:`, err);
 
-    // containerService.cleanupContainer()
+    await containerService.cleanupContainer(projectId).catch(() => {});
 
     await redis.del(`container:timeout:${projectId}`);
 
