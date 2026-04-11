@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
 import type { Project } from "../../types/project";
 import { IconDots, IconEdit, IconPin, IconTrash, IconCode } from "../icons";
-import { TEMPLATES } from "@synthex/types";
+import { TEMPLATES } from "@synthex/templates";
 
 /* ——— Language → colour mapping ——— */
-const LANG_COLORS: Record<string, { bg: string; text: string; accent: string }> = {
+const LANG_COLORS: Record<
+  string,
+  { bg: string; text: string; accent: string }
+> = {
   typescript: { bg: "#1e3a5f", text: "#60a5fa", accent: "#3b82f6" },
   javascript: { bg: "#4a3f1f", text: "#fbbf24", accent: "#f59e0b" },
   python: { bg: "#1e3a3a", text: "#34d399", accent: "#10b981" },
@@ -22,7 +25,7 @@ const DEFAULT_LANG = { bg: "#1a1a2e", text: "#a1a1aa", accent: "#71717a" };
 function getLang(lang?: string | string[]) {
   if (!lang) return DEFAULT_LANG;
   const mainLang = Array.isArray(lang) ? lang[0] : lang;
-  if (!mainLang || typeof mainLang !== 'string') return DEFAULT_LANG;
+  if (!mainLang || typeof mainLang !== "string") return DEFAULT_LANG;
   return LANG_COLORS[mainLang.toLowerCase()] ?? DEFAULT_LANG;
 }
 
@@ -159,27 +162,37 @@ export function ProjectCard({
   let badgeText = "RAW";
   if (project.type === "template" && project.template) {
     badgeText = TEMPLATES[project.template].name.toUpperCase();
-  } else if (project.type === "blank" && project.languages && project.languages.length > 0) {
-    badgeText = project.languages.length > 2 
-      ? `${project.languages.slice(0, 2).map(l => l.toUpperCase()).join(", ")} +${project.languages.length - 2}`
-      : project.languages.map(l => l.toUpperCase()).join(", ");
+  } else if (
+    project.type === "blank" &&
+    project.languages &&
+    project.languages.length > 0
+  ) {
+    badgeText =
+      project.languages.length > 2
+        ? `${project.languages
+            .slice(0, 2)
+            .map((l) => l.toUpperCase())
+            .join(", ")} +${project.languages.length - 2}`
+        : project.languages.map((l) => l.toUpperCase()).join(", ");
   }
 
   return (
-    <div 
+    <div
       onClick={onClick}
       className="group bg-bg-secondary border border-border-default rounded-xl hover:border-border-focus hover:shadow-xl hover:shadow-black/40 transition-all duration-300 cursor-pointer flex flex-col relative"
     >
-      <div 
+      <div
         className="absolute -top-0.5 left-0 right-0 rounded-t-xl h-20 opacity-70 group-hover:opacity-100 transition-opacity"
         style={{ backgroundColor: lang.accent }}
       />
       <div className="h-28 rounded-t-xl flex items-center justify-center bg-bg-dark relative overflow-hidden border-b border-border-subtle">
-        <div 
+        <div
           className="absolute inset-0 opacity-15 mix-blend-screen transition-opacity duration-300 group-hover:opacity-25"
-          style={{ background: `radial-gradient(circle at 50% 120%, ${lang.accent} 0%, transparent 70%)` }}
+          style={{
+            background: `radial-gradient(circle at 50% 120%, ${lang.accent} 0%, transparent 70%)`,
+          }}
         />
-        <div 
+        <div
           className="w-12 h-12 rounded-xl bg-surface-elevated border border-border-default flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform duration-300 z-10"
           style={{ color: lang.accent, borderColor: `${lang.accent}40` }}
         >
@@ -192,7 +205,11 @@ export function ProjectCard({
         )}
         <div
           className="absolute top-3 right-3 max-w-[140px] truncate px-2 py-0.5 rounded text-[10px] font-bold tracking-wider z-10 border shadow-sm backdrop-blur-md flex items-center justify-center transition-colors"
-          style={{ color: lang.text, backgroundColor: `${lang.bg}90`, borderColor: `${lang.accent}30` }}
+          style={{
+            color: lang.text,
+            backgroundColor: `${lang.bg}90`,
+            borderColor: `${lang.accent}30`,
+          }}
           title={project.languages?.join(", ") || project.template || "Raw"}
         >
           {badgeText}
@@ -213,11 +230,16 @@ export function ProjectCard({
           </div>
         </div>
         <p className="text-[13px] text-text-tertiary leading-snug line-clamp-2 m-0 flex-1">
-          {project.description || <span className="italic opacity-50">No description</span>}
+          {project.description || (
+            <span className="italic opacity-50">No description</span>
+          )}
         </p>
         <div className="flex items-center justify-between mt-3">
           <p className="text-[11px] font-medium text-text-tertiary m-0 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: lang.accent }} />
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: lang.accent }}
+            />
             {timeAgo(project.updatedAt)}
           </p>
         </div>

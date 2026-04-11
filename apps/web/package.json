@@ -25,7 +25,7 @@
     "socket.io-client": "^4.8.3",
     "tailwindcss": "^4.2.1",
     "zustand": "^5.0.11",
-    "@synthex/types": "*"
+    "@synthex/templates": "*"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

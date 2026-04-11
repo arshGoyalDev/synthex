@@ -14,7 +14,8 @@
     "db:migrate": "turbo run migrate --filter=@synthex/database",
     "db:generate": "turbo run generate --filter=@synthex/database",
     "db:studio": "turbo run studio --filter=@synthex/database",
-    "db:setup": "bun run db:up && sleep 5 && bun run db:generate && bun run db:migrate"
+    "db:setup": "bun run db:up && sleep 5 && bun run db:generate && bun run db:migrate",
+    "docker:build:base": "docker build -t synthex/base:latest -f packages/templates/base/Dockerfile.base ."
   },
   "devDependencies": {
     "prettier": "^3.7.4",

@@ -1,0 +1,25 @@
+FROM alpine:3.23
+
+RUN apk add --no-cache \
+    bash \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    openssl \
+    tar \
+    gzip \
+    unzip \
+    vim \
+    nano \
+    htop \
+    procps \
+    shadow \
+    su-exec
+
+RUN groupadd -r synthex && useradd -r -g synthex -m -d /home/synthex synthex
+
+WORKDIR /workspace
+RUN chown synthex:synthex /workspace
+
+SHELL ["/bin/bash", "-c"]
