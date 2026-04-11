@@ -1,20 +1,22 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import React from "react";
 import { FileExplorer } from "./FileExplorer";
-import { EditorTabs } from "./EditorTabs";
-import { CodeEditor } from "./CodeEditor";
 import { Terminal } from "./Terminal";
-import { EditorBreadcrumbs } from "./EditorBreadcrumbs";
-import { MarkdownPreview } from "./MarkdownPreview";
+import { Pane } from "./Pane";
 import { useEditorStore } from "../../stores/editor.store";
-import { Files } from "lucide-react";
+import { Files, Search } from "lucide-react";
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
+import { GlobalSearch } from "./GlobalSearch";
 
 export function EditorLayout() {
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [terminalHeight, setTerminalHeight] = useState(360);
+  
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
-  const isPreviewMode = useEditorStore((s) => s.isPreviewMode);
-  const activeFile = useEditorStore((s) => s.activeFile);
+  const sidebarTab = useEditorStore((s) => s.sidebarTab);
+  const setSidebarTab = useEditorStore((s) => s.setSidebarTab);
+  const grid = useEditorStore((s) => s.grid);
 
   const layoutRef = useRef<HTMLDivElement>(null);
   const draggingSidebar = useRef(false);
@@ -66,28 +68,52 @@ export function EditorLayout() {
   return (
     <div className="flex h-full overflow-hidden" ref={layoutRef}>
       {/* Activity Bar (Leftmost) */}
-      <div className="w-12 shrink-0 flex flex-col items-center py-2 bg-bg-secondary border-r border-border-subtle z-20">
+      <div className="w-12 shrink-0 flex flex-col items-center py-2 gap-2 bg-bg-secondary border-r border-border-subtle z-20">
         <button
           className={`flex items-center justify-center w-10 h-10 rounded-xl border-none cursor-pointer transition-all duration-200 ${
-            isExplorerOpen
+            isExplorerOpen && sidebarTab === "files"
               ? "bg-accent-primary/10 text-accent-primary"
               : "bg-transparent text-text-tertiary hover:bg-white/5 hover:text-text-primary"
           }`}
-          onClick={() => useEditorStore.getState().toggleExplorer()}
+          onClick={() => {
+            if (isExplorerOpen && sidebarTab === "files") {
+              useEditorStore.getState().toggleExplorer();
+            } else {
+              setSidebarTab("files");
+            }
+          }}
           title="Explorer"
         >
           <Files size={20} strokeWidth={2} />
         </button>
+
+        <button
+          className={`flex items-center justify-center w-10 h-10 rounded-xl border-none cursor-pointer transition-all duration-200 ${
+            isExplorerOpen && sidebarTab === "search"
+              ? "bg-accent-primary/10 text-accent-primary"
+              : "bg-transparent text-text-tertiary hover:bg-white/5 hover:text-text-primary"
+          }`}
+          onClick={() => {
+            if (isExplorerOpen && sidebarTab === "search") {
+              useEditorStore.getState().toggleExplorer();
+            } else {
+              setSidebarTab("search");
+            }
+          }}
+          title="Search"
+        >
+          <Search size={20} strokeWidth={2} />
+        </button>
       </div>
 
-      {/* File Explorer Pane */}
+      {/* Sidebar Pane */}
       {isExplorerOpen && (
         <>
           <aside
-            className="shrink-0 flex flex-col overflow-hidden border-r border-border-subtle bg-bg-secondary"
+            className="shrink-0 flex flex-col overflow-hidden border-r border-border-subtle bg-bg-secondary relative"
             style={{ width: sidebarWidth }}
           >
-            <FileExplorer />
+            {sidebarTab === "files" ? <FileExplorer /> : <GlobalSearch />}
           </aside>
 
           {/* Sidebar resize handle */}
@@ -100,17 +126,27 @@ export function EditorLayout() {
 
       {/* Right — Editor + Terminal */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Top — Tabs + Editor */}
-        <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-bg-primary">
-          <EditorTabs />
-          <EditorBreadcrumbs />
-          <div className="flex-1 relative flex flex-col min-h-0">
-            {isPreviewMode && activeFile?.endsWith(".md") ? (
-               <MarkdownPreview />
-            ) : (
-               <CodeEditor />
-            )}
-          </div>
+        {/* Top — Editor Grid */}
+        <div className="flex-1 flex flex-col bg-bg-dark-secondary overflow-hidden min-h-0">
+           <PanelGroup orientation="vertical">
+              {grid.map((row, rIdx) => (
+                 <React.Fragment key={rIdx}>
+                    {rIdx > 0 && <PanelResizeHandle className="h-[2px] bg-border-subtle hover:bg-accent-primary transition-colors cursor-row-resize relative z-10" />}
+                    <Panel minSize={5} className="flex flex-col min-h-0 min-w-0">
+                       <PanelGroup orientation="horizontal">
+                          {row.map((groupId, cIdx) => (
+                             <React.Fragment key={groupId}>
+                                {cIdx > 0 && <PanelResizeHandle className="w-[2px] bg-border-subtle hover:bg-accent-primary transition-colors cursor-col-resize relative z-10" />}
+                                <Panel minSize={5} className="flex flex-col min-h-0 min-w-0 bg-bg-primary">
+                                   <Pane groupId={groupId} />
+                                </Panel>
+                             </React.Fragment>
+                          ))}
+                       </PanelGroup>
+                    </Panel>
+                 </React.Fragment>
+              ))}
+           </PanelGroup>
         </div>
 
         {/* Bottom — Terminal */}

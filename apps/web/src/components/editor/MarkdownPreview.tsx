@@ -2,10 +2,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useEditorStore } from "../../stores/editor.store";
 
-export function MarkdownPreview() {
-  const activeFile = useEditorStore((s) => s.activeFile);
+export function MarkdownPreview({ groupId }: { groupId: string }) {
+  const group = useEditorStore((s) => s.groups[groupId]);
   const files = useEditorStore((s) => s.files);
-  const content = activeFile ? files.get(activeFile)?.content || "" : "";
+
+  if (!group || !group.activeFile) return null;
+
+  const content = files.get(group.activeFile)?.content || "";
 
   return (
     <div className="absolute inset-0 overflow-y-auto px-8 py-6 bg-bg-primary">

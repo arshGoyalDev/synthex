@@ -26,7 +26,7 @@ export function FilePalette() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   
   const filesMap = useEditorStore((s) => s.files);
-  const openTabs = useEditorStore((s) => s.openTabs);
+  const groups = useEditorStore((s) => s.groups);
   const openFile = useEditorStore((s) => s.openFile);
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -67,8 +67,9 @@ export function FilePalette() {
 
   let filteredFiles: FileEntry[] = [];
   if (query.trim() === "") {
-    // Default to open tabs
-    filteredFiles = openTabs
+    // Default to open tabs across all split view groups
+    const allOpenTabs = Array.from(new Set(Object.values(groups).flatMap(g => g.openTabs)));
+    filteredFiles = allOpenTabs
       .map((path) => filesMap.get(path))
       .filter(Boolean) as FileEntry[];
   } else {

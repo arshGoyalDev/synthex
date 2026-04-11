@@ -124,3 +124,13 @@ body {
 .monaco-editor .monaco-editor-background {
   background: var(--color-bg-primary) !important;
 }
+
+/* Monaco Decorators */
+.monaco-editor .search-match-highlight {
+  background-color: rgba(234, 179, 8, 0.4) !important;
+  border-radius: 2px;
+}
+
+.monaco-editor .line-flash-highlight {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+}

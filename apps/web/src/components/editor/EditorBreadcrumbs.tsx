@@ -16,12 +16,12 @@ function getLocalFileIcon(name: string) {
   }
 }
 
-export function EditorBreadcrumbs() {
-  const activeFile = useEditorStore((s) => s.activeFile);
+export function EditorBreadcrumbs({ groupId }: { groupId: string }) {
+  const group = useEditorStore((s) => s.groups[groupId]);
   
-  if (!activeFile) return null;
+  if (!group || !group.activeFile) return null;
 
-  const parts = activeFile.split("/").filter(Boolean);
+  const parts = group.activeFile.split("/").filter(Boolean);
 
   return (
     <div className="flex items-center px-4 h-6 shrink-0 bg-bg-primary border-b border-border-subtle text-[12px] font-mono text-text-tertiary select-none">

@@ -180,7 +180,8 @@ function TreeItem({
   onCreateCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState(depth < 2);
-  const activeFile = useEditorStore((s) => s.activeFile);
+  const activeGroupId = useEditorStore((s) => s.activeGroupId);
+  const activeFile = useEditorStore((s) => s.groups[activeGroupId]?.activeFile);
   const openFile = useEditorStore((s) => s.openFile);
   const files = useEditorStore((s) => s.files);
 
@@ -228,6 +229,13 @@ function TreeItem({
       <button
         onClick={handleClick}
         onContextMenu={(e) => { e.preventDefault(); onContextMenu(e, node); }}
+        draggable={!node.isFolder}
+        onDragStart={(e) => {
+           if (!node.isFolder) {
+              e.dataTransfer.setData("application/vnd.synthex.file", node.path);
+              e.dataTransfer.effectAllowed = "copyMove";
+           }
+        }}
         className={`group flex items-center gap-1 w-full h-7 border-none bg-transparent text-[13px] font-sans cursor-pointer transition-colors duration-100 text-left whitespace-nowrap hover:bg-white/[0.04] ${
           isActive 
             ? "bg-accent-primary/10 text-text-primary" 

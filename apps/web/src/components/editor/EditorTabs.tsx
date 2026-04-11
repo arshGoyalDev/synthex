@@ -19,39 +19,42 @@ function getFileIcon(name: string) {
   }
 }
 
-export function EditorTabs() {
-  const openTabs = useEditorStore((s) => s.openTabs);
-  const activeFile = useEditorStore((s) => s.activeFile);
+export function EditorTabs({ groupId }: { groupId: string }) {
+  const group = useEditorStore((s) => s.groups[groupId]);
   const setActiveFile = useEditorStore((s) => s.setActiveFile);
   const closeTab = useEditorStore((s) => s.closeTab);
+  const openPreviewToSide = useEditorStore((s) => s.openPreviewToSide);
   const files = useEditorStore((s) => s.files);
-  const isPreviewMode = useEditorStore((s) => s.isPreviewMode);
-  const togglePreviewMode = useEditorStore((s) => s.togglePreviewMode);
 
-  if (openTabs.length === 0) return null;
+  if (!group || group.openTabs.length === 0) return null;
 
-  const activeFileObj = files.get(activeFile || "");
+  const activeFileObj = files.get(group.activeFile || "");
   const isMarkdown = activeFileObj?.name?.endsWith(".md");
 
   return (
-    <div className="flex items-stretch bg-bg-dark-secondary border-b border-border-subtle shrink-0 h-[38px] overflow-hidden justify-between">
+    <div className="flex items-stretch bg-bg-dark-secondary border-b border-border-subtle shrink-0 h-[32px] overflow-hidden justify-between">
       <div className="flex items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-1">
-        {openTabs.map((path) => {
+        {group.openTabs.map((path) => {
           const file = files.get(path);
           if (!file) return null;
-          const isActive = path === activeFile;
+          const isActive = path === group.activeFile;
           return (
             <button
               key={path}
-              className={`group flex items-center gap-0.5 pl-4 pr-2 h-full border-r border-border-subtle bg-transparent text-[13px] font-sans cursor-pointer whitespace-nowrap transition-colors duration-150 shrink-0 relative ${
+              draggable
+              onDragStart={(e) => {
+                 e.dataTransfer.setData("application/vnd.synthex.tab", JSON.stringify({ path, sourceGroupId: groupId }));
+                 e.dataTransfer.effectAllowed = "move";
+              }}
+              className={`group flex items-center gap-0.5 pl-3 pr-1 h-full border-r border-border-subtle bg-transparent text-[12px] font-sans cursor-pointer whitespace-nowrap transition-colors duration-150 shrink-0 relative ${
                 isActive
                   ? "bg-bg-primary text-text-primary"
                   : "text-text-tertiary hover:text-text-secondary hover:bg-white/[0.03]"
               }`}
-              onClick={() => setActiveFile(path)}
+              onClick={() => setActiveFile(path, groupId)}
             >
               {getFileIcon(file.name)}
-              <span className={`pointer-events-none ${isActive ? "font-medium" : "font-normal"}`}>
+              <span className={`pointer-events-none ${isActive ? "text-text-primary" : "text-text-secondary"}`}>
                 {file.name}
               </span>
               <span
@@ -60,7 +63,7 @@ export function EditorTabs() {
                 }`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  closeTab(path);
+                  closeTab(path, groupId);
                 }}
               >
                 <X size={14} />
@@ -68,7 +71,7 @@ export function EditorTabs() {
 
               {/* Active indicator bar */}
               {isActive && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary rounded-t" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary rounded-t pointer-events-none" />
               )}
             </button>
           );
@@ -79,9 +82,9 @@ export function EditorTabs() {
       {isMarkdown && (
         <button 
           className="flex items-center gap-1.5 px-4 border-l border-border-subtle bg-transparent text-text-secondary hover:text-text-primary hover:bg-white/5 cursor-pointer text-xs h-full shrink-0 outline-none font-medium transition-colors"
-          onClick={togglePreviewMode}
+          onClick={() => openPreviewToSide(groupId)}
         >
-           {isPreviewMode ? <><Code size={14} /> Code</> : <><Eye size={14} /> Preview</>}
+           {group.isPreviewMode ? <><Code size={14} /> Focus</> : <><Eye size={14} /> Splitting Preview</>}
         </button>
       )}
     </div>

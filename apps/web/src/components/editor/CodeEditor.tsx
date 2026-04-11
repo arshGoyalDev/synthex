@@ -1,13 +1,88 @@
 import Editor from "@monaco-editor/react";
+import { useRef, useEffect } from "react";
 import { useEditorStore } from "../../stores/editor.store";
 import { Loader2 } from "lucide-react";
 
-export function CodeEditor() {
-  const activeFile = useEditorStore((s) => s.activeFile);
+export function CodeEditor({ groupId }: { groupId: string }) {
+  const group = useEditorStore((s) => s.groups[groupId]);
   const files = useEditorStore((s) => s.files);
   const updateFileContent = useEditorStore((s) => s.updateFileContent);
+  const globalSearchQuery = useEditorStore((s) => s.globalSearchQuery);
+  const flashLine = useEditorStore((s) => s.flashLine);
 
-  const file = activeFile ? files.get(activeFile) : null;
+  const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+  const searchDecorationsRef = useRef<any>(null);
+  const flashDecorationsRef = useRef<any>(null);
+
+  const file = group && group.activeFile ? files.get(group.activeFile) : null;
+
+  const handleEditorMount = (editor: any, monaco: any) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+  };
+
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    
+    if (!searchDecorationsRef.current) {
+      searchDecorationsRef.current = editor.createDecorationsCollection();
+    }
+    
+    if (!globalSearchQuery || !file?.content) {
+      searchDecorationsRef.current.set([]);
+      return;
+    }
+
+    const model = editor.getModel();
+    if (!model) return;
+
+    const matches = model.findMatches(globalSearchQuery, false, false, false, null, true);
+    const decorations = matches.map((match: any) => ({
+      range: match.range,
+      options: {
+        inlineClassName: 'search-match-highlight',
+        overviewRuler: {
+          color: 'rgba(234, 179, 8, 0.4)',
+          position: monaco.editor.OverviewRulerLane.Right
+        }
+      }
+    }));
+    searchDecorationsRef.current.set(decorations);
+  }, [globalSearchQuery, file?.content, file?.path]);
+
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current || !flashLine || !file) return;
+    
+    if (flashLine.path === file.path) {
+      const editor = editorRef.current;
+      const monaco = monacoRef.current;
+
+      editor.revealLineInCenter(flashLine.line);
+
+      if (!flashDecorationsRef.current) {
+        flashDecorationsRef.current = editor.createDecorationsCollection();
+      }
+
+      flashDecorationsRef.current.set([{
+        range: new monaco.Range(flashLine.line, 1, flashLine.line, 1),
+        options: {
+          isWholeLine: true,
+          className: 'line-flash-highlight'
+        }
+      }]);
+
+      const timeout = setTimeout(() => {
+        if (flashDecorationsRef.current) {
+          flashDecorationsRef.current.set([]);
+        }
+      }, 1500);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [flashLine, file?.path]);
 
   if (!file) {
     return (
@@ -37,13 +112,14 @@ export function CodeEditor() {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-hidden">
+    <div className="flex-1 min-h-0 overflow-hidden relative">
       <Editor
-        key={file.path}
+        key={file.path + groupId}
         height="100%"
         language={file.language}
         value={file.content}
         theme="vs-dark"
+        onMount={handleEditorMount}
         onChange={(value) => {
           if (value !== undefined) {
             updateFileContent(file.path, value);
