@@ -117,3 +117,9 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f50;
 }
+
+/* ——— Monaco overrides ——— */
+.monaco-editor .margin,
+.monaco-editor .monaco-editor-background {
+  background: var(--color-bg-primary) !important;
+}

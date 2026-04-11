@@ -4,7 +4,9 @@ import { useSocket } from "../../contexts/SocketContext";
 import { getProjectById, startProject, stopProject } from "../../services/project.service";
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
-import { Loader2, Play, Square, AlertCircle } from "lucide-react";
+import { useEditorStore } from "../../stores/editor.store";
+import { Loader2, Play, Square, AlertCircle, ChevronLeft } from "lucide-react";
+import { EditorLayout } from "../../components/editor/EditorLayout";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -15,6 +17,11 @@ function ProjectPage() {
   const navigate = useNavigate();
   const { socket, isConnected } = useSocket();
   const projects = useProjectStore((s) => s.projects);
+  
+  const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
+  const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
+  const toggleExplorer = useEditorStore((s) => s.toggleExplorer);
+  const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
   
   const [project, setProject] = useState<Project | null>(() => projects.find((p) => p.id === projectId) || null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +51,6 @@ function ProjectPage() {
 
           if (initialStatus !== "ready" && initialStatus !== "starting" && initialStatus !== "pending") {
             try {
-              // Also wait for start to complete to show a smooth loading if needed
               const startData = await startProject(projectId);
               if (!isCancelled && currentStatusRef.current !== "ready") {
                 setContainerStatus(startData.status);
@@ -72,7 +78,7 @@ function ProjectPage() {
     return () => {
       isCancelled = true;
     };
-  }, [projectId]); // not adding 'projects' to avoid re-triggering, this acts as mount check
+  }, [projectId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -116,6 +122,7 @@ function ProjectPage() {
     }
   };
 
+  /* ——— Loading state ——— */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-primary text-text-primary flex-col gap-4">
@@ -125,6 +132,7 @@ function ProjectPage() {
     );
   }
 
+  /* ——— Project not found ——— */
   if (!project) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-primary text-text-primary">
@@ -137,14 +145,24 @@ function ProjectPage() {
     );
   }
 
+  /* ——— Main editor view ——— */
   return (
-    <div className="min-h-screen bg-bg-primary flex flex-col text-text-primary">
+    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
       {/* Top Navbar */}
-      <header className="h-14 border-b border-border-default flex items-center justify-between px-4 bg-bg-secondary shrink-0">
+      <header className="h-[42px] flex items-center justify-between px-3 bg-bg-secondary border-b border-border-subtle shrink-0 gap-2">
         <div className="flex items-center gap-3">
-          <h1 className="font-semibold text-sm">{project.name}</h1>
-          <div className="flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-md bg-bg-tertiary">
-            <span className={`w-2 h-2 rounded-full ${
+          <button
+            className="flex items-center justify-center w-7 h-7 rounded-md border-none bg-transparent text-text-secondary cursor-pointer transition-all duration-150 hover:bg-bg-tertiary hover:text-text-primary"
+            onClick={() => navigate({ to: "/" })}
+            title="Back to Dashboard"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div className="w-px h-[18px] bg-border-subtle mx-1" />
+          <h1 className="font-semibold text-sm truncate max-w-50">{project.name}</h1>
+          <div className="flex items-center gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md bg-bg-tertiary text-text-secondary">
+            <span className={`w-[7px] h-[7px] rounded-full shrink-0 ${
               containerStatus === "ready" ? "bg-green-500" :
               containerStatus === "pending" || containerStatus === "starting" ? "bg-yellow-500 animate-pulse" :
               containerStatus === "error" ? "bg-red-500" :
@@ -155,66 +173,31 @@ function ProjectPage() {
         </div>
         
         <div className="flex items-center gap-2">
-          <span className="text-xs text-text-tertiary mr-2">Socket: {isConnected ? "Connected" : "Disconnected"}</span>
+          <span className="text-xs text-text-tertiary mr-2 hidden sm:inline">
+            {isConnected ? "● Connected" : "○ Disconnected"}
+          </span>
           {(containerStatus === "stopped" || containerStatus === "timeout" || containerStatus === "error" || containerStatus === "unknown") && (
             <button
               onClick={handleStart}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-accent-primary hover:bg-accent-hover text-white rounded-md transition-colors"
+              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
             >
-              <Play size={14} /> Start Environment
+              <Play size={13} /> Start
             </button>
           )}
           {containerStatus === "ready" && (
             <button
               onClick={handleStop}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-red-500 hover:bg-red-600 text-white rounded-md transition-colors"
+              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-status-error hover:bg-red-600"
             >
-              <Square size={14} /> Stop
+              <Square size={13} /> Stop
             </button>
           )}
         </div>
       </header>
       
       {/* Workspace Area */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-64 border-r border-border-default bg-bg-secondary hidden md:flex flex-col">
-          <div className="p-3 border-b border-border-subtle text-xs font-semibold text-text-secondary uppercase tracking-wider">
-            Files
-          </div>
-          <div className="p-4 flex-1 text-sm text-text-tertiary text-center flex items-center justify-center">
-            File tree not implemented yet.
-          </div>
-        </aside>
-        
-        {/* Editor & Terminal Area */}
-        <div className="flex-1 flex flex-col bg-bg-primary">
-          <div className="flex-1 flex items-center justify-center text-text-tertiary border-b border-border-default">
-            {containerStatus === "ready" ? (
-               <p>Editor Area. Status: Ready.</p>
-            ) : (
-               <div className="flex flex-col items-center gap-4">
-                 {containerStatus === "pending" || containerStatus === "starting" ? (
-                   <>
-                    <Loader2 className="w-8 h-8 animate-spin text-accent-primary" />
-                    <p>Starting container environment...</p>
-                    {containerMsg && <p className="text-sm text-text-secondary">{containerMsg}</p>}
-                   </>
-                 ) : (
-                   <p>Start the environment to write code.</p>
-                 )}
-               </div>
-            )}
-          </div>
-          
-          <div className="h-64 bg-[#1e1e1e] p-4 font-mono text-sm overflow-y-auto text-gray-300">
-             <div className="text-gray-500 mb-2">// Terminal Output</div>
-             <div className="flex gap-2">
-               <span className="text-green-400">➜</span>
-               <span>~</span>
-             </div>
-          </div>
-        </div>
+      <main className="flex-1 overflow-hidden">
+        <EditorLayout />
       </main>
     </div>
   );
