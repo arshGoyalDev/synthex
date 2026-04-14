@@ -3,16 +3,16 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-bg-primary: #0a0a0f;
-  --color-bg-secondary: #12121a;
-  --color-bg-tertiary: #1a1a26;
-  --color-bg-card: #14141e;
-  --color-bg-card-hover: #1a1a28;
-  --color-bg-dark: #08080c;
-  --color-bg-dark-secondary: #0e0e16;
+  --color-bg-primary: #0d0d0d;
+  --color-bg-secondary: #141414;
+  --color-bg-tertiary: #1c1c1c;
+  --color-bg-card: #141414;
+  --color-bg-card-hover: #1c1c1c;
+  --color-bg-dark: #0a0a0a;
+  --color-bg-dark-secondary: #0d0d0d;
 
-  --color-border-subtle: #1e1e2e;
-  --color-border-default: #2a2a3c;
+  --color-border-subtle: #262626;
+  --color-border-default: #333333;
   --color-border-focus: rgba(22, 163, 74, 0.5);
 
   --color-text-primary: #e4e4e7;
@@ -27,7 +27,7 @@
   --color-accent-light: rgba(22, 163, 74, 0.12);
   --color-accent-glow: rgba(22, 163, 74, 0.15);
 
-  --color-surface-elevated: #16161e;
+  --color-surface-elevated: #1c1c1c;
   --color-surface-overlay: rgba(255, 255, 255, 0.03);
 
   --color-status-error: #ef4444;
@@ -89,6 +89,25 @@ body {
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Monaco overflow widgets mounted on document.body */
+  --vscode-menu-background: #141414;
+  --vscode-menu-foreground: #a1a1aa;
+  --vscode-menu-selectionBackground: #16a34a33;
+  --vscode-menu-selectionForeground: #e4e4e7;
+  --vscode-menu-border: #333333;
+  --vscode-menu-separatorBackground: #262626;
+  --vscode-list-hoverBackground: #16a34a33;
+  --vscode-list-activeSelectionBackground: #16a34a33;
+  --vscode-list-inactiveSelectionBackground: #16a34a33;
+  --vscode-list-focusBackground: #16a34a33;
+  --vscode-list-hoverForeground: #e4e4e7;
+  --vscode-list-focusForeground: #e4e4e7;
+  --vscode-editorWidget-background: #141414;
+  --vscode-editorWidget-foreground: #a1a1aa;
+  --vscode-editorWidget-border: #333333;
+  --vscode-quickInput-background: #141414;
+  --vscode-quickInput-foreground: #a1a1aa;
 }
 
 /* ——— Utility classes ——— */
@@ -111,12 +130,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2a3c;
+  background: #333333;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f50;
+  background: #404040;
 }
 
 /* ——— Monaco overrides ——— */
@@ -133,4 +152,69 @@ body {
 
 .monaco-editor .line-flash-highlight {
   background-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Monaco context + command palette layering */
+.monaco-menu-container,
+.quick-input-widget {
+  z-index: 220 !important;
+}
+
+.context-view {
+  z-index: 1300 !important;
+}
+
+/* Place Monaco command palette to match FilePalette position */
+.quick-input-widget {
+  position: fixed !important;
+  top: 4rem !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 620px !important;
+  max-width: 92vw !important;
+  margin: 0 !important;
+}
+
+.quick-input-widget .quick-input-header {
+  background: var(--color-bg-secondary) !important;
+  border-bottom: 1px solid var(--color-border-subtle) !important;
+}
+
+/* Monaco context menu base colors (for body-mounted overflow widgets) */
+.monaco-menu-container .monaco-menu,
+.monaco-menu-container .monaco-menu .monaco-action-bar {
+  background-color: var(--color-bg-secondary) !important;
+  color: var(--color-text-secondary) !important;
+  border: 1px solid var(--color-border-default) !important;
+}
+
+.monaco-menu-container .monaco-menu .action-item .action-label,
+.monaco-menu-container .monaco-menu .action-item .action-label * {
+  color: var(--color-text-secondary) !important;
+}
+
+.monaco-menu-container .monaco-menu .action-item.disabled .action-label,
+.monaco-menu-container .monaco-menu .action-item.disabled .action-label * {
+  color: var(--color-text-tertiary) !important;
+}
+
+/* Monaco menu row hover/active to match explorer */
+.monaco-menu .monaco-action-bar .action-item .action-label:hover,
+.monaco-menu .monaco-action-bar .action-item.focused .action-label,
+.monaco-menu .monaco-action-bar .action-item.active .action-label {
+  background-color: rgba(22, 163, 74, 0.2) !important;
+  color: var(--color-text-primary) !important;
+}
+
+/* Keep highlighted row text/icons readable */
+.monaco-menu .monaco-action-bar .action-item .action-label:hover *,
+.monaco-menu .monaco-action-bar .action-item.focused .action-label *,
+.monaco-menu .monaco-action-bar .action-item.active .action-label * {
+  color: var(--color-text-primary) !important;
+}
+
+/* Monaco quick input (command palette) row highlight */
+.quick-input-widget .monaco-list .monaco-list-row.focused,
+.quick-input-widget .monaco-list .monaco-list-row:hover {
+  background-color: rgba(22, 163, 74, 0.2) !important;
 }

@@ -17,26 +17,26 @@ export interface EditorGroup {
 
 interface EditorState {
   files: Map<string, FileEntry>;
-  
+
   // Split view state
   groups: Record<string, EditorGroup>;
   grid: string[][]; // outer = rows, inner = cols
   activeGroupId: string;
 
   isExplorerOpen: boolean;
-  sidebarTab: 'files' | 'search';
+  sidebarTab: "files" | "search";
   isTerminalOpen: boolean;
 
   // Global Actions
   toggleExplorer: () => void;
-  setSidebarTab: (tab: 'files' | 'search') => void;
+  setSidebarTab: (tab: "files" | "search") => void;
   toggleTerminal: () => void;
   createNode: (path: string, name: string, isFolder: boolean) => void;
   renameNode: (oldPath: string, newPath: string, newName: string) => void;
   deleteNode: (path: string) => void;
 
-  clipboard: { path: string; type: 'copy' | 'cut' } | null;
-  setClipboard: (path: string | null, type?: 'copy' | 'cut') => void;
+  clipboard: { path: string; type: "copy" | "cut" } | null;
+  setClipboard: (path: string | null, type?: "copy" | "cut") => void;
   pasteNode: (targetDir: string) => void;
 
   // Group-specific Actions
@@ -45,10 +45,14 @@ interface EditorState {
   setActiveFile: (path: string, groupId: string) => void;
   updateFileContent: (path: string, content: string) => void;
   openPreviewToSide: (groupId: string) => void;
-  
+
   // Split View Routing
   setActiveGroup: (groupId: string) => void;
-  splitPane: (path: string, direction: "left" | "right" | "top" | "bottom", targetGroupId: string) => void;
+  splitPane: (
+    path: string,
+    direction: "left" | "right" | "top" | "bottom",
+    targetGroupId: string,
+  ) => void;
   closeGroup: (groupId: string) => void;
 
   // Search and Replace
@@ -56,8 +60,16 @@ interface EditorState {
   setGlobalSearchQuery: (query: string) => void;
   activeSearchMatch: { path: string; line: number; ts: number } | null;
   setActiveSearchMatch: (path: string, line: number) => void;
-  replaceAll: (searchQuery: string, replaceQuery: string, excludedFiles?: Set<string>) => void;
-  replaceNext: (searchQuery: string, replaceQuery: string, excludedFiles?: Set<string>) => void;
+  replaceAll: (
+    searchQuery: string,
+    replaceQuery: string,
+    excludedFiles?: Set<string>,
+  ) => void;
+  replaceNext: (
+    searchQuery: string,
+    replaceQuery: string,
+    excludedFiles?: Set<string>,
+  ) => void;
 }
 
 /* ——— Dummy project files ——— */
@@ -117,16 +129,16 @@ DUMMY_FILES.forEach((f) => initialFiles.set(f.path, f));
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
-export const useEditorStore = create<EditorState>((set, get) => ({
+export const useEditorStore = create<EditorState>((set) => ({
   files: initialFiles,
-  
+
   groups: {
-    "main": {
+    main: {
       id: "main",
       openTabs: ["/src/main.tsx", "/src/App.tsx", "/README.md"],
       activeFile: "/src/main.tsx",
       isPreviewMode: false,
-    }
+    },
   },
   grid: [["main"]],
   activeGroupId: "main",
@@ -136,23 +148,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isTerminalOpen: true,
   clipboard: null,
 
-  setClipboard: (path, type = 'copy') => set({ clipboard: path ? { path, type } : null }),
+  setClipboard: (path, type = "copy") =>
+    set({ clipboard: path ? { path, type } : null }),
 
   globalSearchQuery: "",
   setGlobalSearchQuery: (query) => set({ globalSearchQuery: query }),
   activeSearchMatch: null,
-  setActiveSearchMatch: (path, line) => set({ activeSearchMatch: { path, line, ts: Date.now() } }),
+  setActiveSearchMatch: (path, line) =>
+    set({ activeSearchMatch: { path, line, ts: Date.now() } }),
 
-  toggleExplorer: () => set((state) => ({ 
-     isExplorerOpen: !state.isExplorerOpen,
-     activeSearchMatch: (!state.isExplorerOpen) ? state.activeSearchMatch : null // clear on close via toggle
-  })),
-  setSidebarTab: (tab) => set((state) => ({ 
-     sidebarTab: tab, 
-     isExplorerOpen: true,
-     activeSearchMatch: tab === "search" ? state.activeSearchMatch : null // clear if tab changes
-  })),
-  toggleTerminal: () => set((state) => ({ isTerminalOpen: !state.isTerminalOpen })),
+  toggleExplorer: () =>
+    set((state) => ({
+      isExplorerOpen: !state.isExplorerOpen,
+      activeSearchMatch: !state.isExplorerOpen ? state.activeSearchMatch : null, // clear on close via toggle
+    })),
+  setSidebarTab: (tab) =>
+    set((state) => ({
+      sidebarTab: tab,
+      isExplorerOpen: true,
+      activeSearchMatch: tab === "search" ? state.activeSearchMatch : null, // clear if tab changes
+    })),
+  toggleTerminal: () =>
+    set((state) => ({ isTerminalOpen: !state.isTerminalOpen })),
 
   setActiveGroup: (groupId) => set({ activeGroupId: groupId }),
 
@@ -164,18 +181,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       const newFiles = new Map(state.files);
       newFiles.set(file.path, file);
-      
+
       const newTabs = group.openTabs.includes(file.path)
         ? group.openTabs
         : [...group.openTabs, file.path];
-      
-      return { 
-        files: newFiles, 
+
+      return {
+        files: newFiles,
         groups: {
           ...state.groups,
-          [groupId]: { ...group, openTabs: newTabs, activeFile: file.path, isPreviewMode: false }
+          [groupId]: {
+            ...group,
+            openTabs: newTabs,
+            activeFile: file.path,
+            isPreviewMode: false,
+          },
         },
-        activeGroupId: groupId
+        activeGroupId: groupId,
       };
     }),
 
@@ -185,31 +207,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!group) return state;
 
       const newTabs = group.openTabs.filter((t) => t !== path);
-      
+
       if (newTabs.length === 0) {
-        const isOnlyGroup = state.grid.length === 1 && state.grid[0].length === 1;
+        const isOnlyGroup =
+          state.grid.length === 1 && state.grid[0].length === 1;
         if (isOnlyGroup) {
-           return {
-             groups: {
-               ...state.groups,
-               [groupId]: { ...group, openTabs: [], activeFile: null }
-             }
-           };
+          return {
+            groups: {
+              ...state.groups,
+              [groupId]: { ...group, openTabs: [], activeFile: null },
+            },
+          };
         } else {
-           const newGrid = state.grid.map(row => row.filter(id => id !== groupId)).filter(row => row.length > 0);
-           const newGroups = { ...state.groups };
-           delete newGroups[groupId];
+          const newGrid = state.grid
+            .map((row) => row.filter((id) => id !== groupId))
+            .filter((row) => row.length > 0);
+          const newGroups = { ...state.groups };
+          delete newGroups[groupId];
 
-           let newActiveGroupId = state.activeGroupId;
-           if (newActiveGroupId === groupId) {
-              newActiveGroupId = newGrid[0]?.[newGrid[0].length - 1]; // Pick last in first row as default
-           }
+          let newActiveGroupId = state.activeGroupId;
+          if (newActiveGroupId === groupId) {
+            newActiveGroupId = newGrid[0]?.[newGrid[0].length - 1]; // Pick last in first row as default
+          }
 
-           return {
-              grid: newGrid,
-              groups: newGroups,
-              activeGroupId: newActiveGroupId
-           };
+          return {
+            grid: newGrid,
+            groups: newGroups,
+            activeGroupId: newActiveGroupId,
+          };
         }
       }
 
@@ -221,43 +246,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         groups: {
           ...state.groups,
-          [groupId]: { ...group, openTabs: newTabs, activeFile: newActive }
-        }
+          [groupId]: { ...group, openTabs: newTabs, activeFile: newActive },
+        },
       };
     }),
 
-  closeGroup: (groupId) => 
+  closeGroup: (groupId) =>
     set((state) => {
       const isOnlyGroup = state.grid.length === 1 && state.grid[0].length === 1;
       if (isOnlyGroup) return state;
 
-      const newGrid = state.grid.map(row => row.filter(id => id !== groupId)).filter(row => row.length > 0);
+      const newGrid = state.grid
+        .map((row) => row.filter((id) => id !== groupId))
+        .filter((row) => row.length > 0);
       const newGroups = { ...state.groups };
       delete newGroups[groupId];
 
       let newActiveGroupId = state.activeGroupId;
       if (newActiveGroupId === groupId) {
-         newActiveGroupId = newGrid[0]?.[newGrid[0].length - 1];
+        newActiveGroupId = newGrid[0]?.[newGrid[0].length - 1];
       }
 
       return {
-         grid: newGrid,
-         groups: newGroups,
-         activeGroupId: newActiveGroupId
+        grid: newGrid,
+        groups: newGroups,
+        activeGroupId: newActiveGroupId,
       };
     }),
 
-  setActiveFile: (path, groupId) => set((state) => {
-    const group = state.groups[groupId];
-    if (!group) return state;
-    return {
-      groups: {
-        ...state.groups,
-        [groupId]: { ...group, activeFile: path, isPreviewMode: false }
-      },
-      activeGroupId: groupId
-    };
-  }),
+  setActiveFile: (path, groupId) =>
+    set((state) => {
+      const group = state.groups[groupId];
+      if (!group) return state;
+      return {
+        groups: {
+          ...state.groups,
+          [groupId]: { ...group, activeFile: path, isPreviewMode: false },
+        },
+        activeGroupId: groupId,
+      };
+    }),
 
   updateFileContent: (path, content) =>
     set((state) => {
@@ -269,98 +297,161 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { files: newFiles };
     }),
 
-  openPreviewToSide: (groupId) => set((state) => {
-    const group = state.groups[groupId];
-    if (!group || !group.activeFile || !group.activeFile.endsWith(".md")) return state;
-    
-    const path = group.activeFile;
+  openPreviewToSide: (groupId) =>
+    set((state) => {
+      const group = state.groups[groupId];
+      if (!group || !group.activeFile || !group.activeFile.endsWith(".md"))
+        return state;
 
-    // Find current pos
-    let r = -1, c = -1;
-    for (let i = 0; i < state.grid.length; i++) {
-      const idx = state.grid[i].indexOf(groupId);
-      if (idx !== -1) {
-         r = i;
-         c = idx;
-         break;
-      }
-    }
-    if (r === -1) return state;
+      const path = group.activeFile;
 
-    // Default right split
-    let direction = "right";
-    if (state.grid[r].length >= 3) direction = "bottom"; 
-    // Edge case if 3x2 exactly, we ignore the side split requirement if forced
-    if (direction === "bottom" && state.grid.length >= 2) return state; // Matrix is full
+      const newGroups: Record<string, EditorGroup> = { ...state.groups };
+      const newGrid = state.grid.map((row) => [...row]);
 
-    const newGroupId = "g-" + generateId();
-    const newGroup: EditorGroup = {
-       id: newGroupId,
-       openTabs: [path],
-       activeFile: path,
-       isPreviewMode: true 
-    };
-    
-    const newGrid = [...state.grid.map(row => [...row])];
-    if (direction === "right") {
-       newGrid[r].splice(c + 1, 0, newGroupId);
-    } else {
-       newGrid.splice(r + 1, 0, [newGroupId]);
-    }
-
-    // Keep source group untouched except ensure its own preview mode is off since we split
-    return {
-       groups: {
-         ...state.groups,
-         [groupId]: { ...state.groups[groupId], isPreviewMode: false },
-         [newGroupId]: newGroup
-       },
-       grid: newGrid,
-       activeGroupId: newGroupId
-    };
-  }),
-
-  splitPane: (path, direction, targetGroupId) => set((state) => {
-     let r = -1, c = -1;
-     for (let i = 0; i < state.grid.length; i++) {
-        const idx = state.grid[i].indexOf(targetGroupId);
-        if (idx !== -1) {
-           r = i;
-           c = idx;
-           break;
+      const removeGroupFromGrid = (gid: string) => {
+        for (let i = newGrid.length - 1; i >= 0; i--) {
+          newGrid[i] = newGrid[i].filter((id) => id !== gid);
+          if (newGrid[i].length === 0) newGrid.splice(i, 1);
         }
-     }
-     if (r === -1) return state;
+      };
 
-     const newGroupId = "g-" + generateId();
-     const newGroup: EditorGroup = {
+      const isOnlyGroup = () => newGrid.length === 1 && newGrid[0].length === 1;
+
+      const closePreviewGroup = (previewGroup: EditorGroup) => {
+        if (!newGroups[previewGroup.id]) return;
+        if (previewGroup.id === groupId || isOnlyGroup()) {
+          newGroups[previewGroup.id] = {
+            ...newGroups[previewGroup.id],
+            isPreviewMode: false,
+          };
+        } else {
+          delete newGroups[previewGroup.id];
+          removeGroupFromGrid(previewGroup.id);
+        }
+      };
+
+      const allPreviewGroups = Object.values(newGroups).filter(
+        (g) => g.isPreviewMode,
+      );
+      const previewGroupsForPath = allPreviewGroups.filter(
+        (g) => g.activeFile === path,
+      );
+
+      // Toggle behavior: if preview for this file exists, close it.
+      if (previewGroupsForPath.length > 0) {
+        allPreviewGroups.forEach(closePreviewGroup);
+        const fallbackActive = newGroups[groupId]
+          ? groupId
+          : newGrid[0]?.[newGrid[0].length - 1] || state.activeGroupId;
+
+        return {
+          groups: newGroups,
+          grid: newGrid.length > 0 ? newGrid : state.grid,
+          activeGroupId: fallbackActive,
+        };
+      }
+
+      // Enforce single preview globally: close any existing preview first.
+      allPreviewGroups.forEach(closePreviewGroup);
+
+      // Find current pos
+      let r = -1,
+        c = -1;
+      for (let i = 0; i < newGrid.length; i++) {
+        const idx = newGrid[i].indexOf(groupId);
+        if (idx !== -1) {
+          r = i;
+          c = idx;
+          break;
+        }
+      }
+      if (r === -1) return state;
+
+      // Default right split
+      let direction = "right";
+      if (newGrid[r].length >= 3) direction = "bottom";
+
+      // If matrix is full, fallback to inline preview mode in the same pane.
+      if (direction === "bottom" && newGrid.length >= 2) {
+        return {
+          groups: {
+            ...newGroups,
+            [groupId]: { ...newGroups[groupId], isPreviewMode: true },
+          },
+          grid: newGrid,
+          activeGroupId: groupId,
+        };
+      }
+
+      const newGroupId = "g-" + generateId();
+      const newGroup: EditorGroup = {
         id: newGroupId,
         openTabs: [path],
         activeFile: path,
-        isPreviewMode: false
-     };
+        isPreviewMode: true,
+      };
 
-     const newGrid = [...state.grid.map(row => [...row])];
+      if (direction === "right") {
+        newGrid[r].splice(c + 1, 0, newGroupId);
+      } else {
+        newGrid.splice(r + 1, 0, [newGroupId]);
+      }
 
-     if (direction === "left" || direction === "right") {
+      // Keep source group untouched except ensure its own preview mode is off since we split
+      return {
+        groups: {
+          ...newGroups,
+          [groupId]: { ...newGroups[groupId], isPreviewMode: false },
+          [newGroupId]: newGroup,
+        },
+        grid: newGrid,
+        activeGroupId: newGroupId,
+      };
+    }),
+
+  splitPane: (path, direction, targetGroupId) =>
+    set((state) => {
+      let r = -1,
+        c = -1;
+      for (let i = 0; i < state.grid.length; i++) {
+        const idx = state.grid[i].indexOf(targetGroupId);
+        if (idx !== -1) {
+          r = i;
+          c = idx;
+          break;
+        }
+      }
+      if (r === -1) return state;
+
+      const newGroupId = "g-" + generateId();
+      const newGroup: EditorGroup = {
+        id: newGroupId,
+        openTabs: [path],
+        activeFile: path,
+        isPreviewMode: false,
+      };
+
+      const newGrid = [...state.grid.map((row) => [...row])];
+
+      if (direction === "left" || direction === "right") {
         if (newGrid[r].length >= 3) return state; // Constraint: max 3 horizontal slots
         const insertIdx = direction === "left" ? c : c + 1;
         newGrid[r].splice(insertIdx, 0, newGroupId);
-     } else if (direction === "top" || direction === "bottom") {
+      } else if (direction === "top" || direction === "bottom") {
         if (newGrid.length >= 2) return state; // Constraint: max 2 vertical slots (rows)
         const insertIdx = direction === "top" ? r : r + 1;
         newGrid.splice(insertIdx, 0, [newGroupId]);
-     }
+      }
 
-     return {
+      return {
         groups: {
-           ...state.groups,
-           [newGroupId]: newGroup
+          ...state.groups,
+          [newGroupId]: newGroup,
         },
         grid: newGrid,
-        activeGroupId: newGroupId
-     };
-  }),
+        activeGroupId: newGroupId,
+      };
+    }),
 
   // Filesystem actions -> They modify all groups iteratively!
   createNode: (path, name, isFolder) =>
@@ -394,20 +485,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       // Update paths inside ALL groups
       const newGroups = { ...state.groups };
-      Object.keys(newGroups).forEach(gid => {
-         const group = newGroups[gid];
-         const newTabs = group.openTabs.map((t) => {
-            if (t === oldPath) return newPath;
-            if (t.startsWith(oldPath + "/")) return t.replace(oldPath, newPath);
-            return t;
-          });
+      Object.keys(newGroups).forEach((gid) => {
+        const group = newGroups[gid];
+        const newTabs = group.openTabs.map((t) => {
+          if (t === oldPath) return newPath;
+          if (t.startsWith(oldPath + "/")) return t.replace(oldPath, newPath);
+          return t;
+        });
 
-          let newActive = group.activeFile;
-          if (newActive === oldPath) newActive = newPath;
-          else if (newActive?.startsWith(oldPath + "/"))
-             newActive = newActive.replace(oldPath, newPath);
+        let newActive = group.activeFile;
+        if (newActive === oldPath) newActive = newPath;
+        else if (newActive?.startsWith(oldPath + "/"))
+          newActive = newActive.replace(oldPath, newPath);
 
-          newGroups[gid] = { ...group, openTabs: newTabs, activeFile: newActive };
+        newGroups[gid] = { ...group, openTabs: newTabs, activeFile: newActive };
       });
 
       return { files: newFiles, groups: newGroups };
@@ -424,18 +515,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
 
       const newGroups = { ...state.groups };
-      Object.keys(newGroups).forEach(gid => {
-         const group = newGroups[gid];
-         const filteredTabs = group.openTabs.filter(
-            (t) => t !== path && !t.startsWith(path + "/")
-         );
-         
-         let newActive = group.activeFile;
-         if (!filteredTabs.includes(newActive as string)) {
-             newActive = filteredTabs.length > 0 ? filteredTabs[filteredTabs.length - 1] : null;
-         }
+      Object.keys(newGroups).forEach((gid) => {
+        const group = newGroups[gid];
+        const filteredTabs = group.openTabs.filter(
+          (t) => t !== path && !t.startsWith(path + "/"),
+        );
 
-         newGroups[gid] = { ...group, openTabs: filteredTabs, activeFile: newActive };
+        let newActive = group.activeFile;
+        if (!filteredTabs.includes(newActive as string)) {
+          newActive =
+            filteredTabs.length > 0
+              ? filteredTabs[filteredTabs.length - 1]
+              : null;
+        }
+
+        newGroups[gid] = {
+          ...group,
+          openTabs: filteredTabs,
+          activeFile: newActive,
+        };
       });
 
       return { files: newFiles, groups: newGroups };
@@ -448,63 +546,88 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const targetPath = targetDir === "/" ? "" : targetDir;
       const sourceName = sourcePath.split("/").pop() || "";
       let newPath = `${targetPath}/${sourceName}`;
-      
+
       const newFiles = new Map(state.files);
 
       // Prevent pasting into itself
       if (targetDir === sourcePath || targetDir.startsWith(sourcePath + "/")) {
-         return state;
+        return state;
       }
 
       // Handle duplicate names on paste
       if (newFiles.has(newPath)) {
-         if (type === 'cut') return state; // Don't allow cutting over existing files immediately
-         const nameBase = sourceName.includes('.') ? sourceName.split('.').slice(0, -1).join('.') : sourceName;
-         const ext = sourceName.includes('.') ? '.' + sourceName.split('.').pop() : '';
-         newPath = `${targetPath}/${nameBase}-copy${ext}`;
+        if (type === "cut") return state; // Don't allow cutting over existing files immediately
+        const nameBase = sourceName.includes(".")
+          ? sourceName.split(".").slice(0, -1).join(".")
+          : sourceName;
+        const ext = sourceName.includes(".")
+          ? "." + sourceName.split(".").pop()
+          : "";
+        newPath = `${targetPath}/${nameBase}-copy${ext}`;
       }
 
       if (type === "cut") {
         [...newFiles.entries()].forEach(([k, file]) => {
           if (k === sourcePath) {
             newFiles.delete(k);
-            newFiles.set(newPath, { ...file, path: newPath, name: newPath.split('/').pop()! });
+            newFiles.set(newPath, {
+              ...file,
+              path: newPath,
+              name: newPath.split("/").pop()!,
+            });
           } else if (k.startsWith(sourcePath + "/")) {
             newFiles.delete(k);
             const renamedPath = k.replace(sourcePath, newPath);
-            newFiles.set(renamedPath, { ...file, path: renamedPath, name: renamedPath.split('/').pop()! });
+            newFiles.set(renamedPath, {
+              ...file,
+              path: renamedPath,
+              name: renamedPath.split("/").pop()!,
+            });
           }
         });
-        
+
         const newGroups = { ...state.groups };
-        Object.keys(newGroups).forEach(gid => {
-           const group = newGroups[gid];
-           const newTabs = group.openTabs.map((t) => {
-              if (t === sourcePath) return newPath;
-              if (t.startsWith(sourcePath + "/")) return t.replace(sourcePath, newPath);
-              return t;
-            });
-            let newActive = group.activeFile;
-            if (newActive === sourcePath) newActive = newPath;
-            else if (newActive?.startsWith(sourcePath + "/"))
-               newActive = newActive.replace(sourcePath, newPath);
-            newGroups[gid] = { ...group, openTabs: newTabs, activeFile: newActive };
+        Object.keys(newGroups).forEach((gid) => {
+          const group = newGroups[gid];
+          const newTabs = group.openTabs.map((t) => {
+            if (t === sourcePath) return newPath;
+            if (t.startsWith(sourcePath + "/"))
+              return t.replace(sourcePath, newPath);
+            return t;
+          });
+          let newActive = group.activeFile;
+          if (newActive === sourcePath) newActive = newPath;
+          else if (newActive?.startsWith(sourcePath + "/"))
+            newActive = newActive.replace(sourcePath, newPath);
+          newGroups[gid] = {
+            ...group,
+            openTabs: newTabs,
+            activeFile: newActive,
+          };
         });
 
-        return { files: newFiles, groups: newGroups, clipboard: null }; 
+        return { files: newFiles, groups: newGroups, clipboard: null };
       } else {
         const sourceFile = state.files.get(sourcePath);
         if (sourceFile && !sourceFile.isFolder) {
-           newFiles.set(newPath, { ...sourceFile, path: newPath, name: newPath.split("/").pop()! });
+          newFiles.set(newPath, {
+            ...sourceFile,
+            path: newPath,
+            name: newPath.split("/").pop()!,
+          });
         } else {
-           [...state.files.entries()].forEach(([k, file]) => {
-             if (k === sourcePath || k.startsWith(sourcePath + "/")) {
-                const replacedPath = k.replace(sourcePath, newPath);
-                newFiles.set(replacedPath, { ...file, path: replacedPath, name: replacedPath.split("/").pop()! });
-             }
-           });
+          [...state.files.entries()].forEach(([k, file]) => {
+            if (k === sourcePath || k.startsWith(sourcePath + "/")) {
+              const replacedPath = k.replace(sourcePath, newPath);
+              newFiles.set(replacedPath, {
+                ...file,
+                path: replacedPath,
+                name: replacedPath.split("/").pop()!,
+              });
+            }
+          });
         }
-        return { files: newFiles }; 
+        return { files: newFiles };
       }
     }),
 
@@ -514,24 +637,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const newFiles = new Map(state.files);
 
       [...newFiles.entries()].forEach(([k, file]) => {
-        if (!file.isFolder && file.content && file.content.includes(searchQuery) && !excludedFiles.has(k)) {
-           newFiles.set(k, { ...file, content: file.content.split(searchQuery).join(replaceQuery) });
+        if (
+          !file.isFolder &&
+          file.content &&
+          file.content.includes(searchQuery) &&
+          !excludedFiles.has(k)
+        ) {
+          newFiles.set(k, {
+            ...file,
+            content: file.content.split(searchQuery).join(replaceQuery),
+          });
         }
       });
       return { files: newFiles };
     }),
 
-  replaceNext: (searchQuery, replaceQuery, excludedFiles = new Set()) => 
+  replaceNext: (searchQuery, replaceQuery, excludedFiles = new Set()) =>
     set((state) => {
       if (!searchQuery) return state;
       const newFiles = new Map(state.files);
-      
+
       // Find the first file that contains the search query and replace its first instance
       for (const [k, file] of newFiles) {
-         if (!file.isFolder && file.content && file.content.includes(searchQuery) && !excludedFiles.has(k)) {
-            newFiles.set(k, { ...file, content: file.content.replace(searchQuery, replaceQuery) });
-            break; // Only replace one total instance across all files, then break
-         }
+        if (
+          !file.isFolder &&
+          file.content &&
+          file.content.includes(searchQuery) &&
+          !excludedFiles.has(k)
+        ) {
+          newFiles.set(k, {
+            ...file,
+            content: file.content.replace(searchQuery, replaceQuery),
+          });
+          break; // Only replace one total instance across all files, then break
+        }
       }
       return { files: newFiles };
     }),

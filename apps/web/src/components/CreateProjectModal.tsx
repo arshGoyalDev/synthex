@@ -1,7 +1,8 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
-import { X, Check } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { X, Check, Search, ChevronDown } from "lucide-react";
 import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import {
   createProject,
@@ -13,6 +14,262 @@ import { Input } from "./ui/Input";
 interface CreateProjectModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function TemplateDropdown({
+  templates,
+  selectedId,
+  onChange,
+}: {
+  templates: { id: string; name: string; color: string; description: string }[];
+  selectedId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const items = templates.filter(
+    (t) =>
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      t.id.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const selected = templates.find((t) => t.id === selectedId);
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-all text-left outline-none"
+        >
+          <span
+            className={`truncate ${selected ? "text-text-primary font-medium" : "text-text-tertiary"}`}
+          >
+            {selected ? (
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-5 h-5 rounded shrink-0 flex flex-col justify-center items-center text-white font-bold text-[10px]"
+                  style={{ backgroundColor: selected.color }}
+                >
+                  {selected.name.substring(0, 2)}
+                </div>
+                {selected.name}
+              </div>
+            ) : (
+              "Select a template..."
+            )}
+          </span>
+          <ChevronDown
+            size={16}
+            className={`text-text-tertiary transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </Popover.Trigger>
+
+      <Popover.Portal>
+        <Popover.Content
+          align="start"
+          sideOffset={4}
+          className="z-[60] w-[var(--radix-popover-trigger-width)] bg-bg-secondary border border-border-default rounded-lg shadow-xl overflow-hidden flex flex-col max-h-64 animate-fade-in outline-none"
+          style={{ animationDuration: "0.15s" }}
+        >
+          <div className="p-2 border-b border-border-subtle flex items-center gap-2 sticky top-0 bg-bg-secondary z-10">
+            <Search size={14} className="text-text-tertiary" />
+            <input
+              autoFocus
+              className="bg-transparent border-none outline-none text-sm text-text-primary w-full placeholder:text-text-tertiary"
+              placeholder="Search templates..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="overflow-y-auto custom-scrollbar p-1">
+            {items.length === 0 ? (
+              <div className="p-3 text-sm text-text-tertiary text-center">
+                No templates found.
+              </div>
+            ) : (
+              items.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(selectedId === tpl.id ? null : tpl.id);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-3 p-2 rounded-md cursor-pointer transition-all border-none bg-transparent text-left ${
+                    selectedId === tpl.id
+                      ? "bg-accent-primary/10"
+                      : "hover:bg-bg-tertiary"
+                  }`}
+                >
+                  <div
+                    className="w-6 h-6 rounded shrink-0 flex flex-col justify-center items-center text-white font-bold text-[10px]"
+                    style={{ backgroundColor: tpl.color }}
+                  >
+                    {tpl.name.substring(0, 2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className={`text-sm truncate ${selectedId === tpl.id ? "text-accent-primary font-medium" : "text-text-primary"}`}
+                    >
+                      {tpl.name}
+                    </div>
+                  </div>
+                  {selectedId === tpl.id && (
+                    <Check size={14} className="text-accent-primary shrink-0" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function LanguageDropdown({
+  languages,
+  selectedIds,
+  onChange,
+}: {
+  languages: { id: string; name: string; color: string }[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const items = languages.filter(
+    (l) =>
+      l.name.toLowerCase().includes(search.toLowerCase()) ||
+      l.id.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const toggleSelected = (id: string) => {
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((x) => x !== id));
+    } else {
+      if (selectedIds.length < 5) {
+        onChange([...selectedIds, id]);
+        setSearch("");
+      }
+    }
+  };
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="w-full min-h-[42px] flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-all text-left outline-none"
+        >
+          <div className="flex flex-wrap gap-1 items-center max-w-[85%]">
+            {selectedIds.length === 0 ? (
+              <span className="text-text-tertiary">Select languages...</span>
+            ) : (
+              selectedIds.map((id) => {
+                const lang = languages.find((l) => l.id === id);
+                if (!lang) return null;
+                return (
+                  <span
+                    key={id}
+                    className="inline-flex items-center gap-1.5 bg-bg-tertiary px-2 py-0.5 rounded text-xs font-medium text-text-primary border border-border-subtle"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: lang.color }}
+                    />
+                    {lang.name}
+                    <div
+                      className="ml-0.5 hover:text-status-error cursor-pointer p-0.5 rounded-sm hover:bg-status-error/10 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSelected(id);
+                      }}
+                    >
+                      <X size={12} />
+                    </div>
+                  </span>
+                );
+              })
+            )}
+          </div>
+          <ChevronDown
+            size={16}
+            className={`text-text-tertiary transition-transform duration-200 shrink-0 ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </Popover.Trigger>
+
+      <Popover.Portal>
+        <Popover.Content
+          align="start"
+          sideOffset={4}
+          className="z-[60] w-[var(--radix-popover-trigger-width)] bg-bg-secondary border border-border-default rounded-lg shadow-xl overflow-hidden flex flex-col max-h-64 animate-fade-in outline-none"
+          style={{ animationDuration: "0.15s" }}
+        >
+          <div className="p-2 border-b border-border-subtle flex items-center gap-2 sticky top-0 bg-bg-secondary z-10">
+            <Search size={14} className="text-text-tertiary" />
+            <input
+              autoFocus
+              className="bg-transparent border-none outline-none text-sm text-text-primary w-full placeholder:text-text-tertiary"
+              placeholder="Search languages..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="overflow-y-auto custom-scrollbar p-1">
+            {items.length === 0 ? (
+              <div className="p-3 text-sm text-text-tertiary text-center">
+                No languages found.
+              </div>
+            ) : (
+              items.map((lang) => {
+                const isSelected = selectedIds.includes(lang.id);
+                const isDisabled = !isSelected && selectedIds.length >= 5;
+
+                return (
+                  <button
+                    key={lang.id}
+                    type="button"
+                    onClick={() => !isDisabled && toggleSelected(lang.id)}
+                    className={`flex w-full items-center gap-3 p-2 rounded-md transition-all border-none bg-transparent text-left ${
+                      isDisabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "cursor-pointer hover:bg-bg-tertiary"
+                    } ${isSelected ? "bg-accent-primary/10" : ""}`}
+                    disabled={isDisabled}
+                  >
+                    <div
+                      className="w-5 h-5 rounded shrink-0"
+                      style={{ backgroundColor: lang.color }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className={`text-sm truncate ${isSelected ? "text-accent-primary font-medium" : "text-text-primary"}`}
+                      >
+                        {lang.name}
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <Check
+                        size={14}
+                        className="text-accent-primary shrink-0"
+                      />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
 }
 
 export function CreateProjectModal({
@@ -34,12 +291,7 @@ export function CreateProjectModal({
   const templatesList = Object.values(TEMPLATES);
   const languagesList = Object.values(LANGUAGES);
 
-  // Computed state
-  const type = selectedTemplate
-    ? "template"
-    : selectedLanguages.length > 0
-      ? "blank"
-      : "raw";
+  const [type, setType] = useState<"template" | "blank" | "raw">("template");
 
   const handleNext = () => {
     if (!name.trim()) {
@@ -175,111 +427,83 @@ export function CreateProjectModal({
                   />
                 </div>
 
-                {/* Template Selection */}
+                {/* Project Type Selection */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-text-secondary block">
-                    Template
+                    Project Type
                   </label>
-                  <div className="text-xs text-text-tertiary mb-2">
-                    Select a boilerplate to get started quickly.
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto mb-2 custom-scrollbar pr-1">
-                    {templatesList.map((tpl) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      {
+                        id: "template",
+                        label: "Template",
+                        desc: "Use a template",
+                      },
+                      { id: "blank", label: "Blank", desc: "Select languages" },
+                      { id: "raw", label: "Raw", desc: "Empty environment" },
+                    ].map((t) => (
                       <div
-                        key={tpl.id}
-                        onClick={() => {
-                          setSelectedTemplate(
-                            selectedTemplate === tpl.id ? null : tpl.id,
-                          );
-                          if (selectedTemplate !== tpl.id) {
-                            setSelectedLanguages([]); // clear languages if template selected
-                          }
-                        }}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                          selectedTemplate === tpl.id
-                            ? "border-accent-primary bg-accent-primary/5"
+                        key={t.id}
+                        onClick={() =>
+                          setType(t.id as "template" | "blank" | "raw")
+                        }
+                        className={`p-2 rounded-lg border cursor-pointer transition-all flex flex-col gap-0.5 justify-center text-center ${
+                          type === t.id
+                            ? "border-accent-primary bg-accent-primary/10"
                             : "border-border-default bg-bg-secondary hover:border-border-hover dark:hover:bg-bg-tertiary"
                         }`}
                       >
                         <div
-                          className="w-8 h-8 rounded shrink-0 flex flex-col justify-center items-center text-white font-bold text-xs"
-                          style={{ backgroundColor: tpl.color }}
+                          className={`text-sm font-medium ${type === t.id ? "text-accent-primary" : "text-text-primary"}`}
                         >
-                          {tpl.name.substring(0, 2)}
+                          {t.label}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-text-primary truncate">
-                            {tpl.name}
-                          </div>
-                          <div className="text-xs text-text-tertiary truncate">
-                            {tpl.description}
-                          </div>
+                        <div className="text-[10px] text-text-tertiary leading-tight">
+                          {t.desc}
                         </div>
-                        {selectedTemplate === tpl.id && (
-                          <Check
-                            size={16}
-                            className="text-accent-primary shrink-0"
-                          />
-                        )}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Optional Languages Section (only if no template) */}
-                {!selectedTemplate && (
-                  <div className="space-y-1.5 pt-2 border-t border-border-default">
+                {/* Conditional Selectors */}
+                {type === "template" && (
+                  <div
+                    className="space-y-1.5 pt-3 border-t border-border-default animate-fade-in"
+                    style={{ animationDuration: "0.2s" }}
+                  >
                     <label className="text-sm font-medium text-text-secondary block">
-                      Or Start Blank with Languages
+                      Select Template
+                    </label>
+                    <div className="text-xs text-text-tertiary mb-2">
+                      Select a boilerplate to get started quickly.
+                    </div>
+                    <TemplateDropdown
+                      templates={templatesList}
+                      selectedId={selectedTemplate}
+                      onChange={(id) => {
+                        setSelectedTemplate(id);
+                      }}
+                    />
+                  </div>
+                )}
+
+                {type === "blank" && (
+                  <div
+                    className="space-y-1.5 pt-3 border-t border-border-default animate-fade-in"
+                    style={{ animationDuration: "0.2s" }}
+                  >
+                    <label className="text-sm font-medium text-text-secondary block">
+                      Select Languages
                     </label>
                     <div className="text-xs text-text-tertiary mb-2">
                       Select up to 5 languages for a blank environment.
                     </div>
-                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                      {languagesList.map((lang) => {
-                        const isSelected = selectedLanguages.includes(lang.id);
-                        return (
-                          <div
-                            key={lang.id}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedLanguages(
-                                  selectedLanguages.filter(
-                                    (l) => l !== lang.id,
-                                  ),
-                                );
-                              } else {
-                                if (selectedLanguages.length < 5) {
-                                  setSelectedLanguages([
-                                    ...selectedLanguages,
-                                    lang.id,
-                                  ]);
-                                }
-                              }
-                            }}
-                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                              isSelected
-                                ? "border-accent-primary bg-accent-primary/5"
-                                : "border-border-default bg-bg-secondary hover:border-border-hover dark:hover:bg-bg-tertiary"
-                            } ${!isSelected && selectedLanguages.length >= 5 ? "opacity-50 cursor-not-allowed" : ""}`}
-                          >
-                            <div
-                              className="w-6 h-6 rounded shrink-0"
-                              style={{ backgroundColor: lang.color }}
-                            />
-                            <div className="flex-1 text-sm font-medium text-text-primary truncate">
-                              {lang.name}
-                            </div>
-                            {isSelected && (
-                              <Check
-                                size={14}
-                                className="text-accent-primary shrink-0"
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <LanguageDropdown
+                      languages={languagesList}
+                      selectedIds={selectedLanguages}
+                      onChange={setSelectedLanguages}
+                    />
                   </div>
                 )}
               </Tabs.Content>

@@ -60,10 +60,10 @@ function MenuBtn({
         e.stopPropagation();
         onClick();
       }}
-      className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-sm bg-transparent border-none cursor-pointer transition-colors ${
+      className={`flex items-center gap-2 px-3 py-1.5 text-xs bg-transparent border-none cursor-pointer w-full text-left transition-colors ${
         danger
-          ? "text-status-error hover:bg-status-error-light"
-          : "text-text-secondary hover:text-text-primary hover:bg-surface-overlay"
+          ? "text-[#f87171] hover:bg-[#f87171]/10"
+          : "text-text-secondary hover:text-text-primary hover:bg-accent-primary/20"
       }`}
     >
       {icon}
@@ -77,65 +77,68 @@ function ProjectMenu({
   onDelete,
   onTogglePin,
   onEdit,
+  isOpen,
+  setIsOpen,
 }: {
   project: Project;
   onDelete: () => void;
   onTogglePin: () => void;
   onEdit: () => void;
+  isOpen: boolean;
+  setIsOpen: (val: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
+        setIsOpen(false);
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
-  }, []);
+  }, [setIsOpen]);
 
   return (
     <div ref={ref} className="relative">
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(!open);
+          setIsOpen(!isOpen);
         }}
         className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary hover:bg-surface-overlay transition-colors bg-transparent border-none cursor-pointer"
       >
         <IconDots size={16} />
       </button>
 
-      {open && (
+      {isOpen && (
         <div
-          className="absolute right-0 top-full mt-1 w-44 bg-bg-secondary border border-border-default rounded-xl shadow-xl shadow-black/30 py-1.5 z-50 animate-fade-in"
+          className="absolute right-0 top-full mt-1 w-44 bg-bg-secondary border border-border-default rounded shadow-xl py-1 flex flex-col z-50 animate-fade-in"
           style={{ animationDuration: "0.15s" }}
         >
           <MenuBtn
-            icon={<IconEdit />}
+            icon={<IconEdit size={14} />}
             label="Edit Details"
             onClick={() => {
               onEdit();
-              setOpen(false);
+              setIsOpen(false);
             }}
           />
           <MenuBtn
-            icon={<IconPin size={16} filled={project.isPinned} />}
+            icon={<IconPin size={14} filled={project.isPinned} />}
             label={project.isPinned ? "Unpin" : "Pin"}
             onClick={() => {
               onTogglePin();
-              setOpen(false);
+              setIsOpen(false);
             }}
           />
-          <div className="my-1 border-t border-border-subtle" />
+          <div className="h-px bg-border-subtle my-1 w-full" />
           <MenuBtn
-            icon={<IconTrash />}
+            icon={<IconTrash size={14} />}
             label="Delete"
             danger
             onClick={() => {
               onDelete();
-              setOpen(false);
+              setIsOpen(false);
             }}
           />
         </div>
@@ -157,6 +160,7 @@ export function ProjectCard({
   onEdit: () => void;
   onClick: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const lang = getLang(project.languages);
 
   let badgeText = "RAW";
@@ -179,12 +183,18 @@ export function ProjectCard({
   return (
     <div
       onClick={onClick}
-      className="group bg-bg-secondary border border-border-default rounded-xl hover:border-border-focus hover:shadow-xl hover:shadow-black/40 transition-all duration-300 cursor-pointer flex flex-col relative"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenuOpen(true);
+      }}
+      style={{ "--hover-border": lang.accent } as React.CSSProperties}
+      className="group bg-bg-secondary border border-border-default rounded-xl hover:border-(--hover-border) hover:shadow-xl hover:shadow-black/40 transition-all duration-300 cursor-pointer flex flex-col relative"
     >
-      <div
+      {/* <div
         className="absolute -top-0.5 left-0 right-0 rounded-t-xl h-20 opacity-70 group-hover:opacity-100 transition-opacity"
         style={{ backgroundColor: lang.accent }}
-      />
+      /> */}
       <div className="h-28 rounded-t-xl flex items-center justify-center bg-bg-dark relative overflow-hidden border-b border-border-subtle">
         <div
           className="absolute inset-0 opacity-15 mix-blend-screen transition-opacity duration-300 group-hover:opacity-25"
@@ -220,12 +230,14 @@ export function ProjectCard({
           <h3 className="text-sm font-medium text-text-primary truncate m-0 group-hover:text-white transition-colors">
             {project.name}
           </h3>
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 -mt-1 -mr-1">
+          <div className={`transition-opacity flex-shrink-0 -mt-1 -mr-1 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
             <ProjectMenu
               project={project}
               onDelete={onDelete}
               onTogglePin={onTogglePin}
               onEdit={onEdit}
+              isOpen={menuOpen}
+              setIsOpen={setMenuOpen}
             />
           </div>
         </div>

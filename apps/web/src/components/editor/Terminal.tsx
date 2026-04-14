@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
-import { ChevronUp, X, TerminalSquare, Loader2, AlertCircle, WifiOff } from "lucide-react";
+import {
+  ChevronUp,
+  X,
+  TerminalSquare,
+  Loader2,
+  AlertCircle,
+  WifiOff,
+} from "lucide-react";
 import { useEditorStore } from "../../stores/editor.store";
 import { useTerminalSocket } from "../../hooks/useTerminalSocket";
 
@@ -14,7 +22,11 @@ interface TerminalProps {
 
 type TerminalStatus = "connecting" | "ready" | "error" | "exited";
 
-export function Terminal({ projectId, userId, containerStatus }: TerminalProps) {
+export function Terminal({
+  projectId,
+  userId,
+  containerStatus,
+}: TerminalProps) {
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
   const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
 
@@ -95,6 +107,16 @@ export function Terminal({ projectId, userId, containerStatus }: TerminalProps) 
     term.loadAddon(fitAddon);
     term.open(containerRef.current);
 
+    try {
+      const webglAddon = new WebglAddon();
+      term.loadAddon(webglAddon);
+    } catch (e) {
+      console.warn(
+        "WebGL addon failed to load, falling back to canvas/dom renderer",
+        e,
+      );
+    }
+
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
@@ -142,11 +164,11 @@ export function Terminal({ projectId, userId, containerStatus }: TerminalProps) 
     connecting: "bg-yellow-400 animate-pulse",
     ready: "bg-green-400",
     error: "bg-red-400",
-    exited: "bg-zinc-500",
+    exited: "bg-text-tertiary",
   }[status];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#1a1a24]">
+    <div className="flex flex-col h-full overflow-hidden bg-bg-primary">
       {/* Terminal header */}
       <div
         className="flex items-center justify-between px-3 h-8 bg-bg-secondary shrink-0 select-none cursor-pointer hover:bg-bg-tertiary transition-colors"
@@ -157,13 +179,18 @@ export function Terminal({ projectId, userId, containerStatus }: TerminalProps) 
           <span>Terminal</span>
           {/* Status badge */}
           <span className="flex items-center gap-1 ml-1 normal-case tracking-normal font-normal text-text-tertiary">
-            <span className={`w-[6px] h-[6px] rounded-full shrink-0 ${statusDot}`} />
+            <span
+              className={`w-[6px] h-[6px] rounded-full shrink-0 ${statusDot}`}
+            />
             <span>{statusLabel}</span>
           </span>
         </div>
         <button
           className="flex items-center justify-center w-5 h-5 rounded border-none bg-transparent text-text-tertiary hover:bg-white/10 hover:text-text-primary transition-colors cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); toggleTerminal(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleTerminal();
+          }}
         >
           {isTerminalOpen ? <X size={14} /> : <ChevronUp size={14} />}
         </button>
@@ -174,20 +201,22 @@ export function Terminal({ projectId, userId, containerStatus }: TerminalProps) 
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Overlay states — shown on top of (but not replacing) xterm div */}
           {containerStatus !== "ready" ? (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-[#1a1a24]">
+            <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-bg-primary">
               <Loader2 size={16} className="animate-spin text-accent-primary" />
               <span>Starting container...</span>
             </div>
           ) : status === "connecting" ? (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-[#1a1a24]">
+            <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-bg-primary">
               <Loader2 size={16} className="animate-spin text-accent-primary" />
               <span>Connecting to terminal...</span>
             </div>
           ) : status === "error" ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] z-10 bg-[#1a1a24]">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] z-10 bg-bg-primary">
               <AlertCircle size={20} className="text-red-400" />
               <span className="text-red-400 font-medium">Terminal Error</span>
-              <span className="text-text-tertiary text-[12px] max-w-xs text-center">{errorMsg}</span>
+              <span className="text-text-tertiary text-[12px] max-w-xs text-center">
+                {errorMsg}
+              </span>
             </div>
           ) : status === "exited" ? (
             <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2 text-text-tertiary text-[12px] z-10 pointer-events-none">
@@ -200,7 +229,14 @@ export function Terminal({ projectId, userId, containerStatus }: TerminalProps) 
           <div
             ref={containerRef}
             className="flex-1 overflow-hidden px-1 pt-1"
-            style={{ visibility: containerStatus !== "ready" || status === "connecting" || status === "error" ? "hidden" : "visible" }}
+            style={{
+              visibility:
+                containerStatus !== "ready" ||
+                status === "connecting" ||
+                status === "error"
+                  ? "hidden"
+                  : "visible",
+            }}
           />
         </div>
       )}

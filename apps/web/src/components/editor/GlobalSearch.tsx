@@ -26,9 +26,9 @@ function getFileIcon(name: string) {
     case "json":
       return <FileJson size={14} className="text-yellow-500 shrink-0" />;
     case "md":
-      return <FileText size={14} className="text-gray-500 shrink-0" />;
+      return <FileText size={14} className="text-text-tertiary shrink-0" />;
     default:
-      return <File size={14} className="text-zinc-500 shrink-0" />;
+      return <File size={14} className="text-text-tertiary shrink-0" />;
   }
 }
 

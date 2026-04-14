@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronRight,
   ChevronDown,
@@ -11,7 +12,7 @@ import {
   Edit2,
   Trash2,
   Copy,
-  Scissors
+  Scissors,
 } from "lucide-react";
 import { useEditorStore } from "../../stores/editor.store";
 import type { FileEntry } from "../../stores/editor.store";
@@ -86,9 +87,9 @@ function getFileColor(name: string): string {
     case "json":
       return "#eab308";
     case "md":
-      return "#6b7280";
+      return "var(--color-text-tertiary)";
     default:
-      return "#71717a";
+      return "var(--color-text-tertiary)";
   }
 }
 
@@ -100,74 +101,81 @@ type ContextMenuState = {
 } | null;
 
 /* ——— Inline Input Component ——— */
-function InlineInput({ 
-  depth, 
-  isFolder, 
-  initialValue = "", 
-  onSubmit, 
-  onCancel 
-}: { 
-  depth: number, 
-  isFolder: boolean, 
-  initialValue?: string, 
-  onSubmit: (val: string) => void, 
-  onCancel: () => void 
+function InlineInput({
+  depth,
+  isFolder,
+  initialValue = "",
+  onSubmit,
+  onCancel,
+}: {
+  depth: number;
+  isFolder: boolean;
+  initialValue?: string;
+  onSubmit: (val: string) => void;
+  onCancel: () => void;
 }) {
   const [val, setVal] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement>(null);
-  
+
   useEffect(() => {
-     inputRef.current?.focus();
-     if (initialValue) {
-        // Select filename but exclude extension if possible
-        const dotIdx = initialValue.lastIndexOf(".");
-        if (dotIdx > 0 && !isFolder) {
-           inputRef.current?.setSelectionRange(0, dotIdx);
-        } else {
-           inputRef.current?.select();
-        }
-     }
+    inputRef.current?.focus();
+    if (initialValue) {
+      // Select filename but exclude extension if possible
+      const dotIdx = initialValue.lastIndexOf(".");
+      if (dotIdx > 0 && !isFolder) {
+        inputRef.current?.setSelectionRange(0, dotIdx);
+      } else {
+        inputRef.current?.select();
+      }
+    }
   }, [initialValue, isFolder]);
 
   return (
-    <div className="flex items-center gap-1 w-full h-7 text-[13px]" style={{ paddingLeft: depth * 12 + 8 }}>
-       <span className="flex items-center justify-center w-3.5 shrink-0" />
-       <span className="flex items-center shrink-0">
-          {isFolder ? <Folder size={15} color="#eab308" /> : <FileIcon size={15} color={getFileColor(val || "default")} />}
-       </span>
-       <input 
-         ref={inputRef} 
-         value={val} 
-         onChange={(e) => setVal(e.target.value)} 
-         onBlur={() => {
+    <div
+      className="flex items-center gap-1 w-full h-7 text-[13px]"
+      style={{ paddingLeft: depth * 12 + 8 }}
+    >
+      <span className="flex items-center justify-center w-3.5 shrink-0" />
+      <span className="flex items-center shrink-0">
+        {isFolder ? (
+          <Folder size={15} color="#eab308" />
+        ) : (
+          <FileIcon size={15} color={getFileColor(val || "default")} />
+        )}
+      </span>
+      <input
+        ref={inputRef}
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => {
+          if (val.trim()) {
+            onSubmit(val.trim());
+          } else {
+            onCancel();
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
             if (val.trim()) {
-               onSubmit(val.trim());
+              onSubmit(val.trim());
             } else {
-               onCancel();
+              onCancel();
             }
-         }}
-         onKeyDown={(e) => {
-            if (e.key === "Enter") {
-               if (val.trim()) {
-                  onSubmit(val.trim());
-               } else {
-                  onCancel();
-               }
-            } else if (e.key === "Escape") {
-               onCancel();
-            }
-         }}
-         className="flex-1 bg-bg-primary border border-accent-primary outline-none text-text-primary h-5 px-1 ml-0.5 rounded-sm"
-       />
+          } else if (e.key === "Escape") {
+            onCancel();
+          }
+        }}
+        className="flex-1 bg-bg-primary border border-accent-primary outline-none text-text-primary h-5 px-1 ml-0.5 rounded-sm"
+      />
     </div>
-  )
+  );
 }
 
 /* ——— Tree node component ——— */
-function TreeItem({ 
-  node, 
-  depth, 
-  focusedPath, 
+function TreeItem({
+  node,
+  depth,
+  focusedPath,
   setFocusedPath,
   onContextMenu,
   renamingPath,
@@ -176,8 +184,8 @@ function TreeItem({
   onRenameCancel,
   onCreateCommit,
   onCreateCancel,
-}: { 
-  node: TreeNode; 
+}: {
+  node: TreeNode;
   depth: number;
   focusedPath: string;
   setFocusedPath: (p: string) => void;
@@ -202,17 +210,24 @@ function TreeItem({
     }
   }, [creatingNode, node.path]);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFocusedPath(node.isFolder ? node.path : (node.path.substring(0, node.path.lastIndexOf("/")) || "/"));
-    
-    if (node.isFolder) {
-      setExpanded((e) => !e);
-    } else {
-      const file = files.get(node.path);
-      if (file) openFile(file);
-    }
-  }, [node, files, openFile, setFocusedPath]);
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setFocusedPath(
+        node.isFolder
+          ? node.path
+          : node.path.substring(0, node.path.lastIndexOf("/")) || "/",
+      );
+
+      if (node.isFolder) {
+        setExpanded((e) => !e);
+      } else {
+        const file = files.get(node.path);
+        if (file) openFile(file);
+      }
+    },
+    [node, files, openFile, setFocusedPath],
+  );
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -223,34 +238,38 @@ function TreeItem({
   const isFocused = node.isFolder && focusedPath === node.path;
 
   if (renamingPath === node.path) {
-     return (
-       <InlineInput 
-          depth={depth} 
-          isFolder={node.isFolder} 
-          initialValue={node.name} 
-          onSubmit={(newName) => onRenameCommit(node, newName)} 
-          onCancel={onRenameCancel} 
-       />
-     );
+    return (
+      <InlineInput
+        depth={depth}
+        isFolder={node.isFolder}
+        initialValue={node.name}
+        onSubmit={(newName) => onRenameCommit(node, newName)}
+        onCancel={onRenameCancel}
+      />
+    );
   }
 
   return (
     <>
       <button
         onClick={handleClick}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, node); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu(e, node);
+        }}
         draggable={!node.isFolder}
         onDragStart={(e) => {
-           if (!node.isFolder) {
-              e.dataTransfer.setData("application/vnd.synthex.file", node.path);
-              e.dataTransfer.effectAllowed = "copyMove";
-           }
+          if (!node.isFolder) {
+            e.dataTransfer.setData("application/vnd.synthex.file", node.path);
+            e.dataTransfer.effectAllowed = "copyMove";
+          }
         }}
         className={`group flex items-center gap-1 w-full h-7 border-none bg-transparent text-[13px] font-sans cursor-pointer transition-colors duration-100 text-left whitespace-nowrap hover:bg-white/[0.04] ${
-          isActive 
-            ? "bg-accent-primary/10 text-text-primary" 
-            : isFocused 
-              ? "bg-white/[0.02] text-text-primary outline outline-1 outline-white/10 -outline-offset-1" 
+          isActive
+            ? "bg-accent-primary/10 text-text-primary"
+            : isFocused
+              ? "bg-white/[0.02] text-text-primary outline outline-1 outline-white/10 -outline-offset-1"
               : "text-text-secondary hover:text-text-primary"
         }`}
         style={{ paddingLeft: depth * 12 + 8 }}
@@ -282,10 +301,12 @@ function TreeItem({
         </span>
 
         {/* Name */}
-        <span className="overflow-hidden text-ellipsis flex-1 pr-1">{node.name}</span>
+        <span className="overflow-hidden text-ellipsis flex-1 pr-1">
+          {node.name}
+        </span>
 
         {/* 3 dot menu (appears on hover) */}
-        <div 
+        <div
           className="opacity-0 group-hover:opacity-100 pr-1 flex items-center justify-center text-text-tertiary hover:text-text-primary transition-opacity"
           onClick={handleMenuClick}
         >
@@ -297,30 +318,33 @@ function TreeItem({
       {node.isFolder && expanded && (
         <div>
           {creatingNode?.parentPath === node.path && (
-             <InlineInput 
-                depth={depth + 1} 
-                isFolder={creatingNode.isFolder}
-                onSubmit={(name) => onCreateCommit(node.path, name, creatingNode.isFolder)}
-                onCancel={onCreateCancel}
-             />
+            <InlineInput
+              depth={depth + 1}
+              isFolder={creatingNode.isFolder}
+              onSubmit={(name) =>
+                onCreateCommit(node.path, name, creatingNode.isFolder)
+              }
+              onCancel={onCreateCancel}
+            />
           )}
 
-          {node.children && node.children.map((child) => (
-            <TreeItem 
-              key={child.path} 
-              node={child} 
-              depth={depth + 1} 
-              focusedPath={focusedPath}
-              setFocusedPath={setFocusedPath}
-              onContextMenu={onContextMenu}
-              renamingPath={renamingPath}
-              creatingNode={creatingNode}
-              onRenameCommit={onRenameCommit}
-              onRenameCancel={onRenameCancel}
-              onCreateCommit={onCreateCommit}
-              onCreateCancel={onCreateCancel}
-            />
-          ))}
+          {node.children &&
+            node.children.map((child) => (
+              <TreeItem
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                focusedPath={focusedPath}
+                setFocusedPath={setFocusedPath}
+                onContextMenu={onContextMenu}
+                renamingPath={renamingPath}
+                creatingNode={creatingNode}
+                onRenameCommit={onRenameCommit}
+                onRenameCancel={onRenameCancel}
+                onCreateCommit={onCreateCommit}
+                onCreateCancel={onCreateCancel}
+              />
+            ))}
         </div>
       )}
     </>
@@ -338,13 +362,13 @@ export function FileExplorer() {
   const pasteNode = useEditorStore((s) => s.pasteNode);
 
   const fileTree = useMemo(() => buildTreeConfig(files), [files]);
-  
+
   const [focusedPath, setFocusedPath] = useState<string>("/");
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [creatingNode, setCreatingNode] = useState<CreatingNodeState>(null);
   const [deletingNode, setDeletingNode] = useState<TreeNode | null>(null);
-  
+
   const explorerRef = useRef<HTMLDivElement>(null);
 
   // Focus root when clicking empty area
@@ -361,19 +385,29 @@ export function FileExplorer() {
     setContextMenu({ node: null, x, y });
   }, []);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
-    // Show near mouse but constrained
-    const x = Math.min(e.clientX, window.innerWidth - 160);
-    const y = Math.min(e.clientY, window.innerHeight - 250);
-    setContextMenu({ node, x, y });
-  }, []);
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, node: TreeNode) => {
+      // Show near mouse but constrained
+      const x = Math.min(e.clientX, window.innerWidth - 160);
+      const y = Math.min(e.clientY, window.innerHeight - 250);
+      setContextMenu({ node, x, y });
+    },
+    [],
+  );
 
   // Inline Actions
   const handleCreateBtnClick = (isFolder: boolean) => {
-    setCreatingNode({ parentPath: focusedPath === "/" ? "/" : focusedPath, isFolder });
+    setCreatingNode({
+      parentPath: focusedPath === "/" ? "/" : focusedPath,
+      isFolder,
+    });
   };
 
-  const handleCreateCommit = (parentPath: string, name: string, isFolder: boolean) => {
+  const handleCreateCommit = (
+    parentPath: string,
+    name: string,
+    isFolder: boolean,
+  ) => {
     const cleanParent = parentPath === "/" ? "" : parentPath;
     const newPath = `${cleanParent}/${name}`;
     createNode(newPath, name, isFolder);
@@ -390,9 +424,9 @@ export function FileExplorer() {
 
   const handleRenameCommit = (node: TreeNode, newName: string) => {
     if (newName && newName !== node.name) {
-       const dirPath = node.path.substring(0, node.path.lastIndexOf("/"));
-       const newPath = `${dirPath}/${newName}`;
-       renameNode(node.path, newPath, newName);
+      const dirPath = node.path.substring(0, node.path.lastIndexOf("/"));
+      const newPath = `${dirPath}/${newName}`;
+      renameNode(node.path, newPath, newName);
     }
     setRenamingPath(null);
   };
@@ -412,7 +446,7 @@ export function FileExplorer() {
     setDeletingNode(null);
   };
 
-  const handleClipboardCmd = (type: 'copy' | 'cut') => {
+  const handleClipboardCmd = (type: "copy" | "cut") => {
     if (!contextMenu || !contextMenu.node) return;
     setClipboard(contextMenu.node.path, type);
     setContextMenu(null);
@@ -420,9 +454,14 @@ export function FileExplorer() {
 
   const handlePasteCmd = () => {
     if (!contextMenu || !clipboard) return;
-    const targetPath = contextMenu.node 
-       ? (contextMenu.node.isFolder ? contextMenu.node.path : contextMenu.node.path.substring(0, contextMenu.node.path.lastIndexOf("/"))) 
-       : "/";
+    const targetPath = contextMenu.node
+      ? contextMenu.node.isFolder
+        ? contextMenu.node.path
+        : contextMenu.node.path.substring(
+            0,
+            contextMenu.node.path.lastIndexOf("/"),
+          )
+      : "/";
     pasteNode(targetPath === "" ? "/" : targetPath);
     setContextMenu(null);
   };
@@ -436,8 +475,8 @@ export function FileExplorer() {
 
   return (
     <>
-      <div 
-        className="flex flex-col h-full overflow-hidden select-none relative" 
+      <div
+        className="flex flex-col h-full overflow-hidden select-none relative"
         ref={explorerRef}
         onClick={handleBackgroundClick}
         onContextMenu={handleBackgroundContextMenu}
@@ -446,39 +485,47 @@ export function FileExplorer() {
         <div className="flex items-center justify-between px-3 h-8 text-[11px] font-semibold tracking-wide uppercase text-text-tertiary border-b border-border-subtle shrink-0">
           <span>EXPLORER</span>
           <div className="flex items-center gap-1">
-            <button 
+            <button
               className="flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 hover:text-text-primary text-text-tertiary transition-colors border-none bg-transparent cursor-pointer"
               title="New File"
-              onClick={(e) => { e.stopPropagation(); handleCreateBtnClick(false); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCreateBtnClick(false);
+              }}
             >
               <FilePlus size={14} />
             </button>
-            <button 
+            <button
               className="flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 hover:text-text-primary text-text-tertiary transition-colors border-none bg-transparent cursor-pointer"
               title="New Folder"
-              onClick={(e) => { e.stopPropagation(); handleCreateBtnClick(true); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCreateBtnClick(true);
+              }}
             >
               <FolderPlus size={14} />
             </button>
           </div>
         </div>
-        
+
         {/* Scrollable Tree Container */}
         <div className="flex-1 overflow-y-auto py-1 outline-none" tabIndex={-1}>
           {creatingNode?.parentPath === "/" && (
-             <InlineInput 
-                depth={0} 
-                isFolder={creatingNode.isFolder}
-                onSubmit={(name) => handleCreateCommit("/", name, creatingNode.isFolder)}
-                onCancel={handleCreateCancel}
-             />
+            <InlineInput
+              depth={0}
+              isFolder={creatingNode.isFolder}
+              onSubmit={(name) =>
+                handleCreateCommit("/", name, creatingNode.isFolder)
+              }
+              onCancel={handleCreateCancel}
+            />
           )}
 
           {fileTree.children?.map((child) => (
-            <TreeItem 
-              key={child.path} 
-              node={child} 
-              depth={0} 
+            <TreeItem
+              key={child.path}
+              node={child}
+              depth={0}
               focusedPath={focusedPath}
               setFocusedPath={setFocusedPath}
               onContextMenu={handleContextMenu}
@@ -493,122 +540,140 @@ export function FileExplorer() {
         </div>
 
         {/* Context Menu Overlay */}
-        {contextMenu && (
-          <div 
-            className="fixed z-50 w-48 bg-bg-secondary border border-border-default rounded shadow-xl py-1 flex flex-col"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            onClick={(e) => e.stopPropagation()}
-            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          >
-            <div className="px-3 py-1.5 text-xs text-text-tertiary border-b border-border-subtle mb-1 truncate">
-              {contextMenu.node ? contextMenu.node.path : "/"}
-            </div>
-            
-            {(!contextMenu.node || contextMenu.node.isFolder) && (
-              <>
-                <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
-                  onClick={() => {
-                     setCreatingNode({ parentPath: contextMenu.node ? contextMenu.node.path : "/", isFolder: false });
-                     setContextMenu(null);
-                  }}
-                >
-                  <FilePlus size={14} /> New File
-                </button>
-                <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
-                  onClick={() => {
-                     setCreatingNode({ parentPath: contextMenu.node ? contextMenu.node.path : "/", isFolder: true });
-                     setContextMenu(null);
-                  }}
-                >
-                  <FolderPlus size={14} /> New Folder
-                </button>
-                {((!contextMenu.node && clipboard) || contextMenu.node) && (
-                   <div className="h-px bg-border-subtle my-1 w-full" />
+        {contextMenu &&
+          createPortal(
+            <div
+              className="fixed z-[1200] w-48 bg-bg-secondary border border-border-default rounded shadow-xl py-1 flex flex-col"
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <div className="px-3 py-1.5 text-xs text-text-tertiary border-b border-border-subtle mb-1 truncate">
+                {contextMenu.node ? contextMenu.node.path : "/"}
+              </div>
+
+              {(!contextMenu.node || contextMenu.node.isFolder) && (
+                <>
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={() => {
+                      setCreatingNode({
+                        parentPath: contextMenu.node
+                          ? contextMenu.node.path
+                          : "/",
+                        isFolder: false,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    <FilePlus size={14} /> New File
+                  </button>
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={() => {
+                      setCreatingNode({
+                        parentPath: contextMenu.node
+                          ? contextMenu.node.path
+                          : "/",
+                        isFolder: true,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    <FolderPlus size={14} /> New Folder
+                  </button>
+                  {((!contextMenu.node && clipboard) || contextMenu.node) && (
+                    <div className="h-px bg-border-subtle my-1 w-full" />
+                  )}
+                </>
+              )}
+
+              {contextMenu.node && (
+                <>
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={() => handleClipboardCmd("cut")}
+                  >
+                    <Scissors size={14} /> Cut
+                  </button>
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={() => handleClipboardCmd("copy")}
+                  >
+                    <Copy size={14} /> Copy
+                  </button>
+                </>
+              )}
+
+              {(!contextMenu.node || contextMenu.node.isFolder) &&
+                clipboard && (
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={handlePasteCmd}
+                  >
+                    <Copy size={14} /> Paste
+                  </button>
                 )}
-              </>
-            )}
 
-            {contextMenu.node && (
-              <>
-                <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" 
-                  onClick={() => handleClipboardCmd("cut")}
-                >
-                  <Scissors size={14} /> Cut
-                </button>
-                <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" 
-                  onClick={() => handleClipboardCmd("copy")}
-                >
-                  <Copy size={14} /> Copy
-                </button>
-              </>
-            )}
-
-            {(!contextMenu.node || contextMenu.node.isFolder) && clipboard && (
-               <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left" 
-                  onClick={handlePasteCmd}
-               >
-                  <Copy size={14} /> Paste
-               </button>
-            )}
-            
-            {contextMenu.node && (
-              <>
-                <div className="h-px bg-border-subtle my-1 w-full" />
-                <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
-                  onClick={handleRenameStart}
-                  disabled={contextMenu.node.path === "/"}
-                >
-                  <Edit2 size={14} /> Rename
-                </button>
-                <div className="h-px bg-border-subtle my-1 w-full" />
-                <button 
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#f87171] hover:bg-[#f87171]/10 bg-transparent border-none cursor-pointer w-full text-left"
-                  onClick={handleDeleteStart}
-                  disabled={contextMenu.node.path === "/"}
-                >
-                  <Trash2 size={14} /> Delete
-                </button>
-              </>
-            )}
-          </div>
-        )}
+              {contextMenu.node && (
+                <>
+                  <div className="h-px bg-border-subtle my-1 w-full" />
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-accent-primary/20 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={handleRenameStart}
+                    disabled={contextMenu.node.path === "/"}
+                  >
+                    <Edit2 size={14} /> Rename
+                  </button>
+                  <div className="h-px bg-border-subtle my-1 w-full" />
+                  <button
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-[#f87171] hover:bg-[#f87171]/10 bg-transparent border-none cursor-pointer w-full text-left"
+                    onClick={handleDeleteStart}
+                    disabled={contextMenu.node.path === "/"}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </>
+              )}
+            </div>,
+            document.body,
+          )}
       </div>
 
       {/* Delete Confirmation Modal */}
       {deletingNode && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm shadow-2xl animate-in fade-in duration-200">
-           <div className="bg-bg-secondary w-[360px] rounded-xl overflow-hidden shadow-2xl border border-border-default transform transition-all">
-               <div className="p-5 flex flex-col gap-3">
-                  <h3 className="text-[14px] font-semibold text-text-primary m-0 flex items-center gap-2">
-                    <Trash2 size={16} className="text-[#f87171]" />
-                    Confirm Deletion
-                  </h3>
-                  <p className="text-[13px] text-text-secondary leading-relaxed m-0">
-                    Are you sure you want to delete <strong>'{deletingNode.name}'</strong>?
-                    {deletingNode.isFolder && " All its contents will be permanently lost."}
-                  </p>
-               </div>
-               <div className="flex items-center justify-end gap-2 p-3 bg-bg-tertiary border-t border-border-subtle">
-                  <button 
-                     className="px-4 py-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary bg-transparent rounded border border-transparent hover:border-border-default transition-colors cursor-pointer" 
-                     onClick={() => setDeletingNode(null)}
-                  >
-                     Cancel
-                  </button>
-                  <button 
-                     className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#dc2626] hover:bg-[#b91c1c] active:bg-[#991b1b] rounded transition-colors border-none cursor-pointer shadow-sm" 
-                     onClick={handleDeleteConfirm}
-                  >
-                     Delete
-                  </button>
-               </div>
-           </div>
+          <div className="bg-bg-secondary w-[360px] rounded-xl overflow-hidden shadow-2xl border border-border-default transform transition-all">
+            <div className="p-5 flex flex-col gap-3">
+              <h3 className="text-[14px] font-semibold text-text-primary m-0 flex items-center gap-2">
+                <Trash2 size={16} className="text-[#f87171]" />
+                Confirm Deletion
+              </h3>
+              <p className="text-[13px] text-text-secondary leading-relaxed m-0">
+                Are you sure you want to delete{" "}
+                <strong>'{deletingNode.name}'</strong>?
+                {deletingNode.isFolder &&
+                  " All its contents will be permanently lost."}
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 p-3 bg-bg-tertiary border-t border-border-subtle">
+              <button
+                className="px-4 py-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary bg-transparent rounded border border-transparent hover:border-border-default transition-colors cursor-pointer"
+                onClick={() => setDeletingNode(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#dc2626] hover:bg-[#b91c1c] active:bg-[#991b1b] rounded transition-colors border-none cursor-pointer shadow-sm"
+                onClick={handleDeleteConfirm}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>
