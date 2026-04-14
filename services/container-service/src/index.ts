@@ -1,11 +1,16 @@
 import express from "express";
 import cors from "cors";
+import { createServer } from "http";
 
 import { env } from "./config";
 
 import { registerSubscribers } from "./config/subscriber";
 
+import {Server as SocketServer} from "socket.io";
+import { registerTerminalHandlers } from "./modules/terminal/terminal.handler";
+
 const app = express();
+const httpServer = createServer(app);
 
 app.use(
   cors({
@@ -13,6 +18,38 @@ app.use(
     origin: env.ORIGIN,
   }),
 );
+
+const io = new SocketServer(httpServer, {
+  cors: {
+    origin: env.ORIGIN,
+    credentials: true,
+  },
+  path: "/terminal/",
+  allowRequest: (req, callback) => {
+    console.log("[terminal] allowRequest", req.url, req.headers.origin);
+    callback(null, true);
+  },
+});
+
+io.engine.on("connection_error", (err) => {
+  console.error(
+    "[terminal] engine connection error",
+    err.code,
+    err.message,
+    err.req?.url,
+  );
+});
+
+io.engine.on("connection", (socket) => {
+  console.log("[terminal] engine connected", socket.id, socket.transport.name);
+});
+
+httpServer.on("upgrade", (req) => {
+  if (req.url?.startsWith("/terminal")) {
+    console.log("[terminal] raw upgrade", req.url, req.headers.origin);
+  }
+});
+
 app.use(express.json());
 
 app.get("/health", (req, res) => {
@@ -38,10 +75,12 @@ app.use(
   },
 );
 
+registerTerminalHandlers(io);
+
 registerSubscribers().then(() => {
   console.log("[container-service] Subscribers registered");
 });
 
-const server = app.listen(env.PORT, () => {
+httpServer.listen(env.PORT, () => {
   console.log(`container-service running on port ${env.PORT}`);
 });
