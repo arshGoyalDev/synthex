@@ -8,7 +8,13 @@ import { Files, Search } from "lucide-react";
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { GlobalSearch } from "./GlobalSearch";
 
-export function EditorLayout() {
+interface EditorLayoutProps {
+  projectId: string;
+  userId: string;
+  containerStatus: string;
+}
+
+export function EditorLayout({ projectId, userId, containerStatus }: EditorLayoutProps) {
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [terminalHeight, setTerminalHeight] = useState(360);
   
@@ -157,7 +163,7 @@ export function EditorLayout() {
           />
         )}
         <div className="shrink-0" style={{ height: isTerminalOpen ? terminalHeight : 32 }}>
-          <Terminal />
+          <Terminal projectId={projectId} userId={userId} containerStatus={containerStatus} />
         </div>
       </div>
     </div>

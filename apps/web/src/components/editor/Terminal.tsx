@@ -1,108 +1,208 @@
-import { useState, useRef, useEffect } from "react";
-import { ChevronUp, X, TerminalSquare } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Terminal as XTerm } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
+import { ChevronUp, X, TerminalSquare, Loader2, AlertCircle, WifiOff } from "lucide-react";
 import { useEditorStore } from "../../stores/editor.store";
+import { useTerminalSocket } from "../../hooks/useTerminalSocket";
 
-const DUMMY_OUTPUT = [
-  { type: "info", text: "$ npm install" },
-  { type: "output", text: "added 237 packages in 4.2s" },
-  { type: "info", text: "$ npm run dev" },
-  { type: "output", text: "" },
-  {
-    type: "success",
-    text: "  VITE v7.3.1  ready in 312 ms",
-  },
-  { type: "output", text: "" },
-  { type: "output", text: "  ➜  Local:   http://localhost:5173/" },
-  { type: "output", text: "  ➜  Network: http://192.168.1.42:5173/" },
-  { type: "output", text: "  ➜  press h + enter to show help" },
-];
+interface TerminalProps {
+  projectId: string;
+  userId: string;
+  containerStatus: string;
+}
 
-const lineColors: Record<string, string> = {
-  info: "text-zinc-400",
-  output: "text-zinc-300",
-  success: "text-green-400",
-  error: "text-red-400",
-};
+type TerminalStatus = "connecting" | "ready" | "error" | "exited";
 
-export function Terminal() {
-  const [inputValue, setInputValue] = useState("");
-  const [lines, setLines] = useState(DUMMY_OUTPUT);
-  const outputRef = useRef<HTMLDivElement>(null);
-  
+export function Terminal({ projectId, userId, containerStatus }: TerminalProps) {
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
   const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+
+  const [status, setStatus] = useState<TerminalStatus>("connecting");
+  const [errorMsg, setErrorMsg] = useState<string>("");
+
+  const { sendInput, sendResize } = useTerminalSocket({
+    projectId,
+    userId,
+    enabled: containerStatus === "ready",
+    onOutput: (data) => {
+      xtermRef.current?.write(data);
+    },
+    onReady: () => {
+      setStatus("ready");
+      // Perform an initial fit once ready so the shell gets the right dimensions
+      setTimeout(() => {
+        if (fitAddonRef.current) {
+          fitAddonRef.current.fit();
+          const term = xtermRef.current;
+          if (term) sendResize(term.rows, term.cols);
+        }
+      }, 50);
+    },
+    onError: (message) => {
+      setStatus("error");
+      setErrorMsg(message);
+    },
+    onExit: () => {
+      setStatus("exited");
+      xtermRef.current?.writeln("\r\n\x1b[90m[Process exited]\x1b[0m");
+    },
+  });
+
+  // Mount xterm when terminal opens
   useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
-    }
-  }, [lines]);
+    if (!isTerminalOpen || !containerRef.current) return;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim()) return;
-
-    setLines((prev) => [
-      ...prev,
-      { type: "info", text: `$ ${inputValue}` },
-      {
-        type: "output",
-        text: `zsh: command not found: ${inputValue.split(" ")[0]}`,
+    const term = new XTerm({
+      theme: {
+        background: "#1a1a24",
+        foreground: "#d4d4d8",
+        cursor: "#4ade80",
+        cursorAccent: "#1a1a24",
+        selectionBackground: "#6366f1",
+        black: "#18181b",
+        red: "#f87171",
+        green: "#4ade80",
+        yellow: "#facc15",
+        blue: "#818cf8",
+        magenta: "#c084fc",
+        cyan: "#22d3ee",
+        white: "#d4d4d8",
+        brightBlack: "#52525b",
+        brightRed: "#fca5a5",
+        brightGreen: "#86efac",
+        brightYellow: "#fde047",
+        brightBlue: "#a5b4fc",
+        brightMagenta: "#d8b4fe",
+        brightCyan: "#67e8f9",
+        brightWhite: "#f4f4f5",
       },
-    ]);
-    setInputValue("");
-  };
+      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+      fontSize: 13,
+      lineHeight: 1.4,
+      cursorBlink: true,
+      cursorStyle: "block",
+      allowTransparency: false,
+      scrollback: 5000,
+    });
+
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(containerRef.current);
+
+    xtermRef.current = term;
+    fitAddonRef.current = fitAddon;
+
+    // Initial fit
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+    });
+
+    // Wire user keystrokes → socket
+    term.onData((data) => {
+      sendInput(data);
+    });
+
+    // Wire resize → socket
+    term.onResize(({ rows, cols }) => {
+      sendResize(rows, cols);
+    });
+
+    // ResizeObserver for container size changes
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        fitAddon.fit();
+      });
+    });
+    observer.observe(containerRef.current);
+    observerRef.current = observer;
+
+    return () => {
+      observer.disconnect();
+      term.dispose();
+      xtermRef.current = null;
+      fitAddonRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTerminalOpen]);
+
+  const statusLabel = {
+    connecting: "Connecting…",
+    ready: "Connected",
+    error: "Error",
+    exited: "Exited",
+  }[status];
+
+  const statusDot = {
+    connecting: "bg-yellow-400 animate-pulse",
+    ready: "bg-green-400",
+    error: "bg-red-400",
+    exited: "bg-zinc-500",
+  }[status];
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-[#1a1a24]">
       {/* Terminal header */}
-      <div 
+      <div
         className="flex items-center justify-between px-3 h-8 bg-bg-secondary shrink-0 select-none cursor-pointer hover:bg-bg-tertiary transition-colors"
         onClick={toggleTerminal}
       >
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold text-text-secondary">
           <TerminalSquare size={13} />
           <span>Terminal</span>
+          {/* Status badge */}
+          <span className="flex items-center gap-1 ml-1 normal-case tracking-normal font-normal text-text-tertiary">
+            <span className={`w-[6px] h-[6px] rounded-full shrink-0 ${statusDot}`} />
+            <span>{statusLabel}</span>
+          </span>
         </div>
-        <button className="flex items-center justify-center w-5 h-5 rounded border-none bg-transparent text-text-tertiary hover:bg-white/10 hover:text-text-primary transition-colors cursor-pointer">
+        <button
+          className="flex items-center justify-center w-5 h-5 rounded border-none bg-transparent text-text-tertiary hover:bg-white/10 hover:text-text-primary transition-colors cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); toggleTerminal(); }}
+        >
           {isTerminalOpen ? <X size={14} /> : <ChevronUp size={14} />}
         </button>
       </div>
 
       {/* Terminal body */}
       {isTerminalOpen && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-        <div
-          className="flex-1 overflow-y-auto px-3.5 py-2 font-mono text-[13px] leading-relaxed"
-          ref={outputRef}
-        >
-          {lines.map((line, i) => (
-            <div
-              key={i}
-              className={`whitespace-pre-wrap break-all ${lineColors[line.type] ?? "text-zinc-300"}`}
-            >
-              {line.text}
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Overlay states — shown on top of (but not replacing) xterm div */}
+          {containerStatus !== "ready" ? (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-[#1a1a24]">
+              <Loader2 size={16} className="animate-spin text-accent-primary" />
+              <span>Starting container...</span>
             </div>
-          ))}
-        </div>
-        <form
-          className="flex items-center gap-1.5 px-3.5 py-1 pb-2 font-mono text-[13px] shrink-0"
-          onSubmit={handleSubmit}
-        >
-          <span className="flex gap-1 shrink-0">
-            <span className="text-green-400">➜</span>
-            <span className="text-blue-400">~</span>
-          </span>
-          <input
-            className="flex-1 bg-transparent border-none outline-none text-text-primary font-mono text-[13px] caret-green-400 placeholder:text-text-tertiary/50"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type a command..."
-            spellCheck={false}
-            autoComplete="off"
+          ) : status === "connecting" ? (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-[#1a1a24]">
+              <Loader2 size={16} className="animate-spin text-accent-primary" />
+              <span>Connecting to terminal...</span>
+            </div>
+          ) : status === "error" ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] z-10 bg-[#1a1a24]">
+              <AlertCircle size={20} className="text-red-400" />
+              <span className="text-red-400 font-medium">Terminal Error</span>
+              <span className="text-text-tertiary text-[12px] max-w-xs text-center">{errorMsg}</span>
+            </div>
+          ) : status === "exited" ? (
+            <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2 text-text-tertiary text-[12px] z-10 pointer-events-none">
+              <WifiOff size={13} />
+              <span>Shell session ended</span>
+            </div>
+          ) : null}
+
+          {/* xterm container — always mounted so the terminal can write to it */}
+          <div
+            ref={containerRef}
+            className="flex-1 overflow-hidden px-1 pt-1"
+            style={{ visibility: containerStatus !== "ready" || status === "connecting" || status === "error" ? "hidden" : "visible" }}
           />
-        </form>
-      </div>
+        </div>
       )}
     </div>
   );

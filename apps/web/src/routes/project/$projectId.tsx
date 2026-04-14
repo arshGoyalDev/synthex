@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { motion } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { useSocket } from "../../contexts/SocketContext";
 import { getProjectById, startProject, stopProject } from "../../services/project.service";
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
 import { useEditorStore } from "../../stores/editor.store";
+import { useAuthStore } from "../../stores/auth.store";
 import { Loader2, Play, Square, AlertCircle, ChevronLeft } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
 
@@ -20,6 +22,7 @@ function ProjectPage() {
   const { socket, isConnected } = useSocket();
   const projects = useProjectStore((s) => s.projects);
   
+  const user = useAuthStore((s) => s.user);
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
   const toggleExplorer = useEditorStore((s) => s.toggleExplorer);
@@ -198,9 +201,38 @@ function ProjectPage() {
       </header>
       
       {/* Workspace Area */}
-      <main className="flex-1 overflow-hidden relative">
-        <EditorLayout />
-        <FilePalette />
+      <main className="flex-1 overflow-hidden relative flex flex-col">
+        {containerStatus === "ready" ? (
+          <>
+            <EditorLayout projectId={projectId} userId={user?.id ?? ""} containerStatus={containerStatus} />
+            <FilePalette />
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary z-50">
+            <motion.div
+              animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              className="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-accent-primary/20 text-accent-primary"
+            >
+              <Loader2 className="w-8 h-8 animate-spin" />
+            </motion.div>
+            <h2 className="text-xl font-medium text-text-primary mb-2">Preparing your workspace</h2>
+            <p className="text-sm text-text-secondary max-w-md text-center">
+              {containerMsg || "Booting up the container and starting services..."}
+            </p>
+            <div className="mt-8 w-64 h-1 bg-bg-secondary rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-accent-primary"
+                initial={{ width: "0%", x: "0%" }}
+                animate={{ 
+                  width: ["0%", "50%", "100%", "100%"],
+                  x: ["0%", "0%", "0%", "100%"]
+                }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              />
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
