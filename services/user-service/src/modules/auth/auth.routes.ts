@@ -5,7 +5,7 @@ import { AuthController } from "./auth.controller";
 import { env } from "../../config";
 import { AuthService } from "./auth.service";
 
-const authRoutes = Router();
+const authRoutes: Router = Router();
 
 const authService = new AuthService();
 const controller = new AuthController();
@@ -23,7 +23,12 @@ passport.use(
       callbackURL: env.GITHUB_CALLBACK_URL,
       scope: ["user:email"],
     },
-    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
+    async (
+      accessToken: string,
+      refreshToken: string,
+      profile: any,
+      done: any,
+    ) => {
       try {
         const email = profile.emails?.[0].value ?? `${profile.id}@github.com`;
 
@@ -45,10 +50,7 @@ passport.use(
   ),
 );
 
-authRoutes.get(
-  "/github",
-  passport.authenticate("github", { session: false }),
-);
+authRoutes.get("/github", passport.authenticate("github", { session: false }));
 
 authRoutes.get(
   "/github/callback",

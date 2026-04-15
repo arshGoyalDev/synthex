@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import { User, ApiResponse } from "@synthex/templates";
 
 const app = express();
 const PORT = process.env.EXECUTION_SERVICE_PORT || 3004;

@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config";
 import { redis } from "../config/database";
+import type { SignOptions } from "jsonwebtoken";
 
 interface TokenPayload {
   id: string;
@@ -8,14 +9,18 @@ interface TokenPayload {
 }
 
 const generateAccessToken = (payload: TokenPayload) => {
+  const expiresIn = env.ACCESS_TOKEN_EXPIRATION as SignOptions["expiresIn"];
+
   return jwt.sign(payload, env.JWT_SECRET as string, {
-    expiresIn: env.ACCESS_TOKEN_EXPIRATION as string,
+    expiresIn,
   });
 };
 
 const generateRefreshToken = (payload: TokenPayload) => {
+  const expiresIn = env.REFRESH_TOKEN_EXPIRATION as SignOptions["expiresIn"];
+
   return jwt.sign(payload, env.JWT_SECRET as string, {
-    expiresIn: env.REFRESH_TOKEN_EXPIRATION as string,
+    expiresIn,
   });
 };
 

@@ -2,6 +2,7 @@ import { Response, Request, NextFunction } from "express";
 
 import { UserService } from "./user.service";
 import { updateUserSchema } from "./user.schema";
+import { AppError } from "../../utils/AppError";
 
 const userService = new UserService();
 
@@ -20,7 +21,13 @@ class UserController {
 
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await userService.getById(req.params.id);
+      const userId = req.params.id;
+
+      if (!userId) {
+        throw new AppError("User id is required", 400);
+      }
+
+      const user = await userService.getById(userId);
 
       res.json({ data: user });
     } catch (error) {

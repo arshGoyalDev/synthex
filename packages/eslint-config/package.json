@@ -1,8 +1,11 @@
 {
-  "name": "@repo/eslint-config",
+  "name": "@synthex/eslint-config",
   "version": "0.0.0",
   "type": "module",
   "private": true,
+  "scripts": {
+    "check-types": "node -e \"process.exit(0)\""
+  },
   "exports": {
     "./base": "./base.js",
     "./next-js": "./next.js",

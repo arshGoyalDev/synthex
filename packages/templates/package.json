@@ -1,7 +1,13 @@
 {
   "name": "@synthex/templates",
   "version": "0.0.1",
+  "scripts": {
+    "check-types": "tsc --noEmit -p tsconfig.json"
+  },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
 }

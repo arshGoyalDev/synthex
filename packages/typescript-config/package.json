@@ -1,9 +1,21 @@
 {
-  "name": "@repo/typescript-config",
+  "name": "@synthex/config",
   "version": "0.0.0",
   "private": true,
+  "scripts": {
+    "check-types": "node -e \"process.exit(0)\""
+  },
   "license": "MIT",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./base.json": "./base.json",
+    "./nextjs.json": "./nextjs.json",
+    "./react-library.json": "./react-library.json"
+  },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
   }
 }

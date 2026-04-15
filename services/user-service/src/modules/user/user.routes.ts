@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { UserController } from "./user.controller";
 
-const userRoutes = Router();
+const userRoutes: Router = Router();
 const controller = new UserController();
 
 userRoutes.get("/me", controller.getMe.bind(controller));

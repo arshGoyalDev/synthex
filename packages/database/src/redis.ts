@@ -1,5 +1,7 @@
 import Redis from "ioredis";
 
+export type RedisClient = Redis;
+
 export function createRedisClient() {
   return new Redis({
     host: process.env.REDIS_HOST || "localhost",

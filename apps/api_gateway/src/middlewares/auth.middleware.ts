@@ -12,7 +12,6 @@ const authMiddleware = async (
   res: Response,
   next: NextFunction,
 ) => {
-
   if (req.path === "/health") {
     return next();
   }
@@ -44,4 +43,5 @@ const authMiddleware = async (
   }
 };
 
-export { authMiddleware, AuthRequest };
+export { authMiddleware };
+export type { AuthRequest };

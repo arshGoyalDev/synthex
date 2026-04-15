@@ -1,2 +1,2 @@
-export * from './templates';
-export * from './languages';
+export * from "./languages.js";
+export * from "./templates.js";

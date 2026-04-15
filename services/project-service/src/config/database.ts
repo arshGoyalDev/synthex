@@ -1,10 +1,17 @@
-import { createRedisClient, CacheManager, PubSubManager, getProjectDbClient, getProjectRepository } from "@synthex/database";
+import {
+  createRedisClient,
+  CacheManager,
+  PubSubManager,
+  getProjectDbClient,
+  getProjectRepository,
+  type RedisClient,
+} from "@synthex/database";
 
 const prisma = getProjectDbClient();
 export const db = getProjectRepository(prisma);
 
-export const redis = createRedisClient();
-export const redisSubscriber = createRedisClient(); 
+export const redis: RedisClient = createRedisClient();
+export const redisSubscriber: RedisClient = createRedisClient();
 
 redis.on("connect", () => console.log("Redis connected"));
 redis.on("ready", () => console.log("Redis ready"));

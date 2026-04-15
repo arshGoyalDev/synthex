@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { createProjectSchema } from "./project.schema";
 import { ProjectService } from "./project.service";
+import { AppError } from "../../utils/AppError";
 
 const projectService = new ProjectService();
 
@@ -19,7 +20,13 @@ class ProjectController {
 
   async getProjectById(req: Request, res: Response, next: NextFunction) {
     try {
-      const project = await projectService.getProjectById(req.params.id);
+      const projectId = req.params.id;
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+
+      const project = await projectService.getProjectById(projectId);
 
       res.json({ data: project });
     } catch (err) {
@@ -50,7 +57,11 @@ class ProjectController {
   async startProject(req: Request, res: Response, next: NextFunction) {
     try {
       const projectId = req.params.id;
-      
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+
       const result = await projectService.startProject(projectId);
 
       if (result.alreadyRunning) {
@@ -69,7 +80,11 @@ class ProjectController {
   async stopProject(req: Request, res: Response, next: NextFunction) {
     try {
       const projectId = req.params.id;
-      
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+
       await projectService.stopProject(projectId);
 
       res.json({ message: "Project stopped" });

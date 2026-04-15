@@ -12,10 +12,12 @@ class ContainerService {
     template?: string,
   ) {
     let commands: string[] = [];
+    let selectedTemplate: (typeof TEMPLATES)[string] | null = null;
 
     if (template) {
       const tmpl = TEMPLATES[template];
       if (!tmpl) throw new AppError(`Unknown Template: ${template}`, 400);
+      selectedTemplate = tmpl;
 
       const { install, setup, postSetup } = tmpl.getCommands(projectName);
 
@@ -40,6 +42,7 @@ class ContainerService {
       OpenStdin: true,
       Labels: {
         projectId,
+        projectName,
         languages: languages ? languages.join(",") : "",
         ...(template && { template }),
       },
@@ -58,14 +61,16 @@ class ContainerService {
     return {
       containerId: container.id,
       workDir: `/workspace/${projectName}`,
-      entryFile: template ? TEMPLATES[template].entryFile(projectName) : null,
-      runCommand: template ? TEMPLATES[template].runCommand : null,
+      entryFile: selectedTemplate
+        ? selectedTemplate.entryFile(projectName)
+        : null,
+      runCommand: selectedTemplate ? selectedTemplate.runCommand : null,
     };
   }
 
   async stopContainer(projectId: string) {
     try {
-      const container = this.docker.getContainer("synthex-${projectId}");
+      const container = this.docker.getContainer(`synthex-${projectId}`);
       const info = await container.inspect();
 
       if (info.State.Running) {

@@ -14,12 +14,17 @@ RUN apk add --no-cache \
     nano \
     htop \
     procps \
+    acl \
     shadow \
     su-exec
 
 RUN groupadd -r synthex && useradd -r -g synthex -m -d /home/synthex synthex
 
 WORKDIR /workspace
-RUN chown synthex:synthex /workspace
+RUN mkdir -p /workspace \
+    && chown root:synthex /workspace \
+    && chmod 2775 /workspace \
+    && setfacl -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace \
+    && setfacl -d -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace
 
 SHELL ["/bin/bash", "-c"]

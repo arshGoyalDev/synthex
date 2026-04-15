@@ -50,7 +50,7 @@ const terminalProxy = createProxyMiddleware("/terminal", {
 
 app.use(terminalProxy);
 httpServer.on("upgrade", (req, socket, head) => {
-  if (req.url?.startsWith("/terminal")) {
+  if (req.url?.startsWith("/terminal") && terminalProxy.upgrade) {
     terminalProxy.upgrade(req as any, socket as any, head);
   }
 });

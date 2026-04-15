@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { ProjectController } from "./project.controller";
 
-const projectRoutes = Router();
+const projectRoutes: Router = Router();
 
 const controller = new ProjectController();
 

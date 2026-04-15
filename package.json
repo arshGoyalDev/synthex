@@ -14,18 +14,21 @@
     "db:migrate": "turbo run migrate --filter=@synthex/database",
     "db:generate": "turbo run generate --filter=@synthex/database",
     "db:studio": "turbo run studio --filter=@synthex/database",
-    "db:setup": "bun run db:up && sleep 5 && bun run db:generate && bun run db:migrate",
+    "db:setup": "pnpm run db:up && sleep 5 && pnpm run db:generate && pnpm run db:migrate",
     "docker:build:base": "docker build -t synthex/base:latest -f packages/templates/base/Dockerfile.base ."
   },
   "devDependencies": {
+    "dotenv-cli": "^8.0.0",
     "prettier": "^3.7.4",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
     "turbo": "^2.8.17",
     "typescript": "5.9.2"
   },
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "bun@1.3.0",
+  "packageManager": "pnpm@10.18.3",
   "workspaces": [
     "apps/*",
     "packages/*",
