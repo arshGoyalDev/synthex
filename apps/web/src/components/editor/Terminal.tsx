@@ -72,11 +72,11 @@ export function Terminal({
 
     const term = new XTerm({
       theme: {
-        background: "#1a1a24",
+        background: "#0d0d0d",
         foreground: "#d4d4d8",
         cursor: "#4ade80",
-        cursorAccent: "#1a1a24",
-        selectionBackground: "#6366f1",
+        cursorAccent: "#0d0d0d",
+        selectionBackground: "rgba(22, 163, 74, 0.28)",
         black: "#18181b",
         red: "#f87171",
         green: "#4ade80",
@@ -95,8 +95,8 @@ export function Terminal({
         brightWhite: "#f4f4f5",
       },
       fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
-      fontSize: 13,
-      lineHeight: 1.4,
+      fontSize: 14,
+      lineHeight: 1.57,
       cursorBlink: true,
       cursorStyle: "block",
       allowTransparency: false,
@@ -168,10 +168,10 @@ export function Terminal({
   }[status];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-bg-primary">
+    <div className="flex flex-col h-full overflow-hidden bg-bg-dark-secondary border-t border-border-subtle">
       {/* Terminal header */}
       <div
-        className="flex items-center justify-between px-3 h-8 bg-bg-secondary shrink-0 select-none cursor-pointer hover:bg-bg-tertiary transition-colors"
+        className="flex items-center justify-between px-3 h-8 bg-bg-dark-secondary border-b border-border-subtle shrink-0 select-none cursor-pointer hover:bg-bg-secondary transition-colors"
         onClick={toggleTerminal}
       >
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider font-semibold text-text-secondary">
@@ -186,7 +186,7 @@ export function Terminal({
           </span>
         </div>
         <button
-          className="flex items-center justify-center w-5 h-5 rounded border-none bg-transparent text-text-tertiary hover:bg-white/10 hover:text-text-primary transition-colors cursor-pointer"
+          className="flex items-center justify-center w-5 h-5 rounded border-none bg-transparent text-text-tertiary hover:bg-surface-overlay hover:text-text-primary transition-colors cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
             toggleTerminal();
@@ -198,7 +198,7 @@ export function Terminal({
 
       {/* Terminal body */}
       {isTerminalOpen && (
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div className="flex-1 flex flex-col overflow-hidden relative bg-bg-primary">
           {/* Overlay states — shown on top of (but not replacing) xterm div */}
           {containerStatus !== "ready" ? (
             <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-bg-primary">
@@ -228,7 +228,7 @@ export function Terminal({
           {/* xterm container — always mounted so the terminal can write to it */}
           <div
             ref={containerRef}
-            className="flex-1 overflow-hidden px-1 pt-1"
+            className="synthex-terminal flex-1 overflow-hidden"
             style={{
               visibility:
                 containerStatus !== "ready" ||

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 export function ActivityGraph() {
   // Generate random data for the last 14 weeks (approx 3 months)
@@ -36,7 +36,7 @@ export function ActivityGraph() {
       weeks.push(
         <div key={w} className="flex flex-col gap-[3px]">
           {days}
-        </div>
+        </div>,
       );
     }
     return weeks;
@@ -48,12 +48,12 @@ export function ActivityGraph() {
         <h2 className="text-sm font-semibold text-text-primary m-0">
           Recent Activity
         </h2>
-        <span className="text-xs text-text-tertiary font-medium">104 contributions</span>
+        <span className="text-xs text-text-tertiary font-medium">
+          104 contributions
+        </span>
       </div>
-      
-      <div className="flex gap-[3px] overflow-hidden">
-        {weeksData}
-      </div>
+
+      <div className="flex gap-[3px] overflow-hidden">{weeksData}</div>
 
       <div className="flex items-center justify-end gap-2 text-[10px] text-text-tertiary mt-1">
         <span>Less</span>

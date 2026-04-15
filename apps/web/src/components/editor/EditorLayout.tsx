@@ -135,8 +135,8 @@ export function EditorLayout({
                 <Panel
                   id="terminal"
                   defaultSize={320}
-                  minSize={10}
-                  maxSize={480}
+                  minSize={100}
+                  maxSize={720}
                   className="flex flex-col"
                 >
                   <Terminal

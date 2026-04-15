@@ -218,3 +218,17 @@ body {
 .quick-input-widget .monaco-list .monaco-list-row:hover {
   background-color: rgba(22, 163, 74, 0.2) !important;
 }
+
+/* xterm terminal integration */
+.synthex-terminal .xterm,
+.synthex-terminal .xterm-viewport,
+.synthex-terminal .xterm-screen,
+.synthex-terminal .xterm-rows {
+  background: var(--color-bg-primary) !important;
+  font-family: var(--font-mono) !important;
+}
+
+.synthex-terminal .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: #333333 transparent;
+}

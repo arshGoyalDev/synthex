@@ -2,10 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { useSocket } from "../../contexts/SocketContext";
-import { getProjectById, startProject, stopProject } from "../../services/project.service";
+import {
+  getProjectById,
+  startProject,
+  stopProject,
+} from "../../services/project.service";
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
-import { useEditorStore } from "../../stores/editor.store";
 import { useAuthStore } from "../../stores/auth.store";
 import { Loader2, Play, Square, AlertCircle, ChevronLeft } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
@@ -21,16 +24,16 @@ function ProjectPage() {
   const navigate = useNavigate();
   const { socket, isConnected } = useSocket();
   const projects = useProjectStore((s) => s.projects);
-  
+
   const user = useAuthStore((s) => s.user);
-  const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
-  const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
-  const toggleExplorer = useEditorStore((s) => s.toggleExplorer);
-  const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
-  
-  const [project, setProject] = useState<Project | null>(() => projects.find((p) => p.id === projectId) || null);
+
+  const [project, setProject] = useState<Project | null>(
+    () => projects.find((p) => p.id === projectId) || null,
+  );
   const [loading, setLoading] = useState(true);
-  const [containerStatus, setContainerStatus] = useState<string>(project?.containerStatus || "unknown");
+  const [containerStatus, setContainerStatus] = useState<string>(
+    project?.containerStatus || "unknown",
+  );
   const [containerMsg, setContainerMsg] = useState<string>("");
   const currentStatusRef = useRef(project?.containerStatus || "unknown");
 
@@ -41,20 +44,24 @@ function ProjectPage() {
       try {
         setLoading(true);
         let p = projects.find((x) => x.id === projectId);
-        
+
         if (!p) {
           p = await getProjectById(projectId);
         }
-        
+
         if (isCancelled) return;
-        
+
         if (p) {
           setProject(p);
           const initialStatus = p.containerStatus || "unknown";
           setContainerStatus(initialStatus);
           currentStatusRef.current = initialStatus;
 
-          if (initialStatus !== "ready" && initialStatus !== "starting" && initialStatus !== "pending") {
+          if (
+            initialStatus !== "ready" &&
+            initialStatus !== "starting" &&
+            initialStatus !== "pending"
+          ) {
             try {
               const startData = await startProject(projectId);
               if (!isCancelled && currentStatusRef.current !== "ready") {
@@ -77,7 +84,7 @@ function ProjectPage() {
         }
       }
     }
-    
+
     initializeProject();
 
     return () => {
@@ -132,7 +139,9 @@ function ProjectPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-primary text-text-primary flex-col gap-4">
         <Loader2 className="animate-spin w-8 h-8 text-accent-primary" />
-        <p className="text-sm font-medium animate-pulse">Initializing Project...</p>
+        <p className="text-sm font-medium animate-pulse">
+          Initializing Project...
+        </p>
       </div>
     );
   }
@@ -144,7 +153,9 @@ function ProjectPage() {
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Project Not Found</h2>
-          <p className="text-text-secondary">The requested project does not exist or you do not have access.</p>
+          <p className="text-text-secondary">
+            The requested project does not exist or you do not have access.
+          </p>
         </div>
       </div>
     );
@@ -165,23 +176,34 @@ function ProjectPage() {
           </button>
 
           <div className="w-px h-[18px] bg-border-subtle mx-1" />
-          <h1 className="font-semibold text-sm truncate max-w-50">{project.name}</h1>
+          <h1 className="font-semibold text-sm truncate max-w-50">
+            {project.name}
+          </h1>
           <div className="flex items-center gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md bg-bg-tertiary text-text-secondary">
-            <span className={`w-[7px] h-[7px] rounded-full shrink-0 ${
-              containerStatus === "ready" ? "bg-green-500" :
-              containerStatus === "pending" || containerStatus === "starting" ? "bg-yellow-500 animate-pulse" :
-              containerStatus === "error" ? "bg-red-500" :
-              "bg-gray-500"
-            }`} />
+            <span
+              className={`w-[7px] h-[7px] rounded-full shrink-0 ${
+                containerStatus === "ready"
+                  ? "bg-green-500"
+                  : containerStatus === "pending" ||
+                      containerStatus === "starting"
+                    ? "bg-yellow-500 animate-pulse"
+                    : containerStatus === "error"
+                      ? "bg-red-500"
+                      : "bg-gray-500"
+              }`}
+            />
             <span className="capitalize">{containerStatus}</span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <span className="text-xs text-text-tertiary mr-2 hidden sm:inline">
             {isConnected ? "● Connected" : "○ Disconnected"}
           </span>
-          {(containerStatus === "stopped" || containerStatus === "timeout" || containerStatus === "error" || containerStatus === "unknown") && (
+          {(containerStatus === "stopped" ||
+            containerStatus === "timeout" ||
+            containerStatus === "error" ||
+            containerStatus === "unknown") && (
             <button
               onClick={handleStart}
               className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
@@ -199,12 +221,16 @@ function ProjectPage() {
           )}
         </div>
       </header>
-      
+
       {/* Workspace Area */}
       <main className="flex-1 overflow-hidden relative flex flex-col">
         {containerStatus === "ready" ? (
           <>
-            <EditorLayout projectId={projectId} userId={user?.id ?? ""} containerStatus={containerStatus} />
+            <EditorLayout
+              projectId={projectId}
+              userId={user?.id ?? ""}
+              containerStatus={containerStatus}
+            />
             <FilePalette />
           </>
         ) : (
@@ -216,19 +242,26 @@ function ProjectPage() {
             >
               <Loader2 className="w-8 h-8 animate-spin" />
             </motion.div>
-            <h2 className="text-xl font-medium text-text-primary mb-2">Preparing your workspace</h2>
+            <h2 className="text-xl font-medium text-text-primary mb-2">
+              Preparing your workspace
+            </h2>
             <p className="text-sm text-text-secondary max-w-md text-center">
-              {containerMsg || "Booting up the container and starting services..."}
+              {containerMsg ||
+                "Booting up the container and starting services..."}
             </p>
             <div className="mt-8 w-64 h-1 bg-bg-secondary rounded-full overflow-hidden">
-              <motion.div 
+              <motion.div
                 className="h-full bg-accent-primary"
                 initial={{ width: "0%", x: "0%" }}
-                animate={{ 
+                animate={{
                   width: ["0%", "50%", "100%", "100%"],
-                  x: ["0%", "0%", "0%", "100%"]
+                  x: ["0%", "0%", "0%", "100%"],
                 }}
-                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2,
+                  ease: "easeInOut",
+                }}
               />
             </div>
           </div>

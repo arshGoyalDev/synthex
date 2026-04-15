@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env vite",
-    "build": "bun --env-file=../../.env vite build",
+    "dev": "dotenv -e ../../.env -- vite",
+    "build": "dotenv -e ../../.env -- vite build",
+    "check-types": "tsc -b",
     "lint": "eslint .",
-    "preview": "bun --env-file=../../.env vite preview"
+    "preview": "dotenv -e ../../.env -- vite preview"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -16,7 +17,7 @@
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-tabs": "^1.1.13",
-    "@synthex/templates": "*",
+    "@synthex/templates": "workspace:*",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.1",
     "@tanstack/react-router": "^1.166.2",
