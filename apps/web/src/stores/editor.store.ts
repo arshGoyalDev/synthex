@@ -20,7 +20,11 @@ export interface TerminalTab {
   title: string;
 }
 
-export type TerminalViewMode = "tabs" | "split";
+export interface TerminalGroup {
+  id: string;
+  terminalIds: string[];
+  activeTerminalId: string | null;
+}
 
 interface EditorState {
   files: Map<string, FileEntry>;
@@ -33,19 +37,26 @@ interface EditorState {
   isExplorerOpen: boolean;
   sidebarTab: "files" | "search";
   isTerminalOpen: boolean;
-  terminalViewMode: TerminalViewMode;
-  terminals: TerminalTab[];
-  activeTerminalId: string | null;
+  terminalTabs: Record<string, TerminalTab>;
+  terminalGroups: Record<string, TerminalGroup>;
+  terminalGrid: string[];
+  activeTerminalGroupId: string | null;
   nextTerminalNumber: number;
 
   // Global Actions
   toggleExplorer: () => void;
   setSidebarTab: (tab: "files" | "search") => void;
   toggleTerminal: () => void;
-  toggleTerminalViewMode: () => void;
-  openNewTerminal: () => void;
-  closeTerminal: (id: string) => void;
-  setActiveTerminal: (id: string) => void;
+  openNewTerminal: (groupId?: string) => void;
+  closeTerminal: (terminalId: string, groupId?: string) => void;
+  setActiveTerminal: (terminalId: string, groupId: string) => void;
+  splitTerminalGroup: (groupId?: string) => void;
+  moveTerminal: (
+    terminalId: string,
+    sourceGroupId: string,
+    targetGroupId: string,
+    splitDirection?: "left" | "right",
+  ) => void;
   createNode: (path: string, name: string, isFolder: boolean) => void;
   renameNode: (oldPath: string, newPath: string, newName: string) => void;
   deleteNode: (path: string) => void;
@@ -143,6 +154,8 @@ const initialFiles = new Map<string, FileEntry>();
 DUMMY_FILES.forEach((f) => initialFiles.set(f.path, f));
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+const MAX_TERMINALS = 6;
+const MAX_TERMINAL_GROUPS = 3;
 
 export const useEditorStore = create<EditorState>((set) => ({
   files: initialFiles,
@@ -161,9 +174,14 @@ export const useEditorStore = create<EditorState>((set) => ({
   isExplorerOpen: true,
   sidebarTab: "files",
   isTerminalOpen: true,
-  terminalViewMode: "tabs",
-  terminals: [{ id: "term-1", title: "Terminal 1" }],
-  activeTerminalId: "term-1",
+  terminalTabs: {
+    "term-1": { id: "term-1", title: "Terminal 1" },
+  },
+  terminalGroups: {
+    main: { id: "main", terminalIds: ["term-1"], activeTerminalId: "term-1" },
+  },
+  terminalGrid: ["main"],
+  activeTerminalGroupId: "main",
   nextTerminalNumber: 2,
   clipboard: null,
 
@@ -193,95 +211,254 @@ export const useEditorStore = create<EditorState>((set) => ({
         return { isTerminalOpen: false };
       }
 
-      if (state.terminals.length > 0) {
+      const existingTerminalCount = Object.keys(state.terminalTabs).length;
+      if (existingTerminalCount > 0) {
         return { isTerminalOpen: true };
       }
 
       const id = `term-${generateId()}`;
       return {
         isTerminalOpen: true,
-        terminals: [{ id, title: `Terminal ${state.nextTerminalNumber}` }],
-        activeTerminalId: id,
+        terminalTabs: {
+          [id]: { id, title: `Terminal ${state.nextTerminalNumber}` },
+        },
+        terminalGroups: {
+          main: { id: "main", terminalIds: [id], activeTerminalId: id },
+        },
+        terminalGrid: ["main"],
+        activeTerminalGroupId: "main",
         nextTerminalNumber: state.nextTerminalNumber + 1,
       };
     }),
 
-  toggleTerminalViewMode: () =>
+  openNewTerminal: (groupId) =>
     set((state) => {
-      if (state.terminalViewMode === "split") {
-        return { terminalViewMode: "tabs" };
-      }
+      const total = Object.keys(state.terminalTabs).length;
+      if (total >= MAX_TERMINALS) return { isTerminalOpen: true };
 
-      if (state.terminals.length >= 2) {
-        return { terminalViewMode: "split", isTerminalOpen: true };
-      }
+      const requestedGroupId =
+        groupId ??
+        state.activeTerminalGroupId ??
+        state.terminalGrid[0] ??
+        "main";
+      const targetGroupId = state.terminalGroups[requestedGroupId]
+        ? requestedGroupId
+        : "main";
+      const targetGroup = state.terminalGroups[targetGroupId] ?? {
+        id: targetGroupId,
+        terminalIds: [],
+        activeTerminalId: null,
+      };
 
       const id = `term-${generateId()}`;
       return {
-        terminalViewMode: "split",
         isTerminalOpen: true,
-        terminals: [
-          ...state.terminals,
-          { id, title: `Terminal ${state.nextTerminalNumber}` },
-        ],
-        activeTerminalId:
-          state.activeTerminalId ?? state.terminals[0]?.id ?? id,
+        terminalTabs: {
+          ...state.terminalTabs,
+          [id]: { id, title: `Terminal ${state.nextTerminalNumber}` },
+        },
+        terminalGroups: {
+          ...state.terminalGroups,
+          [targetGroupId]: {
+            ...targetGroup,
+            terminalIds: [...targetGroup.terminalIds, id],
+            activeTerminalId: id,
+          },
+        },
+        terminalGrid: state.terminalGrid.includes(targetGroupId)
+          ? state.terminalGrid
+          : [...state.terminalGrid, targetGroupId],
+        activeTerminalGroupId: targetGroupId,
         nextTerminalNumber: state.nextTerminalNumber + 1,
       };
     }),
 
-  openNewTerminal: () =>
+  closeTerminal: (terminalId, groupId) =>
     set((state) => {
-      const id = `term-${generateId()}`;
-      return {
-        isTerminalOpen: true,
-        terminals: [
-          ...state.terminals,
-          { id, title: `Terminal ${state.nextTerminalNumber}` },
-        ],
-        activeTerminalId: id,
-        nextTerminalNumber: state.nextTerminalNumber + 1,
-      };
-    }),
+      const targetGroupId =
+        groupId ?? state.activeTerminalGroupId ?? state.terminalGrid[0] ?? null;
+      if (!targetGroupId) return state;
 
-  closeTerminal: (id) =>
-    set((state) => {
-      const idx = state.terminals.findIndex((terminal) => terminal.id === id);
-      if (idx === -1) return state;
+      const targetGroup = state.terminalGroups[targetGroupId];
+      if (!targetGroup) return state;
+      if (!targetGroup.terminalIds.includes(terminalId)) return state;
 
-      const terminals = state.terminals.filter(
-        (terminal) => terminal.id !== id,
+      const terminalIds = targetGroup.terminalIds.filter(
+        (id) => id !== terminalId,
       );
+      const idx = targetGroup.terminalIds.indexOf(terminalId);
 
-      if (terminals.length === 0) {
-        return {
-          terminals,
-          activeTerminalId: null,
-          isTerminalOpen: false,
-          terminalViewMode: "tabs",
+      const terminalTabs = { ...state.terminalTabs };
+      delete terminalTabs[terminalId];
+
+      const terminalGroups = { ...state.terminalGroups };
+      const terminalGrid = [...state.terminalGrid];
+
+      if (terminalIds.length === 0) {
+        delete terminalGroups[targetGroupId];
+        const gridIdx = terminalGrid.indexOf(targetGroupId);
+        if (gridIdx !== -1) terminalGrid.splice(gridIdx, 1);
+      } else {
+        const fallback = terminalIds[Math.max(0, idx - 1)] ?? terminalIds[0];
+        terminalGroups[targetGroupId] = {
+          ...targetGroup,
+          terminalIds,
+          activeTerminalId:
+            targetGroup.activeTerminalId === terminalId
+              ? fallback
+              : targetGroup.activeTerminalId,
         };
       }
 
-      let activeTerminalId = state.activeTerminalId;
-      if (state.activeTerminalId === id) {
-        const fallbackIdx = Math.max(0, idx - 1);
-        activeTerminalId = terminals[fallbackIdx]?.id ?? terminals[0].id;
-      }
+      const hasAnyTerminals = Object.keys(terminalTabs).length > 0;
+      const activeTerminalGroupId = terminalGrid.includes(
+        state.activeTerminalGroupId ?? "",
+      )
+        ? state.activeTerminalGroupId
+        : (terminalGrid[0] ?? null);
 
       return {
-        terminals,
-        activeTerminalId,
-        terminalViewMode:
-          state.terminalViewMode === "split" && terminals.length < 2
-            ? "tabs"
-            : state.terminalViewMode,
+        terminalTabs,
+        terminalGroups,
+        terminalGrid,
+        activeTerminalGroupId,
+        isTerminalOpen: hasAnyTerminals ? state.isTerminalOpen : false,
       };
     }),
 
-  setActiveTerminal: (id) =>
+  setActiveTerminal: (terminalId, groupId) =>
     set((state) => {
-      if (!state.terminals.some((terminal) => terminal.id === id)) return state;
-      return { activeTerminalId: id };
+      const group = state.terminalGroups[groupId];
+      if (!group || !group.terminalIds.includes(terminalId)) return state;
+
+      return {
+        activeTerminalGroupId: groupId,
+        terminalGroups: {
+          ...state.terminalGroups,
+          [groupId]: {
+            ...group,
+            activeTerminalId: terminalId,
+          },
+        },
+      };
+    }),
+
+  splitTerminalGroup: (groupId) =>
+    set((state) => {
+      if (state.terminalGrid.length >= MAX_TERMINAL_GROUPS) return state;
+
+      const targetGroupId =
+        groupId ?? state.activeTerminalGroupId ?? state.terminalGrid[0] ?? null;
+      if (!targetGroupId) return state;
+
+      if (!state.terminalGroups[targetGroupId]) return state;
+
+      const total = Object.keys(state.terminalTabs).length;
+      if (total >= MAX_TERMINALS) return state;
+
+      const terminalId = `term-${generateId()}`;
+      const newGroupId = `tg-${generateId()}`;
+
+      return {
+        isTerminalOpen: true,
+        terminalTabs: {
+          ...state.terminalTabs,
+          [terminalId]: {
+            id: terminalId,
+            title: `Terminal ${state.nextTerminalNumber}`,
+          },
+        },
+        terminalGroups: {
+          ...state.terminalGroups,
+          [newGroupId]: {
+            id: newGroupId,
+            terminalIds: [terminalId],
+            activeTerminalId: terminalId,
+          },
+        },
+        terminalGrid: [...state.terminalGrid, newGroupId],
+        activeTerminalGroupId: newGroupId,
+        nextTerminalNumber: state.nextTerminalNumber + 1,
+      };
+    }),
+
+  moveTerminal: (terminalId, sourceGroupId, targetGroupId, splitDirection) =>
+    set((state) => {
+      if (sourceGroupId === targetGroupId && !splitDirection) return state;
+
+      const sourceGroup = state.terminalGroups[sourceGroupId];
+      if (!sourceGroup || !sourceGroup.terminalIds.includes(terminalId)) {
+        return state;
+      }
+
+      const terminalGroups = { ...state.terminalGroups };
+      const terminalGrid = [...state.terminalGrid];
+
+      const sourceNextIds = sourceGroup.terminalIds.filter(
+        (id) => id !== terminalId,
+      );
+      if (sourceNextIds.length === 0) {
+        delete terminalGroups[sourceGroupId];
+        const sourceIdx = terminalGrid.indexOf(sourceGroupId);
+        if (sourceIdx !== -1) terminalGrid.splice(sourceIdx, 1);
+      } else {
+        terminalGroups[sourceGroupId] = {
+          ...sourceGroup,
+          terminalIds: sourceNextIds,
+          activeTerminalId:
+            sourceGroup.activeTerminalId === terminalId
+              ? (sourceNextIds[
+                  Math.max(0, sourceGroup.terminalIds.indexOf(terminalId) - 1)
+                ] ?? sourceNextIds[0])
+              : sourceGroup.activeTerminalId,
+        };
+      }
+
+      let finalTargetGroupId = targetGroupId;
+
+      if (splitDirection) {
+        if (terminalGrid.length >= MAX_TERMINAL_GROUPS) return state;
+
+        const baseTargetIdx = terminalGrid.indexOf(targetGroupId);
+        if (baseTargetIdx === -1) return state;
+
+        const newGroupId = `tg-${generateId()}`;
+        terminalGroups[newGroupId] = {
+          id: newGroupId,
+          terminalIds: [terminalId],
+          activeTerminalId: terminalId,
+        };
+
+        terminalGrid.splice(
+          splitDirection === "left" ? baseTargetIdx : baseTargetIdx + 1,
+          0,
+          newGroupId,
+        );
+        finalTargetGroupId = newGroupId;
+      } else {
+        const targetGroup = terminalGroups[targetGroupId];
+        if (!targetGroup) return state;
+        terminalGroups[targetGroupId] = {
+          ...targetGroup,
+          terminalIds: [...targetGroup.terminalIds, terminalId],
+          activeTerminalId: terminalId,
+        };
+      }
+
+      if (splitDirection) {
+        const targetGroup = terminalGroups[finalTargetGroupId];
+        terminalGroups[finalTargetGroupId] = {
+          ...targetGroup,
+          terminalIds: [terminalId],
+          activeTerminalId: terminalId,
+        };
+      }
+
+      return {
+        terminalGroups,
+        terminalGrid,
+        activeTerminalGroupId: finalTargetGroupId,
+      };
     }),
 
   setActiveGroup: (groupId) => set({ activeGroupId: groupId }),
