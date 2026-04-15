@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { FileExplorer } from "./FileExplorer";
 import { Terminal } from "./Terminal";
 import { Pane } from "./Pane";
@@ -27,6 +27,31 @@ export function EditorLayout({
   const sidebarTab = useEditorStore((s) => s.sidebarTab);
   const setSidebarTab = useEditorStore((s) => s.setSidebarTab);
   const grid = useEditorStore((s) => s.grid);
+  const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
+  const openNewTerminal = useEditorStore((s) => s.openNewTerminal);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const hasModifier = event.ctrlKey || event.metaKey;
+      if (!hasModifier) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === "j") {
+        event.preventDefault();
+        toggleTerminal();
+        return;
+      }
+
+      if (event.shiftKey && event.key === "?") {
+        event.preventDefault();
+        openNewTerminal();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [toggleTerminal, openNewTerminal]);
 
   return (
     <div className="flex h-full overflow-hidden bg-bg-secondary">

@@ -5,6 +5,7 @@ import { tokenRef } from "../lib/tokenRef";
 interface UseTerminalSocketOptions {
   projectId: string;
   userId: string;
+  terminalId: string;
   enabled: boolean;
   onOutput: (data: string) => void;
   onReady: () => void;
@@ -15,6 +16,7 @@ interface UseTerminalSocketOptions {
 export function useTerminalSocket({
   projectId,
   userId,
+  terminalId,
   enabled,
   onOutput,
   onReady,
@@ -29,7 +31,7 @@ export function useTerminalSocket({
   }, [onOutput, onReady, onError, onExit]);
 
   useEffect(() => {
-    if (!enabled || !projectId || !userId) {
+    if (!enabled || !projectId || !userId || !terminalId) {
       socketRef.current?.disconnect();
       socketRef.current = null;
       return;
@@ -37,7 +39,7 @@ export function useTerminalSocket({
 
     const socket = io(import.meta.env.VITE_SERVER_URL as string, {
       path: "/terminal/",
-      query: { projectId, userId },
+      query: { projectId, userId, terminalId },
       auth: { token: tokenRef.current },
       transports: ["polling", "websocket"],
       withCredentials: true,
@@ -71,7 +73,7 @@ export function useTerminalSocket({
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [enabled, projectId, userId]);
+  }, [enabled, projectId, userId, terminalId]);
 
   const sendInput = useCallback((data: string) => {
     const encoded = btoa(data);

@@ -15,6 +15,13 @@ export interface EditorGroup {
   isPreviewMode: boolean;
 }
 
+export interface TerminalTab {
+  id: string;
+  title: string;
+}
+
+export type TerminalViewMode = "tabs" | "split";
+
 interface EditorState {
   files: Map<string, FileEntry>;
 
@@ -26,11 +33,19 @@ interface EditorState {
   isExplorerOpen: boolean;
   sidebarTab: "files" | "search";
   isTerminalOpen: boolean;
+  terminalViewMode: TerminalViewMode;
+  terminals: TerminalTab[];
+  activeTerminalId: string | null;
+  nextTerminalNumber: number;
 
   // Global Actions
   toggleExplorer: () => void;
   setSidebarTab: (tab: "files" | "search") => void;
   toggleTerminal: () => void;
+  toggleTerminalViewMode: () => void;
+  openNewTerminal: () => void;
+  closeTerminal: (id: string) => void;
+  setActiveTerminal: (id: string) => void;
   createNode: (path: string, name: string, isFolder: boolean) => void;
   renameNode: (oldPath: string, newPath: string, newName: string) => void;
   deleteNode: (path: string) => void;
@@ -146,6 +161,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   isExplorerOpen: true,
   sidebarTab: "files",
   isTerminalOpen: true,
+  terminalViewMode: "tabs",
+  terminals: [{ id: "term-1", title: "Terminal 1" }],
+  activeTerminalId: "term-1",
+  nextTerminalNumber: 2,
   clipboard: null,
 
   setClipboard: (path, type = "copy") =>
@@ -169,7 +188,101 @@ export const useEditorStore = create<EditorState>((set) => ({
       activeSearchMatch: tab === "search" ? state.activeSearchMatch : null, // clear if tab changes
     })),
   toggleTerminal: () =>
-    set((state) => ({ isTerminalOpen: !state.isTerminalOpen })),
+    set((state) => {
+      if (state.isTerminalOpen) {
+        return { isTerminalOpen: false };
+      }
+
+      if (state.terminals.length > 0) {
+        return { isTerminalOpen: true };
+      }
+
+      const id = `term-${generateId()}`;
+      return {
+        isTerminalOpen: true,
+        terminals: [{ id, title: `Terminal ${state.nextTerminalNumber}` }],
+        activeTerminalId: id,
+        nextTerminalNumber: state.nextTerminalNumber + 1,
+      };
+    }),
+
+  toggleTerminalViewMode: () =>
+    set((state) => {
+      if (state.terminalViewMode === "split") {
+        return { terminalViewMode: "tabs" };
+      }
+
+      if (state.terminals.length >= 2) {
+        return { terminalViewMode: "split", isTerminalOpen: true };
+      }
+
+      const id = `term-${generateId()}`;
+      return {
+        terminalViewMode: "split",
+        isTerminalOpen: true,
+        terminals: [
+          ...state.terminals,
+          { id, title: `Terminal ${state.nextTerminalNumber}` },
+        ],
+        activeTerminalId:
+          state.activeTerminalId ?? state.terminals[0]?.id ?? id,
+        nextTerminalNumber: state.nextTerminalNumber + 1,
+      };
+    }),
+
+  openNewTerminal: () =>
+    set((state) => {
+      const id = `term-${generateId()}`;
+      return {
+        isTerminalOpen: true,
+        terminals: [
+          ...state.terminals,
+          { id, title: `Terminal ${state.nextTerminalNumber}` },
+        ],
+        activeTerminalId: id,
+        nextTerminalNumber: state.nextTerminalNumber + 1,
+      };
+    }),
+
+  closeTerminal: (id) =>
+    set((state) => {
+      const idx = state.terminals.findIndex((terminal) => terminal.id === id);
+      if (idx === -1) return state;
+
+      const terminals = state.terminals.filter(
+        (terminal) => terminal.id !== id,
+      );
+
+      if (terminals.length === 0) {
+        return {
+          terminals,
+          activeTerminalId: null,
+          isTerminalOpen: false,
+          terminalViewMode: "tabs",
+        };
+      }
+
+      let activeTerminalId = state.activeTerminalId;
+      if (state.activeTerminalId === id) {
+        const fallbackIdx = Math.max(0, idx - 1);
+        activeTerminalId = terminals[fallbackIdx]?.id ?? terminals[0].id;
+      }
+
+      return {
+        terminals,
+        activeTerminalId,
+        terminalViewMode:
+          state.terminalViewMode === "split" && terminals.length < 2
+            ? "tabs"
+            : state.terminalViewMode,
+      };
+    }),
+
+  setActiveTerminal: (id) =>
+    set((state) => {
+      if (!state.terminals.some((terminal) => terminal.id === id)) return state;
+      return { activeTerminalId: id };
+    }),
 
   setActiveGroup: (groupId) => set({ activeGroupId: groupId }),
 

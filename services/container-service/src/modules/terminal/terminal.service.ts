@@ -5,6 +5,7 @@ import { Duplex } from "stream";
 interface TerminalSession {
   stream: Duplex;
   socketId: string;
+  projectId: string;
 }
 
 class TerminalService {
@@ -64,9 +65,11 @@ class TerminalService {
     }
   }
 
-  async attach(socket: Socket, projectId: string) {
+  async attach(socket: Socket, projectId: string, terminalId: string) {
     try {
-      console.log(`[terminal] Attaching socket ${socket.id} to ${projectId}`);
+      console.log(
+        `[terminal] Attaching socket ${socket.id} to ${projectId} (${terminalId})`,
+      );
       const container = this.docker.getContainer(`synthex-${projectId}`);
       const info = await container.inspect();
       console.log(
@@ -108,7 +111,11 @@ class TerminalService {
         `[terminal] Exec stream started for ${projectId} using ${attemptLabel}`,
       );
 
-      this.sessions.set(projectId, { stream, socketId: socket.id });
+      this.sessions.set(terminalId, {
+        stream,
+        socketId: socket.id,
+        projectId,
+      });
 
       stream.on("data", (chunk: Buffer) => {
         socket.emit("terminal:output", {
@@ -121,7 +128,7 @@ class TerminalService {
           message: "Shell exited",
         });
 
-        this.sessions.delete(projectId);
+        this.sessions.delete(terminalId);
       });
 
       stream.on("error", (err) => {
@@ -131,11 +138,11 @@ class TerminalService {
 
         console.error(`[terminal] Stream error for ${projectId}:`, err);
 
-        this.sessions.delete(projectId);
+        this.sessions.delete(terminalId);
       });
 
       socket.on("terminal:input", ({ data }: { data: string }) => {
-        const session = this.sessions.get(projectId);
+        const session = this.sessions.get(terminalId);
 
         if (session?.stream.writable) {
           session.stream.write(Buffer.from(data, "base64"));
@@ -152,6 +159,7 @@ class TerminalService {
       socket.emit("terminal:ready", {
         message: "Terminal ready",
         projectId,
+        terminalId,
       });
       console.log(`[terminal] Terminal ready for ${projectId}`);
     } catch (err: any) {
@@ -160,17 +168,17 @@ class TerminalService {
     }
   }
 
-  detach(projectId: string, socketId: string) {
-    const session = this.sessions.get(projectId);
+  detach(terminalId: string, socketId: string) {
+    const session = this.sessions.get(terminalId);
 
     if (!session) return;
 
     if (session.socketId == socketId) {
       session.stream.destroy();
 
-      this.sessions.delete(projectId);
+      this.sessions.delete(terminalId);
 
-      console.log(`[terminal] Session detached from ${projectId}`);
+      console.log(`[terminal] Session detached from ${session.projectId}`);
     }
   }
 }

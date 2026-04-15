@@ -7,22 +7,27 @@ const registerTerminalHandlers = (io: SocketServer) => {
   io.on("connection", (socket: Socket) => {
     const projectId = socket.handshake.query.projectId as string;
     const userId = socket.handshake.query.userId as string;
+    const terminalId = socket.handshake.query.terminalId as string;
 
-    if (!projectId || !userId) {
-      socket.emit("terminal:error", { message: "Missing projectId or userId" });
+    if (!projectId || !userId || !terminalId) {
+      socket.emit("terminal:error", {
+        message: "Missing projectId, userId or terminalId",
+      });
       socket.disconnect();
       return;
     }
 
-    console.log(`[terminal] User ${userId} connected to project ${projectId}`);
+    console.log(
+      `[terminal] User ${userId} connected to project ${projectId} (${terminalId})`,
+    );
 
-    terminalService.attach(socket, projectId);
+    terminalService.attach(socket, projectId, terminalId);
 
     socket.on("disconnect", () => {
       console.log(
-        `[terminal] User ${userId} disconnected from project ${projectId}`,
+        `[terminal] User ${userId} disconnected from project ${projectId} (${terminalId})`,
       );
-      terminalService.detach(projectId, socket.id);
+      terminalService.detach(terminalId, socket.id);
     });
   });
 };
