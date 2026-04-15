@@ -155,7 +155,7 @@ DUMMY_FILES.forEach((f) => initialFiles.set(f.path, f));
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 const MAX_TERMINALS = 6;
-const MAX_TERMINAL_GROUPS = 3;
+const MAX_TERMINAL_GROUPS = 2;
 
 export const useEditorStore = create<EditorState>((set) => ({
   files: initialFiles,

@@ -1,16 +1,16 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import {
   ChevronUp,
-  X,
-  TerminalSquare,
-  Loader2,
-  AlertCircle,
   Plus,
   SplitSquareHorizontal,
+  TerminalSquare,
+  X,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   Panel,
@@ -59,9 +59,7 @@ function TerminalSession({
     userId,
     terminalId,
     enabled: containerStatus === "ready",
-    onOutput: (data) => {
-      xtermRef.current?.write(data);
-    },
+    onOutput: (data) => xtermRef.current?.write(data),
     onReady: () => {
       setStatus("ready");
       requestAnimationFrame(() => {
@@ -74,30 +72,36 @@ function TerminalSession({
       setStatus("error");
       setErrorMsg(message);
     },
-    onExit: () => {
-      closeTerminal(terminalId, groupId);
-    },
+    onExit: () => closeTerminal(terminalId, groupId),
   });
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const term = new XTerm({
+    const rootStyles = getComputedStyle(document.documentElement);
+    const css = (variable: string, fallback: string) =>
+      rootStyles.getPropertyValue(variable).trim() || fallback;
+
+    const bgPrimary = css("--color-bg-primary", "#0d0d0d");
+    const textPrimary = css("--color-text-primary", "#e4e4e7");
+    const accentPrimary = css("--color-accent-primary", "#16a34a");
+
+    const terminal = new XTerm({
       theme: {
-        background: "#0d0d0d",
-        foreground: "#d4d4d8",
-        cursor: "#4ade80",
-        cursorAccent: "#0d0d0d",
-        selectionBackground: "rgba(22, 163, 74, 0.28)",
+        background: bgPrimary,
+        foreground: textPrimary,
+        cursor: accentPrimary,
+        cursorAccent: bgPrimary,
+        selectionBackground: "rgba(22, 163, 74, 0.24)",
         black: "#18181b",
-        red: "#f87171",
+        red: "#ef4444",
         green: "#4ade80",
-        yellow: "#facc15",
+        yellow: "#eab308",
         blue: "#818cf8",
         magenta: "#c084fc",
         cyan: "#22d3ee",
-        white: "#d4d4d8",
-        brightBlack: "#52525b",
+        white: textPrimary,
+        brightBlack: "#71717a",
         brightRed: "#fca5a5",
         brightGreen: "#86efac",
         brightYellow: "#fde047",
@@ -111,26 +115,27 @@ function TerminalSession({
       lineHeight: 1.57,
       cursorBlink: true,
       cursorStyle: "block",
+      drawBoldTextInBrightColors: true,
       allowTransparency: false,
-      scrollback: 7000,
+      scrollback: 8000,
     });
 
     const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(containerRef.current);
+    terminal.loadAddon(fitAddon);
+    terminal.open(containerRef.current);
     try {
-      term.loadAddon(new WebglAddon());
+      terminal.loadAddon(new WebglAddon());
     } catch {
-      // fallback silently
+      // Ignore WebGL fallback errors.
     }
 
-    xtermRef.current = term;
+    xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
     requestAnimationFrame(() => fitAddon.fit());
 
-    term.onData((data) => sendInput(data));
-    term.onResize(({ rows, cols }) => sendResize(rows, cols));
+    terminal.onData((data) => sendInput(data));
+    terminal.onResize(({ rows, cols }) => sendResize(rows, cols));
 
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => fitAddon.fit());
@@ -139,7 +144,7 @@ function TerminalSession({
 
     return () => {
       observer.disconnect();
-      term.dispose();
+      terminal.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
@@ -161,23 +166,28 @@ function TerminalSession({
       data-terminal-session-id={terminalId}
     >
       {containerStatus !== "ready" ? (
-        <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-bg-primary/95 backdrop-blur-sm">
-          <Loader2 size={16} className="animate-spin text-accent-primary" />
-          <span>Starting container...</span>
-        </div>
+        <TerminalStateOverlay
+          icon={
+            <Loader2 size={16} className="animate-spin text-accent-primary" />
+          }
+          title="Starting container"
+          subtitle="Preparing shell runtime"
+        />
       ) : status === "connecting" ? (
-        <div className="absolute inset-0 flex items-center justify-center gap-2 text-text-secondary text-[13px] z-10 bg-bg-primary/95 backdrop-blur-sm">
-          <Loader2 size={16} className="animate-spin text-accent-primary" />
-          <span>Connecting to terminal...</span>
-        </div>
+        <TerminalStateOverlay
+          icon={
+            <Loader2 size={16} className="animate-spin text-accent-primary" />
+          }
+          title="Connecting terminal"
+          subtitle="Waiting for terminal socket"
+        />
       ) : status === "error" ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[13px] z-10 bg-bg-primary/95 backdrop-blur-sm">
-          <AlertCircle size={20} className="text-red-400" />
-          <span className="text-red-400 font-medium">Terminal Error</span>
-          <span className="text-text-tertiary text-[12px] max-w-xs text-center">
-            {errorMsg}
-          </span>
-        </div>
+        <TerminalStateOverlay
+          icon={<AlertCircle size={18} className="text-red-400" />}
+          title="Terminal error"
+          subtitle={errorMsg || "Unable to connect this terminal session"}
+          danger
+        />
       ) : null}
 
       <div
@@ -197,35 +207,57 @@ function TerminalSession({
   );
 }
 
-interface TerminalPaneProps {
+function TerminalStateOverlay({
+  icon,
+  title,
+  subtitle,
+  danger = false,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  danger?: boolean;
+}) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-bg-primary/90 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-2 rounded-lg border border-border-subtle bg-bg-dark-secondary/80 px-5 py-4">
+        {icon}
+        <span
+          className={`text-sm font-medium ${danger ? "text-red-400" : "text-text-primary"}`}
+        >
+          {title}
+        </span>
+        <span className="text-xs text-text-tertiary">{subtitle}</span>
+      </div>
+    </div>
+  );
+}
+
+interface TerminalGroupPaneProps {
   projectId: string;
   userId: string;
   containerStatus: string;
   groupId: string;
 }
 
-function TerminalPane({
+function TerminalGroupPane({
   projectId,
   userId,
   containerStatus,
   groupId,
-}: TerminalPaneProps) {
+}: TerminalGroupPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const group = useEditorStore((s) => s.terminalGroups[groupId]);
   const terminalTabs = useEditorStore((s) => s.terminalTabs);
   const setActiveTerminal = useEditorStore((s) => s.setActiveTerminal);
   const closeTerminal = useEditorStore((s) => s.closeTerminal);
   const openNewTerminal = useEditorStore((s) => s.openNewTerminal);
-  const moveTerminal = useEditorStore((s) => s.moveTerminal);
-  const terminalGrid = useEditorStore((s) => s.terminalGrid);
   const totalTerminalCount = useEditorStore(
     (s) => Object.keys(s.terminalTabs).length,
   );
-  const [dragTarget, setDragTarget] = useState<
-    "left" | "right" | "center" | null
-  >(null);
-
-  if (!group) return null;
+  const activeTerminalGroupId = useEditorStore((s) => s.activeTerminalGroupId);
+  const activeTerminalId = group?.activeTerminalId ?? null;
+  const terminalIdsKey = group?.terminalIds.join(",") ?? "";
 
   const focusTerminalInput = (terminalId: string) => {
     requestAnimationFrame(() => {
@@ -238,166 +270,77 @@ function TerminalPane({
   };
 
   useEffect(() => {
-    if (!group.activeTerminalId) return;
-    focusTerminalInput(group.activeTerminalId);
-  }, [group.activeTerminalId, group.terminalIds.join(",")]);
+    if (!activeTerminalId) return;
+    focusTerminalInput(activeTerminalId);
+  }, [activeTerminalId, terminalIdsKey]);
 
-  const getDragPayload = (event: React.DragEvent) => {
-    const custom = event.dataTransfer.getData(
-      "application/vnd.synthex.terminal",
-    );
-    if (custom) return custom;
-    return event.dataTransfer.getData("text/plain");
-  };
-
-  const resolveDropZone = (event: React.DragEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const threshold = 0.24;
-
-    if (x < rect.width * threshold) return "left" as const;
-    if (x > rect.width * (1 - threshold)) return "right" as const;
-    return "center" as const;
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    const payload = getDragPayload(e);
-    if (!payload) return;
-    e.preventDefault();
-    setDragTarget(resolveDropZone(e));
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const payload = getDragPayload(e);
-    const zone = resolveDropZone(e);
-    setDragTarget(null);
-    if (!payload) return;
-
-    try {
-      const parsed = JSON.parse(payload) as {
-        terminalId: string;
-        sourceGroupId: string;
-      };
-
-      if (!parsed.terminalId || !parsed.sourceGroupId) return;
-
-      if (zone === "left" || zone === "right") {
-        if (terminalGrid.length >= 3) {
-          moveTerminal(parsed.terminalId, parsed.sourceGroupId, groupId);
-          focusTerminalInput(parsed.terminalId);
-          return;
-        }
-        moveTerminal(parsed.terminalId, parsed.sourceGroupId, groupId, zone);
-        focusTerminalInput(parsed.terminalId);
-        return;
-      }
-
-      moveTerminal(parsed.terminalId, parsed.sourceGroupId, groupId);
-      focusTerminalInput(parsed.terminalId);
-    } catch {
-      // noop for malformed payload
-    }
-  };
+  if (!group) return null;
 
   return (
     <div
       ref={paneRef}
-      className="h-full flex flex-col overflow-hidden bg-bg-primary relative"
-      onDragOver={handleDragOver}
-      onDragLeave={(e) => {
-        const related = e.relatedTarget as Node | null;
-        if (related && e.currentTarget.contains(related)) return;
-        setDragTarget(null);
+      className={`relative flex h-full flex-col overflow-hidden bg-bg-primary ${
+        activeTerminalGroupId === groupId
+          ? "ring-1 ring-inset ring-accent-primary/25"
+          : "ring-1 ring-inset ring-transparent"
+      }`}
+      onClickCapture={() => {
+        if (!group.activeTerminalId) return;
+        setActiveTerminal(group.activeTerminalId, groupId);
       }}
-      onDrop={handleDrop}
     >
-      <div className="flex items-stretch h-9 border-b border-border-subtle bg-bg-dark-secondary shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {group.terminalIds.map((terminalId) => {
-          const terminal = terminalTabs[terminalId];
-          if (!terminal) return null;
-          const isActive = group.activeTerminalId === terminalId;
+      <div className="flex shrink-0 items-stretch border-b border-border-subtle bg-bg-dark-secondary">
+        <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {group.terminalIds.map((terminalId) => {
+            const terminal = terminalTabs[terminalId];
+            if (!terminal) return null;
+            const isActive = group.activeTerminalId === terminalId;
 
-          return (
-            <button
-              key={terminalId}
-              draggable
-              onDragStart={(e) => {
-                const payload = JSON.stringify({
-                  terminalId,
-                  sourceGroupId: groupId,
-                });
-                e.dataTransfer.setData(
-                  "application/vnd.synthex.terminal",
-                  payload,
-                );
-                e.dataTransfer.setData("text/plain", payload);
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              className={`group flex items-center gap-1.5 pl-3 pr-1 min-w-[136px] border-r border-border-subtle bg-transparent text-[12px] h-full cursor-pointer transition-colors relative ${
-                isActive
-                  ? "text-text-primary bg-bg-primary"
-                  : "text-text-secondary hover:text-text-primary hover:bg-surface-overlay"
-              }`}
-              onClick={() => {
-                setActiveTerminal(terminalId, groupId);
-                focusTerminalInput(terminalId);
-              }}
-              title={terminal.title}
-            >
-              <TerminalSquare size={12} />
-              <span className="truncate">{terminal.title}</span>
-              <span
-                className={`flex items-center justify-center w-5 h-5 rounded ml-auto text-text-tertiary transition-all duration-100 hover:bg-white/10 hover:!text-text-primary hover:!opacity-100 ${
-                  isActive ? "opacity-60" : "opacity-0 group-hover:opacity-60"
+            return (
+              <button
+                key={terminalId}
+                className={`group relative flex h-full items-center gap-1 border-r border-border-subtle py-1 pl-3 pr-1 text-xs transition-colors ${
+                  isActive
+                    ? "bg-bg-primary text-text-primary"
+                    : "text-text-secondary hover:bg-white/[0.03] hover:text-text-primary"
                 }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeTerminal(terminalId, groupId);
+                onClick={() => {
+                  setActiveTerminal(terminalId, groupId);
+                  focusTerminalInput(terminalId);
                 }}
+                title={terminal.title}
               >
-                <X size={13} />
-              </span>
-              {isActive && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary rounded-t pointer-events-none" />
-              )}
-            </button>
-          );
-        })}
+                <span className="truncate">{terminal.title}</span>
+                <span
+                  className={`ml-auto flex pb-0.5 h-5 w-5 items-center justify-center rounded text-text-tertiary transition-all hover:bg-white/10 hover:!text-text-primary hover:!opacity-100 ${
+                    isActive ? "opacity-60" : "opacity-0 group-hover:opacity-60"
+                  }`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeTerminal(terminalId, groupId);
+                  }}
+                >
+                  <X size={13} />
+                </span>
+                {isActive && (
+                  <span className="pointer-events-none absolute bottom-0 left-0 right-0 h-0.5 rounded-t bg-accent-primary" />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         <button
-          className="flex items-center justify-center w-8 h-full shrink-0 text-text-tertiary hover:text-text-primary hover:bg-surface-overlay transition-colors cursor-pointer border-r border-border-subtle"
+          className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border-subtle text-text-tertiary transition-colors hover:bg-white/[0.03] hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => openNewTerminal(groupId)}
-          title="New terminal in pane"
           disabled={totalTerminalCount >= 6}
+          title="New terminal in this pane"
         >
           <Plus size={13} />
         </button>
       </div>
 
-      {dragTarget === "left" && terminalGrid.length < 3 && (
-        <div className="absolute inset-y-0 left-0 w-1/3 bg-accent-primary/18 border-r border-accent-primary pointer-events-none z-20 flex items-center justify-center">
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-accent-primary">
-            Split Left
-          </span>
-        </div>
-      )}
-      {dragTarget === "right" && terminalGrid.length < 3 && (
-        <div className="absolute inset-y-0 right-0 w-1/3 bg-accent-primary/18 border-l border-accent-primary pointer-events-none z-20 flex items-center justify-center">
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-accent-primary">
-            Split Right
-          </span>
-        </div>
-      )}
-      {dragTarget === "center" && (
-        <div className="absolute inset-0 bg-accent-primary/10 pointer-events-none z-20 flex items-center justify-center">
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-accent-primary">
-            Move Here
-          </span>
-        </div>
-      )}
-
-      <div className="flex-1 relative overflow-hidden">
+      <div className="relative flex-1 overflow-hidden bg-bg-primary">
         {group.terminalIds.map((terminalId) => (
           <TerminalSession
             key={terminalId}
@@ -429,72 +372,76 @@ export function Terminal({
   const activeTerminalGroupId = useEditorStore((s) => s.activeTerminalGroupId);
 
   const totalTerminalCount = Object.keys(terminalTabs).length;
+  const canCreateMore = totalTerminalCount < 6;
+  const canSplit = terminalGrid.length < 2 && canCreateMore;
 
   useEffect(() => {
     if (!isTerminalOpen || totalTerminalCount > 0) return;
     openNewTerminal();
   }, [isTerminalOpen, totalTerminalCount, openNewTerminal]);
 
+  if (!isTerminalOpen) {
+    return (
+      <div className="flex h-full items-center justify-between border-t border-border-subtle bg-bg-dark-secondary px-3">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
+          <TerminalSquare size={13} />
+          <span className="pt-0.5">Terminal</span>
+        </div>
+        <button
+          className="flex h-6 items-center justify-center gap-1 rounded-md border border-border-subtle bg-bg-secondary px-2 text-[11px] text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+          title="Open terminal (Ctrl+J)"
+          onClick={toggleTerminal}
+        >
+          <ChevronUp size={12} />
+          <span>Open</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-bg-dark-secondary border-t border-border-subtle">
-      <div className="h-10 px-3 border-b border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] font-semibold text-text-secondary">
+    <div className="flex h-full flex-col overflow-hidden border-t border-border-subtle bg-bg-dark-secondary">
+      <div className="flex h-8 shrink-0 items-center justify-between border-b border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] pl-3 pr-0.5">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
           <TerminalSquare size={13} />
           <span>Terminal</span>
-          <span className="normal-case tracking-normal font-normal text-text-tertiary">
+          <span className="font-normal normal-case tracking-normal text-text-tertiary">
             {totalTerminalCount}/6
           </span>
         </div>
 
         <div className="flex items-center gap-1">
           <button
-            className="flex items-center gap-1 px-2 h-7 rounded-md border border-border-subtle bg-bg-secondary text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary transition-colors text-[11px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Split terminal pane horizontally"
+            className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            title="Split terminal pane"
             onClick={() =>
               splitTerminalGroup(activeTerminalGroupId ?? undefined)
             }
-            disabled={terminalGrid.length >= 3 || totalTerminalCount >= 6}
+            disabled={!canSplit}
           >
             <SplitSquareHorizontal size={13} />
-            <span>Split</span>
           </button>
 
           <button
-            className="flex items-center justify-center w-7 h-7 rounded-md border border-border-subtle bg-bg-secondary text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title="New Terminal (Ctrl+Shift+/)"
-            onClick={() => openNewTerminal()}
-            disabled={totalTerminalCount >= 6}
-          >
-            <Plus size={14} />
-          </button>
-
-          <button
-            className="flex items-center justify-center w-7 h-7 rounded-md border border-border-subtle bg-bg-secondary text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary transition-colors cursor-pointer"
-            title={
-              isTerminalOpen
-                ? "Collapse Terminal (Ctrl+J)"
-                : "Open Terminal (Ctrl+J)"
-            }
+            className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+            title="Collapse terminal (Ctrl+J)"
             onClick={toggleTerminal}
           >
-            {isTerminalOpen ? <X size={14} /> : <ChevronUp size={14} />}
+            <X size={14} />
           </button>
         </div>
       </div>
 
-      {isTerminalOpen && (
-        <PanelGroup
-          orientation="horizontal"
-          className="flex-1 min-h-0 bg-bg-primary"
-        >
+      {terminalGrid.length > 0 ? (
+        <PanelGroup orientation="horizontal" className="min-h-0 flex-1">
           {terminalGrid.map((groupId, idx) => (
             <Fragment key={groupId}>
               <Panel
-                minSize={20}
+                minSize={30}
                 defaultSize={Math.floor(100 / Math.max(1, terminalGrid.length))}
-                className="min-h-0 relative"
+                className="min-h-0"
               >
-                <TerminalPane
+                <TerminalGroupPane
                   projectId={projectId}
                   userId={userId}
                   containerStatus={containerStatus}
@@ -502,11 +449,21 @@ export function Terminal({
                 />
               </Panel>
               {idx < terminalGrid.length - 1 && (
-                <PanelResizeHandle className="w-1 shrink-0 bg-border-subtle hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-col-resize z-10 relative" />
+                <PanelResizeHandle className="relative z-10 w-1 shrink-0 cursor-col-resize bg-border-subtle transition-colors hover:bg-accent-primary active:bg-accent-primary" />
               )}
             </Fragment>
           ))}
         </PanelGroup>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center bg-bg-primary">
+          <button
+            className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-secondary px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+            onClick={() => openNewTerminal()}
+          >
+            <Plus size={14} />
+            <span>Create terminal</span>
+          </button>
+        </div>
       )}
     </div>
   );

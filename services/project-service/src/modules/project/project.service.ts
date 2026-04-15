@@ -68,6 +68,7 @@ class ProjectService {
 
   async startProject(id: string) {
     const project = await db.project.findUnique({ where: { id } });
+    console.log("hello");
 
     if (!project) throw new AppError("Project not found", 404);
 
@@ -100,7 +101,7 @@ class ProjectService {
       `container:timeout:${project.id}`,
       JSON.stringify({ projectId: project.id, userId: project.userId }),
       "EX",
-      5 * 60, // 5 minutes
+      5 * 60,
     );
 
     return { alreadyRunning: false, project };

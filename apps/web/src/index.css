@@ -224,7 +224,7 @@ body {
 .synthex-terminal .xterm-viewport,
 .synthex-terminal .xterm-screen,
 .synthex-terminal .xterm-rows {
-  background: var(--color-bg-primary) !important;
+  background: transparent !important;
   font-family: var(--font-mono) !important;
 }
 

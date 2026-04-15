@@ -6,7 +6,7 @@ const startTimeoutWatcher = async () => {
       where: {
         containerStatus: { in: ["pending", "starting"] },
         createdAt: {
-          lt: new Date(Date.now() - 5 * 60 * 1000),
+          lt: new Date(Date.now() - 20 * 60 * 1000),
         },
       },
     });
@@ -19,7 +19,7 @@ const startTimeoutWatcher = async () => {
         userId: project.userId,
       });
     }
-  }, 30 * 1000);
+  }, 5 * 1000);
 };
 
 export { startTimeoutWatcher };

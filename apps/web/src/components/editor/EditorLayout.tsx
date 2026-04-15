@@ -43,7 +43,10 @@ export function EditorLayout({
         return;
       }
 
-      if (event.shiftKey && event.key === "?") {
+      const isOpenTerminalShortcut =
+        event.shiftKey && (event.code === "Slash" || event.key === "?");
+
+      if (isOpenTerminalShortcut) {
         event.preventDefault();
         openNewTerminal();
       }
