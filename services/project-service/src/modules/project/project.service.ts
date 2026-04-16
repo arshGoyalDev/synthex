@@ -112,14 +112,15 @@ class ProjectService {
 
     if (!project) throw new AppError("Project not found", 404);
 
-    if (project.containerStatus !== "ready") {
-      throw new AppError("Only running projects can be stopped", 400);
+    if (project.containerStatus === "ready") {
+      await pubsub.publish("project:stop", {
+        projectId: project.id,
+        userId: project.userId,
+      });
+      return { wasRunning: true };
     }
 
-    await pubsub.publish("project:stop", {
-      projectId: project.id,
-      userId: project.userId,
-    });
+    return { wasRunning: false };
   }
 }
 

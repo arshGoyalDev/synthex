@@ -85,7 +85,11 @@ class ProjectController {
         throw new AppError("Project ID is required", 400);
       }
 
-      await projectService.stopProject(projectId);
+      const result = await projectService.stopProject(projectId);
+
+      if (!result.wasRunning) {
+        return res.json({ message: "Project already stopped" });
+      }
 
       res.json({ message: "Project stopped" });
     } catch (err) {

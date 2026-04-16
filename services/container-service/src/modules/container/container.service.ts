@@ -5,9 +5,10 @@ import { AppError } from "../../utils/AppError";
 class ContainerService {
   docker = new Dockerode();
 
-  async createProjectContainer(
+  async startProjectContainer(
     projectId: string,
     projectName: string,
+    userId: string,
     languages?: string[],
     template?: string,
   ) {
@@ -55,6 +56,7 @@ class ContainerService {
         OpenStdin: true,
         Labels: {
           projectId,
+          userId,
           projectName,
           languages: languages ? languages.join(",") : "",
           ...(template && { template }),
@@ -120,6 +122,33 @@ class ContainerService {
       }
 
       throw err;
+    }
+  }
+
+  async cleanupUserContainers(userId: string) {
+    const containers = await this.docker.listContainers({
+      all: true,
+      filters: {
+        label: [`userId=${userId}`],
+      },
+    });
+
+    for (const containerInfo of containers) {
+      const container = this.docker.getContainer(containerInfo.Id);
+
+      try {
+        if (containerInfo.State === "running") {
+          await container.stop({ t: 5 });
+        }
+
+        await container.remove({ force: true });
+      } catch (err: any) {
+        if (err.statusCode === 404) {
+          continue;
+        }
+
+        throw err;
+      }
     }
   }
 

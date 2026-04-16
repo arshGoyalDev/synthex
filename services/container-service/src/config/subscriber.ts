@@ -93,6 +93,20 @@ const registerSubscribers = async () => {
       message: "Container setup timed out. Please try again.",
     });
   });
+
+  await pubsub.subscribe("user:cleanup", async (data) => {
+    try {
+      await containerService.cleanupUserContainers(data.userId);
+      console.log(
+        `[container-service] Cleaned up all containers for user ${data.userId}`,
+      );
+    } catch (err: any) {
+      console.error(
+        `[container-service] Failed to cleanup containers for user ${data.userId}:`,
+        err,
+      );
+    }
+  });
 };
 
 const startContainerSetup = async (projectData: ProjectData) => {
@@ -105,9 +119,10 @@ const startContainerSetup = async (projectData: ProjectData) => {
       message: "Setting up your environment...",
     });
 
-    await containerService.createProjectContainer(
+    await containerService.startProjectContainer(
       projectId,
       projectName,
+      userId,
       languages ?? undefined,
       template ?? undefined,
     );
@@ -131,10 +146,9 @@ const startContainerSetup = async (projectData: ProjectData) => {
       projectId,
       userId,
       status: "error",
-      message: "Failed to set up environment",
+      message: err.message || "Failed to set up environment",
     });
   }
 };
 
 export { registerSubscribers };
-

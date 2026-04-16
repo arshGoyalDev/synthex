@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
+import axios from "axios";
 import { useSocket } from "../../contexts/SocketContext";
 import {
   getProjectById,
@@ -73,6 +74,16 @@ function ProjectPage() {
               }
             } catch (err) {
               console.error("Failed to start project automatically:", err);
+              if (axios.isAxiosError(err)) {
+                const message =
+                  (err.response?.data as { error?: string; message?: string })
+                    ?.error ||
+                  (err.response?.data as { error?: string; message?: string })
+                    ?.message ||
+                  err.message;
+                setContainerStatus("error");
+                setContainerMsg(message || "Failed to start container");
+              }
             }
           }
         }
@@ -113,6 +124,18 @@ function ProjectPage() {
     };
   }, [socket, projectId]);
 
+  const closeProject = async () => {
+    try {
+      console.log("started");
+      await stopProject(projectId);
+      console.log("done");
+    } catch (err) {
+      console.error("Failed to stop project during close:", err);
+    } finally {
+      navigate({ to: "/" });
+    }
+  };
+
   const handleStart = async () => {
     try {
       const startData = await startProject(projectId);
@@ -122,6 +145,15 @@ function ProjectPage() {
       }
     } catch (err) {
       console.error("Failed to start project:", err);
+      if (axios.isAxiosError(err)) {
+        const message =
+          (err.response?.data as { error?: string; message?: string })?.error ||
+          (err.response?.data as { error?: string; message?: string })
+            ?.message ||
+          err.message;
+        setContainerStatus("error");
+        setContainerMsg(message || "Failed to start container");
+      }
     }
   };
 
@@ -169,7 +201,7 @@ function ProjectPage() {
         <div className="flex items-center gap-3">
           <button
             className="flex items-center justify-center w-7 h-7 rounded-md border-none bg-transparent text-text-secondary cursor-pointer transition-all duration-150 hover:bg-bg-tertiary hover:text-text-primary"
-            onClick={() => navigate({ to: "/" })}
+            onClick={closeProject}
             title="Back to Dashboard"
           >
             <ChevronLeft size={18} />
@@ -233,6 +265,25 @@ function ProjectPage() {
             />
             <FilePalette />
           </>
+        ) : containerStatus === "error" || containerStatus === "timeout" ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary z-50 px-6">
+            <div className="w-14 h-14 mb-5 flex items-center justify-center rounded-2xl bg-status-error/15 text-status-error">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h2 className="text-xl font-medium text-text-primary mb-2 text-center">
+              Workspace failed to start
+            </h2>
+            <p className="text-sm text-text-secondary max-w-xl text-center mb-6">
+              {containerMsg ||
+                "Container startup failed. Please return to dashboard and try again."}
+            </p>
+            <button
+              onClick={closeProject}
+              className="flex items-center gap-2 py-2 px-4 text-sm font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
+            >
+              <ChevronLeft size={16} /> Back to Dashboard
+            </button>
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary z-50">
             <motion.div

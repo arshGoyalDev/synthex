@@ -17,6 +17,23 @@ const registerSubscribers = async () => {
       console.error(`[project-service] Failed to update status:`, err);
     }
   });
+
+  await pubsub.subscribe("user:cleanup", async (data) => {
+    try {
+      await db.project.updateMany({
+        where: {
+          userId: data.userId,
+          containerStatus: { in: ["pending", "starting", "ready"] },
+        },
+        data: { containerStatus: "stopped" },
+      });
+    } catch (err) {
+      console.error(
+        `[project-service] Failed to reconcile user cleanup for ${data.userId}:`,
+        err,
+      );
+    }
+  });
 };
 
 export { registerSubscribers };
