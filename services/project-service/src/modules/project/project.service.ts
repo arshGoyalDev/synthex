@@ -68,7 +68,6 @@ class ProjectService {
 
   async startProject(id: string) {
     const project = await db.project.findUnique({ where: { id } });
-    console.log("hello");
 
     if (!project) throw new AppError("Project not found", 404);
 
@@ -76,13 +75,21 @@ class ProjectService {
       return { alreadyRunning: true, project };
     }
 
-    const startStates = ["pending", "stopped", "error", "timeout"];
+    if (
+      project.containerStatus === "pending" ||
+      project.containerStatus === "starting"
+    ) {
+      return { alreadyRunning: false, alreadyStarting: true, project };
+    }
+
+    const startStates = ["stopped", "error", "timeout"];
     if (!startStates.includes(project.containerStatus)) {
       throw new AppError(
         `Cannot start project from state: ${project.containerStatus}`,
         400,
       );
     }
+
     await db.project.update({
       where: { id },
       data: { containerStatus: "pending" },
@@ -112,7 +119,17 @@ class ProjectService {
 
     if (!project) throw new AppError("Project not found", 404);
 
-    if (project.containerStatus === "ready") {
+    if (
+      project.containerStatus === "ready" ||
+      project.containerStatus === "pending" ||
+      project.containerStatus === "starting" ||
+      project.containerStatus === "stopping"
+    ) {
+      await db.project.update({
+        where: { id },
+        data: { containerStatus: "stopping" },
+      });
+
       await pubsub.publish("project:stop", {
         projectId: project.id,
         userId: project.userId,

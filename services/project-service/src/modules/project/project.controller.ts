@@ -71,6 +71,13 @@ class ProjectController {
         });
       }
 
+      if (result.alreadyStarting) {
+        return res.json({
+          status: "starting",
+          message: "Project already starting",
+        });
+      }
+
       res.json({ message: "Project starting", status: "starting" });
     } catch (err) {
       next(err);
@@ -91,7 +98,7 @@ class ProjectController {
         return res.json({ message: "Project already stopped" });
       }
 
-      res.json({ message: "Project stopped" });
+      res.json({ message: "Project stopping", status: "stopping" });
     } catch (err) {
       next(err);
     }

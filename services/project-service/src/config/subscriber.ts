@@ -23,7 +23,6 @@ const registerSubscribers = async () => {
       await db.project.updateMany({
         where: {
           userId: data.userId,
-          containerStatus: { in: ["pending", "starting", "ready"] },
         },
         data: { containerStatus: "stopped" },
       });

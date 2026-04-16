@@ -37,6 +37,20 @@ function ProjectPage() {
   );
   const [containerMsg, setContainerMsg] = useState<string>("");
   const currentStatusRef = useRef(project?.containerStatus || "unknown");
+  const startRequestedRef = useRef(false);
+  const restartAfterStoppedRef = useRef(false);
+
+  const requestStart = async () => {
+    startRequestedRef.current = true;
+    const startData = await startProject(projectId);
+    setContainerStatus(startData.status);
+    currentStatusRef.current = startData.status;
+    if (startData.message) {
+      setContainerMsg(startData.message);
+    }
+
+    return startData;
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -61,17 +75,12 @@ function ProjectPage() {
           if (
             initialStatus !== "ready" &&
             initialStatus !== "starting" &&
-            initialStatus !== "pending"
+            initialStatus !== "stopping" &&
+            initialStatus !== "pending" &&
+            !startRequestedRef.current
           ) {
             try {
-              const startData = await startProject(projectId);
-              if (!isCancelled && currentStatusRef.current !== "ready") {
-                setContainerStatus(startData.status);
-                currentStatusRef.current = startData.status;
-                if (startData.message) {
-                  setContainerMsg(startData.message);
-                }
-              }
+              await requestStart();
             } catch (err) {
               console.error("Failed to start project automatically:", err);
               if (axios.isAxiosError(err)) {
@@ -114,6 +123,22 @@ function ProjectPage() {
         if (data.message) {
           setContainerMsg(data.message);
         }
+
+        if (data.status === "stopped" && !restartAfterStoppedRef.current) {
+          restartAfterStoppedRef.current = true;
+          void requestStart().catch((err) => {
+            console.error("Failed to restart project after stop:", err);
+            restartAfterStoppedRef.current = false;
+          });
+        }
+
+        if (
+          data.status === "ready" ||
+          data.status === "error" ||
+          data.status === "timeout"
+        ) {
+          restartAfterStoppedRef.current = false;
+        }
       }
     };
 
@@ -138,11 +163,7 @@ function ProjectPage() {
 
   const handleStart = async () => {
     try {
-      const startData = await startProject(projectId);
-      setContainerStatus(startData.status);
-      if (startData.message) {
-        setContainerMsg(startData.message);
-      }
+      await requestStart();
     } catch (err) {
       console.error("Failed to start project:", err);
       if (axios.isAxiosError(err)) {
@@ -217,6 +238,7 @@ function ProjectPage() {
                 containerStatus === "ready"
                   ? "bg-green-500"
                   : containerStatus === "pending" ||
+                      containerStatus === "stopping" ||
                       containerStatus === "starting"
                     ? "bg-yellow-500 animate-pulse"
                     : containerStatus === "error"

@@ -2,14 +2,17 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "../../stores/auth.store";
 import { useProjectStore } from "../../stores/project.store";
-import { startProject } from "../../services/project.service";
 import type { Project } from "../../types/project";
 import { CreateProjectModal } from "../CreateProjectModal";
 import { IconPlus, IconCode } from "../icons";
 import { Sidebar } from "./Sidebar";
 import { ActivityGraph } from "./ActivityGraph";
 import { ProjectCard } from "./ProjectCard";
-import { DeleteDialog, EditDetailsDialog, RenameDialog } from "./ProjectDialogs";
+import {
+  DeleteDialog,
+  EditDetailsDialog,
+  RenameDialog,
+} from "./ProjectDialogs";
 
 /* ——— Projects Grid ——— */
 function ProjectsGrid() {
@@ -30,7 +33,9 @@ function ProjectsGrid() {
     return projects.filter((p) => {
       const matchName = p.name?.toLowerCase().includes(lowerQuery);
       const matchDesc = p.description?.toLowerCase().includes(lowerQuery);
-      const matchLang = p.languages?.some((l) => l.toLowerCase().includes(lowerQuery));
+      const matchLang = p.languages?.some((l) =>
+        l.toLowerCase().includes(lowerQuery),
+      );
       const matchTemplate = p.template?.toLowerCase().includes(lowerQuery);
       return matchName || matchDesc || matchLang || matchTemplate;
     });
@@ -42,18 +47,12 @@ function ProjectsGrid() {
   });
 
   const handleProjectClick = async (projectId: string) => {
-    try {
-      await startProject(projectId);
-      navigate({ to: `/project/${projectId}` });
-    } catch (err) {
-      console.error("Failed to start project:", err);
-    }
+    navigate({ to: `/project/${projectId}` });
   };
 
   return (
     <main className="flex-1 overflow-y-auto bg-bg-primary">
       <div className="max-w-6xl mx-auto px-6 lg:px-10 py-8">
-        
         <ActivityGraph />
 
         {/* Top Header & Actions */}
@@ -66,26 +65,35 @@ function ProjectsGrid() {
               {projects.length} project{projects.length !== 1 ? "s" : ""}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {/* Fake Search Input */}
             <div className="relative group hidden sm:block">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-tertiary group-focus-within:text-accent-primary transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <circle cx="11" cy="11" r="8"></circle>
                   <path d="m21 21-4.3-4.3"></path>
                 </svg>
               </div>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search projects..." 
+                placeholder="Search projects..."
                 className="w-64 pl-9 pr-4 py-2 rounded-lg bg-bg-secondary border border-border-default text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-all shadow-sm"
               />
             </div>
 
-            <button 
+            <button
               onClick={() => setIsNewProjectModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-text-primary text-bg-primary font-medium text-sm hover:bg-white transition-colors cursor-pointer border-none shadow-sm"
             >
@@ -112,7 +120,7 @@ function ProjectsGrid() {
             <p className="text-sm text-text-tertiary mb-6 max-w-sm">
               Create your first project to start coding in the cloud.
             </p>
-            <button 
+            <button
               onClick={() => setIsNewProjectModalOpen(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-text-primary text-bg-primary font-medium text-sm hover:bg-white transition-colors cursor-pointer border-none shadow-sm"
             >
@@ -146,17 +154,15 @@ function ProjectsGrid() {
       <EditDetailsDialog
         projectId={editTarget?.id ?? null}
         isOpen={!!editTarget}
-        onOpenChange={(isOpen) => { if (!isOpen) setEditTarget(null) }}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setEditTarget(null);
+        }}
       />
-      <RenameDialog
-        project={editTarget}
-        open={false}
-        onClose={() => {}}
-      />
+      <RenameDialog project={editTarget} open={false} onClose={() => {}} />
 
-      <CreateProjectModal 
-        isOpen={isNewProjectModalOpen} 
-        onOpenChange={setIsNewProjectModalOpen} 
+      <CreateProjectModal
+        isOpen={isNewProjectModalOpen}
+        onOpenChange={setIsNewProjectModalOpen}
       />
     </main>
   );

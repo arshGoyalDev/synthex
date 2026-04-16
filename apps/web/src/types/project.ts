@@ -6,7 +6,14 @@ export interface Project {
   type: "template" | "blank" | "raw";
   template: string | null;
   languages: string[];
-  containerStatus: "pending" | "starting" | "ready" | "stopped" | "error" | "timeout";
+  containerStatus:
+    | "pending"
+    | "starting"
+    | "stopping"
+    | "ready"
+    | "stopped"
+    | "error"
+    | "timeout";
   folderName: string;
   isPinned?: boolean;
   createdAt: string;
