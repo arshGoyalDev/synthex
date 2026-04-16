@@ -5,7 +5,7 @@ const startTimeoutWatcher = async () => {
     const timedOutProjects = await db.project.findMany({
       where: {
         containerStatus: { in: ["pending", "starting"] },
-        createdAt: {
+        updatedAt: {
           lt: new Date(Date.now() - 20 * 60 * 1000),
         },
       },

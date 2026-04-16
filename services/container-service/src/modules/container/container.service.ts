@@ -34,28 +34,42 @@ class ContainerService {
       commands = [...installCommands];
     }
 
-    const container = await this.docker.createContainer({
-      Image: "synthex/base:latest",
-      name: `synthex-${projectId}`,
-      WorkingDir: `/workspace/${projectName}`,
-      Tty: true,
-      OpenStdin: true,
-      Labels: {
-        projectId,
-        projectName,
-        languages: languages ? languages.join(",") : "",
-        ...(template && { template }),
-      },
-      HostConfig: {
-        Memory: 512 * 1024 * 1024,
-        CpuPeriod: 100000,
-        CpuQuota: 50000,
-      },
-    });
+    let container: Dockerode.Container;
 
-    await container.start();
+    try {
+      container = this.docker.getContainer(`synthex-${projectId}`);
+      console.log(container);
+      const info = await container.inspect();
 
-    await this.runSetupCommands(container, commands, projectId);
+      if (!info.State.Running) {
+        await container.start();
+
+        console.log(`[container-service] Started container for ${projectId}`);
+      }
+    } catch (error) {
+      container = await this.docker.createContainer({
+        Image: "synthex/base:latest",
+        name: `synthex-${projectId}`,
+        WorkingDir: `/workspace/${projectName}`,
+        Tty: true,
+        OpenStdin: true,
+        Labels: {
+          projectId,
+          projectName,
+          languages: languages ? languages.join(",") : "",
+          ...(template && { template }),
+        },
+        HostConfig: {
+          Memory: 512 * 1024 * 1024,
+          CpuPeriod: 100000,
+          CpuQuota: 50000,
+        },
+      });
+
+      await container.start();
+
+      await this.runSetupCommands(container, commands, projectId);
+    }
 
     return {
       containerId: container.id,
@@ -149,7 +163,7 @@ class ContainerService {
           if (!stream) return resolve();
 
           stream.on("data", (chunk: Buffer) => {
-            const text = chunk.toString('utf8');
+            const text = chunk.toString("utf8");
             output += text;
             if (text.trim()) {
               process.stdout.write(`[${projectId}] ${text}`);
