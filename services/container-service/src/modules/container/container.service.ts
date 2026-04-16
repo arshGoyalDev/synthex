@@ -31,13 +31,13 @@ class ContainerService {
         (lang) => LANGUAGES[lang]?.installCommands ?? [],
       );
 
-      commands = [...installCommands, `mkdir -p /workspace/${projectName}`];
+      commands = [...installCommands];
     }
 
     const container = await this.docker.createContainer({
       Image: "synthex/base:latest",
       name: `synthex-${projectId}`,
-      WorkingDir: "/workspace",
+      WorkingDir: `/workspace/${projectName}`,
       Tty: true,
       OpenStdin: true,
       Labels: {
@@ -50,7 +50,6 @@ class ContainerService {
         Memory: 512 * 1024 * 1024,
         CpuPeriod: 100000,
         CpuQuota: 50000,
-        // NetworkMode: "host",
       },
     });
 
@@ -141,16 +140,16 @@ class ContainerService {
         AttachStderr: true,
       });
 
+      let output = "";
+
       await new Promise<void>((resolve, reject) => {
         exec.start({ hijack: false, stdin: false }, (err, stream) => {
           if (err) return reject(err);
 
           if (!stream) return resolve();
 
-          let output = "";
-
           stream.on("data", (chunk: Buffer) => {
-            const text = chunk.slice(8).toString();
+            const text = chunk.toString('utf8');
             output += text;
             if (text.trim()) {
               process.stdout.write(`[${projectId}] ${text}`);
@@ -165,6 +164,18 @@ class ContainerService {
           stream.on("error", reject);
         });
       });
+
+      const execInfo = await exec.inspect();
+      const exitCode = execInfo.ExitCode ?? 1;
+
+      if (exitCode !== 0) {
+        console.log(`[${projectId}] Command failed: ${command}`);
+
+        throw new AppError(
+          `Setup command failed (exit ${exitCode}): ${command}\n${output.trim()}`,
+          500,
+        );
+      }
     }
   }
 }

@@ -17,7 +17,7 @@ interface Template {
 }
 
 const TEMPLATES: Record<string, Template> = {
-  // ─── JavaScript / TypeScript ──────────────────────────────────────────────
+  // ─── JavaScript / TypeScript ─────────────────────────────────────────────
 
   node: {
     id: "node",
@@ -30,8 +30,7 @@ const TEMPLATES: Record<string, Template> = {
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `cd /workspace/${projectName} && npm init -y`,
+        `npm init -y`,
         `echo "console.log('Hello from ${projectName}!')" > /workspace/${projectName}/index.js`,
       ],
       postSetup: [],
@@ -51,10 +50,10 @@ const TEMPLATES: Record<string, Template> = {
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
-        `mkdir -p /workspace/${projectName}/src`,
-        `cd /workspace/${projectName} && npm init -y`,
-        `cd /workspace/${projectName} && npm install -D typescript ts-node @types/node`,
-        `cd /workspace/${projectName} && npx tsc --init`,
+        `mkdir ./src`,
+        `npm init -y`,
+        `npm install -D typescript ts-node @types/node`,
+        `npx tsc --init`,
         `echo "console.log('Hello from ${projectName}!')" > /workspace/${projectName}/src/index.ts`,
       ],
       postSetup: [],
@@ -63,20 +62,18 @@ const TEMPLATES: Record<string, Template> = {
     runCommand: "npx ts-node src/index.ts",
   },
 
-    react: {
+  react: {
     id: "react",
     name: "React",
     description: "Frontend development with React + Vite",
-    language: "typescript",
+    language: "javascript",
     color: "#61DAFB",
     icon: "react",
     defaultPort: 5173,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
-      setup: [
-        `npm create vite@latest /workspace/${projectName} -- --template react`,
-      ],
-      postSetup: [`cd /workspace/${projectName} && npm install`],
+      setup: [`npm create vite@latest . -- --template react`],
+      postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.jsx`,
     runCommand: "npm run dev -- --host",
@@ -85,17 +82,15 @@ const TEMPLATES: Record<string, Template> = {
   react_ts: {
     id: "react_ts",
     name: "React + TypeScript",
-    description: "Frontend development with React + Vite",
+    description: "Frontend development with React + Vite + TypeScript",
     language: "typescript",
     color: "#61DAFB",
     icon: "react",
     defaultPort: 5173,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
-      setup: [
-        `npm create vite@latest /workspace/${projectName} -- --template react-ts`,
-      ],
-      postSetup: [`cd /workspace/${projectName} && npm install`],
+      setup: [`npm create vite@latest . -- --template react-ts`],
+      postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.tsx`,
     runCommand: "npm run dev -- --host",
@@ -111,13 +106,21 @@ const TEMPLATES: Record<string, Template> = {
     defaultPort: 5173,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
-      setup: [
-        `npm create vite@latest /workspace/${projectName} -- --template react-ts`,
-      ],
+      setup: [`npm create vite@latest . -- --template react-ts`],
       postSetup: [
-        `cd /workspace/${projectName} && npm install`,
-        `cd /workspace/${projectName} && npm install -D tailwindcss @tailwindcss/vite`,
-        `cd /workspace/${projectName} && echo "@import 'tailwindcss';" > src/index.css`,
+        `npm install`,
+        `npm install -D tailwindcss @tailwindcss/vite`,
+        // update vite.config to add tailwind plugin
+        `cat > /workspace/${projectName}/vite.config.ts << 'EOF'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+})
+EOF`,
+        `echo "@import 'tailwindcss';" > /workspace/${projectName}/src/index.css`,
       ],
     }),
     entryFile: (projectName) => `${projectName}/src/App.tsx`,
@@ -135,12 +138,12 @@ const TEMPLATES: Record<string, Template> = {
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
-        `cd /workspace && npx create-next-app@latest ${projectName} --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --yes`,
+        `npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --yes`,
       ],
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/src/app/page.tsx`,
-    runCommand: "npm run dev",
+    runCommand: "npm run dev -- --hostname 0.0.0.0",
   },
 
   svelte: {
@@ -153,10 +156,8 @@ const TEMPLATES: Record<string, Template> = {
     defaultPort: 5173,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
-      setup: [
-        `npm create vite@latest /workspace/${projectName} -- --template svelte-ts`,
-      ],
-      postSetup: [`cd /workspace/${projectName} && npm install`],
+      setup: [`npm create vite@latest . -- --template svelte-ts`],
+      postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.svelte`,
     runCommand: "npm run dev -- --host",
@@ -173,9 +174,10 @@ const TEMPLATES: Record<string, Template> = {
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
-        `cd /workspace && npx sv create ${projectName} --template minimal --types ts --no-add-ons`,
+        // npx sv create needs --no-install to avoid interactive prompts
+        `npx sv create . --template minimal --types ts --no-add-ons --no-install`,
       ],
-      postSetup: [`cd /workspace/${projectName} && npm install`],
+      postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/routes/+page.svelte`,
     runCommand: "npm run dev -- --host",
@@ -193,9 +195,10 @@ const TEMPLATES: Record<string, Template> = {
       install: ["apk add --no-cache nodejs npm"],
       setup: [
         `npm install -g @nestjs/cli`,
-        `cd /workspace && nest new ${projectName} --package-manager npm --skip-git`,
+        // --skip-git avoids git init errors, --skip-install handled in postSetup
+        `nest new . --package-manager npm --skip-git --skip-install`,
       ],
-      postSetup: [],
+      postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/main.ts`,
     runCommand: "npm run start:dev",
@@ -211,12 +214,14 @@ const TEMPLATES: Record<string, Template> = {
     defaultPort: 4000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache nodejs npm curl bash",
-        `curl -fsSL https://encore.dev/install.sh | bash`,
-        `export PATH=$PATH:$HOME/.encore/bin`,
+        "apk add --no-cache nodejs npm curl bash binutils",
+        "curl -fsSL https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub -o /etc/apk/keys/sgerrand.rsa.pub",
+        "GLIBC_VERSION=2.35-r1 && curl -fsSL https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk -o /tmp/glibc.apk",
+        "apk add --no-cache /tmp/glibc.apk && rm -f /tmp/glibc.apk",
+        "curl -fsSL https://encore.dev/install.sh | bash",
       ],
       setup: [
-        `export PATH=$PATH:$HOME/.encore/bin && encore app create /workspace/${projectName} --example=hello-world`,
+        `bash -c 'cd /workspace && $HOME/.encore/bin/encore app create ${projectName} --lang=typescript --example=hello-world --platform=false'`,
       ],
       postSetup: [],
     }),
@@ -224,7 +229,7 @@ const TEMPLATES: Record<string, Template> = {
     runCommand: "encore run",
   },
 
-  // ─── Python ───────────────────────────────────────────────────────────────
+  // ─── Python ──────────────────────────────────────────────────────────────
 
   python: {
     id: "python",
@@ -236,17 +241,17 @@ const TEMPLATES: Record<string, Template> = {
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache python3 py3-pip python3-dev"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `python3 -m venv /workspace/${projectName}/venv`,
-        `echo "def main():\\n    print('Hello from ${projectName}!')\\n\\nif __name__ == '__main__':\\n    main()" > /workspace/${projectName}/main.py`,
-        `echo 'requests' > /workspace/${projectName}/requirements.txt`,
+        `python3 -m venv venv`,
+        // use printf instead of echo for multiline — more reliable
+        `printf "def main():\\n    print('Hello from ${projectName}!')\\n\\nif __name__ == '__main__':\\n    main()\\n" > /workspace/${projectName}/main.py`,
+        `echo "requests" > /workspace/${projectName}/requirements.txt`,
       ],
       postSetup: [
         `/workspace/${projectName}/venv/bin/pip install -r /workspace/${projectName}/requirements.txt`,
       ],
     }),
     entryFile: (projectName) => `${projectName}/main.py`,
-    runCommand: "python main.py",
+    runCommand: "venv/bin/python main.py",
   },
 
   fastapi: {
@@ -260,9 +265,8 @@ const TEMPLATES: Record<string, Template> = {
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache python3 py3-pip python3-dev gcc musl-dev"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `python3 -m venv /workspace/${projectName}/venv`,
-        `echo "fastapi\\nuvicorn[standard]" > /workspace/${projectName}/requirements.txt`,
+        `python3 -m venv venv`,
+        `printf "fastapi\\nuvicorn[standard]\\n" > /workspace/${projectName}/requirements.txt`,
         `cat > /workspace/${projectName}/main.py << 'EOF'
 from fastapi import FastAPI
 
@@ -292,12 +296,12 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache python3 py3-pip python3-dev gcc musl-dev"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `python3 -m venv /workspace/${projectName}/venv`,
+        `python3 -m venv venv`,
         `echo "django" > /workspace/${projectName}/requirements.txt`,
+        `/workspace/${projectName}/venv/bin/pip install django`,
       ],
       postSetup: [
-        `/workspace/${projectName}/venv/bin/pip install -r /workspace/${projectName}/requirements.txt`,
+        // startproject needs to run after pip install
         `/workspace/${projectName}/venv/bin/django-admin startproject config /workspace/${projectName}`,
       ],
     }),
@@ -316,8 +320,7 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache python3 py3-pip python3-dev"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `python3 -m venv /workspace/${projectName}/venv`,
+        `python3 -m venv venv`,
         `echo "flask" > /workspace/${projectName}/requirements.txt`,
         `cat > /workspace/${projectName}/app.py << 'EOF'
 from flask import Flask
@@ -340,7 +343,7 @@ EOF`,
     runCommand: "venv/bin/python app.py",
   },
 
-  // ─── Rust ─────────────────────────────────────────────────────────────────
+  // ─── Rust ────────────────────────────────────────────────────────────────
 
   rust: {
     id: "rust",
@@ -353,9 +356,11 @@ EOF`,
       install: [
         "apk add --no-cache curl gcc musl-dev",
         "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal",
-        "source $HOME/.cargo/env",
       ],
-      setup: [`source $HOME/.cargo/env && cargo new /workspace/${projectName}`],
+      setup: [
+        // source and cargo new in one command — source doesn't persist
+        `bash -c 'source $HOME/.cargo/env && cargo init'`,
+      ],
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/src/main.rs`,
@@ -374,11 +379,10 @@ EOF`,
       install: [
         "apk add --no-cache curl gcc musl-dev openssl-dev pkgconf",
         "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal",
-        "source $HOME/.cargo/env",
       ],
       setup: [
-        `source $HOME/.cargo/env && cargo new /workspace/${projectName}`,
-        `cd /workspace/${projectName} && cargo add axum tokio --features tokio/full`,
+        `bash -c 'source $HOME/.cargo/env && cargo init'`,
+        `bash -c 'source $HOME/.cargo/env && cargo add axum tokio --features tokio/full'`,
         `cat > /workspace/${projectName}/src/main.rs << 'EOF'
 use axum::{routing::get, Router};
 
@@ -396,7 +400,7 @@ EOF`,
     runCommand: "cargo run",
   },
 
-  // ─── Go ───────────────────────────────────────────────────────────────────
+  // ─── Go ──────────────────────────────────────────────────────────────────
 
   go: {
     id: "go",
@@ -406,11 +410,15 @@ EOF`,
     color: "#00ADD8",
     icon: "go",
     getCommands: (projectName: string) => ({
-      install: ["apk add --no-cache go"],
+      install: [
+        "apk add --no-cache go curl bash binutils",
+        "curl -fsSL https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub -o /etc/apk/keys/sgerrand.rsa.pub",
+        "GLIBC_VERSION=2.35-r1 && curl -fsSL https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk -o /tmp/glibc.apk",
+        "apk add --no-cache /tmp/glibc.apk && rm -f /tmp/glibc.apk",
+        "curl -fsSL https://encore.dev/install.sh | bash",
+      ],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `cd /workspace/${projectName} && go mod init ${projectName}`,
-        `echo 'package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello from ${projectName}!")\n}' > /workspace/${projectName}/main.go`,
+        `bash -c 'cd /workspace && $HOME/.encore/bin/encore app create ${projectName} --lang=go --example=hello-world --platform=false'`,
       ],
       postSetup: [],
     }),
@@ -428,12 +436,12 @@ EOF`,
     defaultPort: 4000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache go curl bash",
-        `curl -fsSL https://encore.dev/install.sh | bash`,
-        `export PATH=$PATH:$HOME/.encore/bin`,
+        "apk add --no-cache go curl bash libc6-compat gcompat",
+        "curl -fsSL https://encore.dev/install.sh | bash",
       ],
       setup: [
-        `export PATH=$PATH:$HOME/.encore/bin && encore app create /workspace/${projectName} --example=hello-world`,
+        `bash -c 'cd /workspace && $HOME/.encore/bin/encore app create ${projectName} --lang=go --example=hello-world --platform=false'`,
+        // `bash -c 'cd /workspace && $HOME/.encore/bin/encore app create ${projectName} --example=hello-world'`,
       ],
       postSetup: [],
     }),
@@ -452,8 +460,7 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache go"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `cd /workspace/${projectName} && go mod init ${projectName}`,
+        `go mod init ${projectName}`,
         `cat > /workspace/${projectName}/main.go << 'EOF'
 package main
 
@@ -467,17 +474,16 @@ func main() {
     r.Run(":8080")
 }
 EOF`,
-      ],
-      postSetup: [
         `cd /workspace/${projectName} && go get github.com/gin-gonic/gin`,
         `cd /workspace/${projectName} && go mod tidy`,
       ],
+      postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/main.go`,
     runCommand: "go run main.go",
   },
 
-  // ─── Java / JVM ───────────────────────────────────────────────────────────
+  // ─── Java / JVM ──────────────────────────────────────────────────────────
 
   java: {
     id: "java",
@@ -489,7 +495,6 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache openjdk21"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
         `cat > /workspace/${projectName}/Main.java << 'EOF'
 public class Main {
     public static void main(String[] args) {
@@ -515,22 +520,15 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache openjdk21 curl unzip"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `cd /workspace/${projectName} && curl -s https://start.spring.io/starter.zip \
-          -d type=maven-project \
-          -d language=java \
-          -d bootVersion=3.2.0 \
-          -d baseDir=${projectName} \
-          -d groupId=com.synthex \
-          -d artifactId=${projectName} \
-          -d name=${projectName} \
-          -d dependencies=web \
-          -o starter.zip && unzip starter.zip && rm starter.zip`,
+        // download zip then unzip into workspace
+        `curl -s "https://start.spring.io/starter.zip?type=maven-project&language=java&bootVersion=3.2.0&baseDir=${projectName}&groupId=com.synthex&artifactId=${projectName}&name=${projectName}&dependencies=web" -o /tmp/${projectName}.zip`,
+        `unzip /tmp/${projectName}.zip -d /workspace`,
+        `rm /tmp/${projectName}.zip`,
       ],
       postSetup: [],
     }),
     entryFile: (projectName) =>
-      `${projectName}/${projectName}/src/main/java/com/synthex/${projectName}/${projectName}Application.java`,
+      `${projectName}/src/main/java/com/synthex/${projectName}/${projectName}Application.java`,
     runCommand: "./mvnw spring-boot:run",
   },
 
@@ -544,7 +542,6 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache openjdk21 kotlin"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
         `cat > /workspace/${projectName}/main.kt << 'EOF'
 fun main() {
     println("Hello from ${projectName}!")
@@ -558,7 +555,7 @@ EOF`,
       "kotlinc main.kt -include-runtime -d main.jar && java -jar main.jar",
   },
 
-  // ─── Ruby ─────────────────────────────────────────────────────────────────
+  // ─── Ruby ────────────────────────────────────────────────────────────────
 
   ruby: {
     id: "ruby",
@@ -570,7 +567,6 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache ruby ruby-dev gcc musl-dev make"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
         `echo 'puts "Hello from ${projectName}!"' > /workspace/${projectName}/main.rb`,
       ],
       postSetup: [],
@@ -589,13 +585,14 @@ EOF`,
     defaultPort: 3000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache ruby ruby-dev gcc musl-dev make nodejs npm postgresql-dev tzdata",
+        "apk add --no-cache ruby ruby-dev gcc musl-dev make nodejs npm tzdata sqlite-dev",
         "gem install rails --no-document",
       ],
       setup: [
-        `cd /workspace && rails new ${projectName} --api --skip-git --database=sqlite3`,
+        // --skip-git and --skip-bundle to avoid issues in container
+        `cd /workspace && rails new ${projectName} --api --skip-git --skip-bundle --database=sqlite3`,
       ],
-      postSetup: [`cd /workspace/${projectName} && bundle install`],
+      postSetup: [`bundle install`],
     }),
     entryFile: (projectName) => `${projectName}/config/application.rb`,
     runCommand: "rails server -b 0.0.0.0",
@@ -615,7 +612,6 @@ EOF`,
         "gem install sinatra --no-document",
       ],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
         `cat > /workspace/${projectName}/app.rb << 'EOF'
 require 'sinatra'
 
@@ -631,7 +627,7 @@ EOF`,
     runCommand: "ruby app.rb -o 0.0.0.0",
   },
 
-  // ─── PHP ──────────────────────────────────────────────────────────────────
+  // ─── PHP ─────────────────────────────────────────────────────────────────
 
   php: {
     id: "php",
@@ -642,15 +638,14 @@ EOF`,
     icon: "php",
     defaultPort: 8000,
     getCommands: (projectName: string) => ({
-      install: ["apk add --no-cache php php-cli php-mbstring"],
+      install: ["apk add --no-cache php83 php83-cli php83-mbstring"],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `echo '<?php echo "Hello from ${projectName}!\\n";' > /workspace/${projectName}/index.php`,
+        `printf '<?php\necho "Hello from ${projectName}!\\n";\n' > /workspace/${projectName}/index.php`,
       ],
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/index.php`,
-    runCommand: "php -S 0.0.0.0:8000",
+    runCommand: "php83 -S 0.0.0.0:8000",
   },
 
   laravel: {
@@ -663,19 +658,19 @@ EOF`,
     defaultPort: 8000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache php php-cli php-mbstring php-xml php-zip php-pdo php-tokenizer php-phar curl unzip",
-        "curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer",
+        "apk add --no-cache php83 php83-cli php83-mbstring php83-xml php83-zip php83-pdo php83-tokenizer php83-phar php83-dom php83-xmlwriter curl unzip",
+        "curl -sS https://getcomposer.org/installer | php83 -- --install-dir=/usr/local/bin --filename=composer",
       ],
       setup: [
-        `cd /workspace && composer create-project laravel/laravel ${projectName} --prefer-dist`,
+        `cd /workspace && composer create-project laravel/laravel ${projectName} --prefer-dist --no-interaction`,
       ],
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/routes/web.php`,
-    runCommand: "php artisan serve --host=0.0.0.0",
+    runCommand: "php83 artisan serve --host=0.0.0.0",
   },
 
-  // ─── C / C++ ──────────────────────────────────────────────────────────────
+  // ─── C / C++ ─────────────────────────────────────────────────────────────
 
   cpp: {
     id: "cpp",
@@ -687,7 +682,7 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache g++ gcc make cmake musl-dev"],
       setup: [
-        `mkdir -p /workspace/${projectName}/build`,
+        `mkdir -p ./build`,
         `cat > /workspace/${projectName}/main.cpp << 'EOF'
 #include <iostream>
 
@@ -713,12 +708,12 @@ EOF`,
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache gcc musl-dev make"],
       setup: [
-        `mkdir -p /workspace/${projectName}/build`,
+        `mkdir -p ./build`,
         `cat > /workspace/${projectName}/main.c << 'EOF'
 #include <stdio.h>
 
 int main() {
-    printf("Hello from ${projectName}!\\n");
+    printf("Hello from ${projectName}!\n");
     return 0;
 }
 EOF`,
@@ -729,7 +724,7 @@ EOF`,
     runCommand: "gcc main.c -o build/app && ./build/app",
   },
 
-  // ─── Zig ──────────────────────────────────────────────────────────────────
+  // ─── Zig ─────────────────────────────────────────────────────────────────
 
   zig: {
     id: "zig",
@@ -743,20 +738,17 @@ EOF`,
         "apk add --no-cache curl xz tar",
         "curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz -o /tmp/zig.tar.xz",
         "tar -xf /tmp/zig.tar.xz -C /usr/local",
-        "ln -s /usr/local/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig",
+        "ln -sf /usr/local/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig",
         "rm /tmp/zig.tar.xz",
       ],
-      setup: [
-        `mkdir -p /workspace/${projectName}`,
-        `cd /workspace/${projectName} && zig init`,
-      ],
+      setup: [`zig init`],
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/src/main.zig`,
     runCommand: "zig build run",
   },
 
-  // ─── Deno ─────────────────────────────────────────────────────────────────
+  // ─── Deno ────────────────────────────────────────────────────────────────
 
   deno: {
     id: "deno",
@@ -770,10 +762,8 @@ EOF`,
       install: [
         "apk add --no-cache curl unzip",
         "curl -fsSL https://deno.land/install.sh | sh",
-        "export DENO_INSTALL=$HOME/.deno && export PATH=$DENO_INSTALL/bin:$PATH",
       ],
       setup: [
-        `mkdir -p /workspace/${projectName}`,
         `cat > /workspace/${projectName}/main.ts << 'EOF'
 Deno.serve({ port: 8000 }, (_req) => {
   return new Response("Hello from ${projectName}!");
@@ -783,10 +773,12 @@ EOF`,
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/main.ts`,
-    runCommand: "deno run --allow-net main.ts",
+    // source deno env in same command
+    runCommand:
+      "bash -c 'source $HOME/.deno/env && deno run --allow-net main.ts'",
   },
 
-  // ─── .NET ─────────────────────────────────────────────────────────────────
+  // ─── .NET ────────────────────────────────────────────────────────────────
 
   dotnet: {
     id: "dotnet",
@@ -798,14 +790,14 @@ EOF`,
     defaultPort: 5000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache curl bash icu-libs krb5-libs libgcc libintl libssl3 libstdc++ zlib",
-        "curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0",
-        "export PATH=$PATH:$HOME/.dotnet",
+        "apk add --no-cache curl bash icu-libs libgcc libssl3 libstdc++ zlib",
+        "curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /usr/local/dotnet",
+        "ln -sf /usr/local/dotnet/dotnet /usr/local/bin/dotnet",
       ],
       setup: [
-        `export PATH=$PATH:$HOME/.dotnet && dotnet new console -n ${projectName} -o /workspace/${projectName}`,
+        `dotnet new console -n ${projectName} -o /workspace/${projectName} --no-restore`,
       ],
-      postSetup: [],
+      postSetup: [`dotnet restore`],
     }),
     entryFile: (projectName) => `${projectName}/Program.cs`,
     runCommand: "dotnet run",
@@ -821,20 +813,20 @@ EOF`,
     defaultPort: 5000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache curl bash icu-libs krb5-libs libgcc libintl libssl3 libstdc++ zlib",
-        "curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0",
-        "export PATH=$PATH:$HOME/.dotnet",
+        "apk add --no-cache curl bash icu-libs libgcc libssl3 libstdc++ zlib",
+        "curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /usr/local/dotnet",
+        "ln -sf /usr/local/dotnet/dotnet /usr/local/bin/dotnet",
       ],
       setup: [
-        `export PATH=$PATH:$HOME/.dotnet && dotnet new webapi -n ${projectName} -o /workspace/${projectName} --no-openapi`,
+        `dotnet new webapi -n ${projectName} -o /workspace/${projectName} --no-openapi --no-restore`,
       ],
-      postSetup: [],
+      postSetup: [`dotnet restore`],
     }),
     entryFile: (projectName) => `${projectName}/Program.cs`,
     runCommand: "dotnet run --urls http://0.0.0.0:5000",
   },
 
-  // ─── Elixir ───────────────────────────────────────────────────────────────
+  // ─── Elixir ──────────────────────────────────────────────────────────────
 
   elixir: {
     id: "elixir",
@@ -845,8 +837,8 @@ EOF`,
     icon: "elixir",
     getCommands: (projectName: string) => ({
       install: ["apk add --no-cache elixir"],
-      setup: [`cd /workspace && mix new ${projectName}`],
-      postSetup: [`cd /workspace/${projectName} && mix deps.get`],
+      setup: [`cd /workspace && mix new ${projectName} --no-git`],
+      postSetup: [`mix deps.get`],
     }),
     entryFile: (projectName) => `${projectName}/lib/${projectName}.ex`,
     runCommand: "mix run",
@@ -862,12 +854,15 @@ EOF`,
     defaultPort: 4000,
     getCommands: (projectName: string) => ({
       install: [
-        "apk add --no-cache elixir nodejs npm postgresql-client inotify-tools",
-        "mix local.hex --force && mix local.rebar --force",
+        "apk add --no-cache elixir nodejs npm inotify-tools",
+        "mix local.hex --force",
+        "mix local.rebar --force",
         "mix archive.install hex phx_new --force",
       ],
-      setup: [`cd /workspace && mix phx.new ${projectName} --no-ecto --no-git`],
-      postSetup: [`cd /workspace/${projectName} && mix deps.get`],
+      setup: [
+        `cd /workspace && mix phx.new ${projectName} --no-ecto --no-git --install`,
+      ],
+      postSetup: [],
     }),
     entryFile: (projectName) =>
       `${projectName}/lib/${projectName}_web/router.ex`,

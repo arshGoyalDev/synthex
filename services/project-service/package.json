@@ -2,7 +2,7 @@
   "name": "@synthex/project-service",
   "version": "0.0.1",
   "scripts": {
-    "dev": "dotenv -e ../../.env -- tsx watch src/index.ts",
+    "dev": "dotenv -e ../../.env -- tsx watch --include \"src/**/*.ts\" src/index.ts",
     "build": "tsup src/index.ts --format cjs --out-dir dist",
     "check-types": "tsc --noEmit -p tsconfig.json",
     "start": "dotenv -e ../../.env -- node dist/index.js"

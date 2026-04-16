@@ -85,9 +85,7 @@ class TerminalService {
       }
 
       const projectName = info.Config?.Labels?.projectName;
-      const workingDir = projectName
-        ? `/workspace/${projectName}`
-        : "/workspace";
+      const workingDir = projectName ? `/workspace/${projectName}` : "/workspace";
 
       const attemptLabel = "single shell profile";
 
