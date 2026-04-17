@@ -1,0 +1,6 @@
+FROM synthex/base:latest
+
+RUN apk add --no-cache curl gcc musl-dev
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"

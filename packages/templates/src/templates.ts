@@ -3,16 +3,16 @@ interface Template {
   name: string;
   description: string;
   language: string;
+  baseImage?: string;
   color: string;
   icon: string;
   defaultPort?: number;
   getCommands: (projectName: string) => {
-    // ← function not static array
     install: string[];
     setup: string[];
     postSetup: string[];
   };
-  entryFile: (projectName: string) => string; // ← dynamic too
+  entryFile: (projectName: string) => string;
   runCommand: string;
 }
 
@@ -209,6 +209,7 @@ EOF`,
     name: "Encore.ts",
     description: "TypeScript backend framework with built-in infra",
     language: "typescript",
+    baseImage: "synthex/encore-ts:latest",
     color: "#6E56CF",
     icon: "encore",
     defaultPort: 4000,
@@ -242,7 +243,6 @@ EOF`,
       install: ["apk add --no-cache python3 py3-pip python3-dev"],
       setup: [
         `python3 -m venv venv`,
-        // use printf instead of echo for multiline — more reliable
         `printf "def main():\\n    print('Hello from ${projectName}!')\\n\\nif __name__ == '__main__':\\n    main()\\n" > /workspace/${projectName}/main.py`,
         `echo "requests" > /workspace/${projectName}/requirements.txt`,
       ],
@@ -431,6 +431,7 @@ EOF`,
     name: "Encore.go",
     description: "Go backend framework with built-in infra",
     language: "go",
+    baseImage: "synthex/encore-go:latest",
     color: "#00ADD8",
     icon: "encore",
     defaultPort: 4000,

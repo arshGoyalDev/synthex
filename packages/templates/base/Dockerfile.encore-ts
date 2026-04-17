@@ -1,0 +1,35 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        bash \
+        curl \
+        wget \
+        git \
+        ca-certificates \
+        openssl \
+        tar \
+        gzip \
+        unzip \
+        vim \
+        nano \
+        procps \
+        acl \
+        passwd \
+        nodejs \
+        npm \
+        binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r synthex && useradd -r -g synthex -m -d /home/synthex synthex
+
+WORKDIR /workspace
+RUN mkdir -p /workspace \
+    && chown root:synthex /workspace \
+    && chmod 2775 /workspace \
+    && setfacl -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace \
+    && setfacl -d -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace
+
+RUN curl -fsSL https://encore.dev/install.sh | bash
+
+SHELL ["/bin/bash", "-c"]

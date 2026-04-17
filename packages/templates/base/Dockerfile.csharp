@@ -1,0 +1,6 @@
+FROM synthex/base:latest
+
+RUN apk add --no-cache curl bash icu-libs libgcc libssl3 libstdc++ zlib
+
+RUN curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /usr/local/dotnet \
+    && ln -sf /usr/local/dotnet/dotnet /usr/local/bin/dotnet

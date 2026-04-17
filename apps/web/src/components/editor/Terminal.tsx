@@ -290,7 +290,7 @@ function TerminalGroupPane({
       }}
     >
       <div className="flex shrink-0 items-stretch border-b border-border-subtle bg-bg-dark-secondary">
-        <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-0 flex-1 items-stretch">
           {group.terminalIds.map((terminalId) => {
             const terminal = terminalTabs[terminalId];
             if (!terminal) return null;
@@ -323,7 +323,7 @@ function TerminalGroupPane({
                   <X size={13} />
                 </span>
                 {isActive && (
-                  <span className="pointer-events-none absolute bottom-0 left-0 right-0 h-0.5 rounded-t bg-accent-primary" />
+                  <span className="pointer-events-none absolute -bottom-0.5 left-0 right-0 h-0.5 rounded-t bg-bg-primary" />
                 )}
               </button>
             );

@@ -27,4 +27,4 @@ RUN mkdir -p /workspace \
     && setfacl -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace \
     && setfacl -d -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace
 
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/sh", "-c"]

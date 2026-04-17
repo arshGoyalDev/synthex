@@ -4,6 +4,7 @@ import { AppError } from "../../utils/AppError";
 
 class ContainerService {
   docker = new Dockerode();
+  private readonly DEFAULT_IMAGE = "synthex/base:latest";
 
   async startProjectContainer(
     projectId: string,
@@ -14,25 +15,56 @@ class ContainerService {
   ) {
     let commands: string[] = [];
     let selectedTemplate: (typeof TEMPLATES)[string] | null = null;
+    let image = this.DEFAULT_IMAGE;
 
     if (template) {
       const tmpl = TEMPLATES[template];
+      
       if (!tmpl) throw new AppError(`Unknown Template: ${template}`, 400);
       selectedTemplate = tmpl;
 
       const { install, setup, postSetup } = tmpl.getCommands(projectName);
+      
+      const languageConfig = LANGUAGES[tmpl.language];
+      
+      const templateBaseImage = tmpl.baseImage;
+      const resolvedBaseImage = templateBaseImage ?? languageConfig?.baseImage;
 
-      commands.push(...install, ...setup, ...postSetup);
+      if (resolvedBaseImage) {
+        image = resolvedBaseImage;
+        commands.push(...setup, ...postSetup);
+      } else {
+        commands.push(...install, ...setup, ...postSetup);
+      }
     } else {
       if (!languages || languages.length === 0) {
         throw new AppError("Languages required for blank project", 400);
       }
 
-      const installCommands = languages.flatMap(
-        (lang) => LANGUAGES[lang]?.installCommands ?? [],
-      );
+      if (languages.length === 1) {
+        const singleLanguage = languages[0];
+        if (!singleLanguage) throw new AppError("Language is required", 400);
 
-      commands = [...installCommands];
+        const lang = LANGUAGES[singleLanguage];
+        if (!lang)
+          throw new AppError(`Unknown language: ${singleLanguage}`, 400);
+
+        if (lang.baseImage) {
+          image = lang.baseImage;
+          commands = [`mkdir -p /workspace/${projectName}`];
+        } else {
+          commands = [
+            ...lang.installCommands,
+            `mkdir -p /workspace/${projectName}`,
+          ];
+        }
+      } else {
+        const installCommands = languages.flatMap(
+          (lang) => LANGUAGES[lang]?.installCommands ?? [],
+        );
+
+        commands = [...installCommands, `mkdir -p /workspace/${projectName}`];
+      }
     }
 
     let container: Dockerode.Container;
@@ -49,7 +81,7 @@ class ContainerService {
       }
     } catch (error) {
       container = await this.docker.createContainer({
-        Image: "synthex/base:latest",
+        Image: image,
         name: `synthex-${projectId}`,
         WorkingDir: `/workspace/${projectName}`,
         Tty: true,

@@ -15,7 +15,7 @@
     "db:generate": "turbo run generate --filter=@synthex/database",
     "db:studio": "turbo run studio --filter=@synthex/database",
     "db:setup": "pnpm run db:up && sleep 5 && pnpm run db:generate && pnpm run db:migrate",
-    "docker:build:base": "docker build -t synthex/base:latest -f packages/templates/base/Dockerfile.base ."
+    "docker:build:language-images": "bash scripts/build-language-images.sh"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
