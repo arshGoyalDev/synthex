@@ -119,13 +119,13 @@ const startContainerSetup = async (projectData: ProjectData) => {
       message: "Setting up your environment...",
     });
 
-    // await containerService.startProjectContainer(
-    //   projectId,
-    //   projectName,
-    //   userId,
-    //   languages ?? undefined,
-    //   template ?? undefined,
-    // );
+    await containerService.startProjectContainer(
+      projectId,
+      projectName,
+      userId,
+      languages ?? undefined,
+      template ?? undefined,
+    );
 
     await redis.del(`container:timeout:${projectId}`);
 

@@ -1,19 +1,39 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tabs from "@radix-ui/react-tabs";
-import * as Popover from "@radix-ui/react-popover";
 import { X, Check, Search, ChevronDown } from "lucide-react";
 import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import {
   createProject,
   type CreateProjectPayload,
-} from "../services/project.service";
+} from "../../services/project.service";
 import { useNavigate } from "@tanstack/react-router";
-import { Input } from "./ui/Input";
+import { Input } from "../ui/Input";
 
 interface CreateProjectModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function useClickOutside(
+  ref: React.RefObject<HTMLElement | null>,
+  handler: () => void,
+) {
+  useEffect(() => {
+    const listener = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(e.target as Node)) {
+        return;
+      }
+      handler();
+    };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
 }
 
 function TemplateDropdown({
@@ -27,94 +47,148 @@ function TemplateDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const items = templates.filter(
-    (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.id.toLowerCase().includes(search.toLowerCase()),
-  );
+  useClickOutside(containerRef, () => setOpen(false));
+
+  const items = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return templates;
+    return templates.filter(
+      (t) =>
+        t.name.toLowerCase().includes(query) ||
+        t.id.toLowerCase().includes(query),
+    );
+  }, [templates, search]);
 
   const selected = templates.find((t) => t.id === selectedId);
 
-  return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="w-full flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-all text-left outline-none"
-        >
-          <span
-            className={`truncate ${selected ? "text-text-primary font-medium" : "text-text-tertiary"}`}
-          >
-            {selected ? (
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-5 h-5 rounded shrink-0 flex flex-col justify-center items-center text-white font-bold text-[10px]"
-                  style={{ backgroundColor: selected.color }}
-                >
-                  {selected.name.substring(0, 2)}
-                </div>
-                {selected.name}
-              </div>
-            ) : (
-              "Select a template..."
-            )}
-          </span>
-          <ChevronDown
-            size={16}
-            className={`text-text-tertiary transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          />
-        </button>
-      </Popover.Trigger>
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      setActiveIndex(
+        selectedId ? items.findIndex((i) => i.id === selectedId) : 0,
+      );
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open, selectedId]);
 
-      <Popover.Portal>
-        <Popover.Content
-          align="start"
-          sideOffset={4}
-          className="z-[60] w-[var(--radix-popover-trigger-width)] bg-bg-secondary border border-border-default rounded-lg shadow-xl overflow-hidden flex flex-col max-h-64 animate-fade-in outline-none"
-          style={{ animationDuration: "0.15s" }}
+  useEffect(() => {
+    if (open && listRef.current) {
+      const activeEl = listRef.current.children[activeIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [activeIndex, open]);
+
+  const selectItem = (id: string) => {
+    onChange(id);
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!items.length) {
+      if (e.key === "Escape") setOpen(false);
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev + 1) % items.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev - 1 + items.length) % items.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (items[activeIndex]) selectItem(items[activeIndex].id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors text-left"
+      >
+        <span
+          className={`truncate ${selected ? "text-text-primary" : "text-text-tertiary"}`}
         >
-          <div className="p-2 border-b border-border-subtle flex items-center gap-2 sticky top-0 bg-bg-secondary z-10">
-            <Search size={14} className="text-text-tertiary" />
+          {selected ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-5 h-5 rounded shrink-0 flex items-center justify-center text-white font-semibold text-[10px]"
+                style={{ backgroundColor: selected.color }}
+              >
+                {selected.name.substring(0, 2)}
+              </div>
+              {selected.name}
+            </div>
+          ) : (
+            "Select a template..."
+          )}
+        </span>
+        <ChevronDown
+          size={16}
+          className={`text-text-tertiary transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 w-full mt-1 bg-bg-secondary border border-border-default rounded-lg shadow-xl z-[100] overflow-hidden flex flex-col max-h-64 animate-fade-in">
+          <div className="p-2 border-b border-border-subtle flex items-center gap-2 bg-bg-secondary">
+            <Search size={14} className="text-text-tertiary shrink-0" />
             <input
-              autoFocus
+              ref={inputRef}
               className="bg-transparent border-none outline-none text-sm text-text-primary w-full placeholder:text-text-tertiary"
-              placeholder="Search templates..."
+              placeholder="Search templates"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setActiveIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
             />
           </div>
-          <div className="overflow-y-auto custom-scrollbar p-1">
+          <div ref={listRef} className="overflow-y-auto custom-scrollbar p-1">
             {items.length === 0 ? (
               <div className="p-3 text-sm text-text-tertiary text-center">
                 No templates found.
               </div>
             ) : (
-              items.map((tpl) => (
+              items.map((tpl, index) => (
                 <button
                   key={tpl.id}
                   type="button"
-                  onClick={() => {
-                    onChange(selectedId === tpl.id ? null : tpl.id);
-                    setOpen(false);
-                  }}
-                  className={`flex w-full items-center gap-3 p-2 rounded-md cursor-pointer transition-all border-none bg-transparent text-left ${
-                    selectedId === tpl.id
-                      ? "bg-accent-primary/10"
-                      : "hover:bg-bg-tertiary"
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => selectItem(tpl.id)}
+                  className={`flex w-full items-center gap-3 py-1.5 hover:bg-bg-tertiary rounded-md transition-colors bg-transparent text-left ${
+                    activeIndex === index
+                      ?? "bg-bg-tertiary"
                   }`}
                 >
+                  <span
+                    className={`w-0.5 self-stretch rounded-full ${selectedId === tpl.id ? "bg-accent-primary" : "bg-transparent"}`}
+                  />
                   <div
-                    className="w-6 h-6 rounded shrink-0 flex flex-col justify-center items-center text-white font-bold text-[10px]"
+                    className="w-6 h-6 rounded shrink-0 flex items-center justify-center text-white font-semibold text-[10px]"
                     style={{ backgroundColor: tpl.color }}
                   >
                     {tpl.name.substring(0, 2)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div
-                      className={`text-sm truncate ${selectedId === tpl.id ? "text-accent-primary font-medium" : "text-text-primary"}`}
-                    >
+                    <div className="text-sm truncate text-text-primary">
                       {tpl.name}
+                    </div>
+                    <div className="text-[11px] text-text-tertiary truncate">
+                      {tpl.description}
                     </div>
                   </div>
                   {selectedId === tpl.id && (
@@ -124,9 +198,9 @@ function TemplateDropdown({
               ))
             )}
           </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -141,12 +215,39 @@ function LanguageDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const items = languages.filter(
-    (l) =>
-      l.name.toLowerCase().includes(search.toLowerCase()) ||
-      l.id.toLowerCase().includes(search.toLowerCase()),
-  );
+  useClickOutside(containerRef, () => setOpen(false));
+
+  const items = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return languages;
+    return languages.filter(
+      (l) =>
+        l.name.toLowerCase().includes(query) ||
+        l.id.toLowerCase().includes(query),
+    );
+  }, [languages, search]);
+
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      setActiveIndex(0);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && listRef.current) {
+      const activeEl = listRef.current.children[activeIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [activeIndex, open]);
 
   const toggleSelected = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -154,81 +255,104 @@ function LanguageDropdown({
     } else {
       if (selectedIds.length < 5) {
         onChange([...selectedIds, id]);
-        setSearch("");
       }
     }
   };
 
-  return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="w-full min-h-[42px] flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-all text-left outline-none"
-        >
-          <div className="flex flex-wrap gap-1 items-center max-w-[85%]">
-            {selectedIds.length === 0 ? (
-              <span className="text-text-tertiary">Select languages...</span>
-            ) : (
-              selectedIds.map((id) => {
-                const lang = languages.find((l) => l.id === id);
-                if (!lang) return null;
-                return (
-                  <span
-                    key={id}
-                    className="inline-flex items-center gap-1.5 bg-bg-tertiary px-2 py-0.5 rounded text-xs font-medium text-text-primary border border-border-subtle"
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: lang.color }}
-                    />
-                    {lang.name}
-                    <div
-                      className="ml-0.5 hover:text-status-error cursor-pointer p-0.5 rounded-sm hover:bg-status-error/10 transition-colors"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleSelected(id);
-                      }}
-                    >
-                      <X size={12} />
-                    </div>
-                  </span>
-                );
-              })
-            )}
-          </div>
-          <ChevronDown
-            size={16}
-            className={`text-text-tertiary transition-transform duration-200 shrink-0 ${open ? "rotate-180" : ""}`}
-          />
-        </button>
-      </Popover.Trigger>
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!items.length) {
+      if (e.key === "Escape") setOpen(false);
+      return;
+    }
 
-      <Popover.Portal>
-        <Popover.Content
-          align="start"
-          sideOffset={4}
-          className="z-[60] w-[var(--radix-popover-trigger-width)] bg-bg-secondary border border-border-default rounded-lg shadow-xl overflow-hidden flex flex-col max-h-64 animate-fade-in outline-none"
-          style={{ animationDuration: "0.15s" }}
-        >
-          <div className="p-2 border-b border-border-subtle flex items-center gap-2 sticky top-0 bg-bg-secondary z-10">
-            <Search size={14} className="text-text-tertiary" />
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev + 1) % items.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev - 1 + items.length) % items.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const next = items[activeIndex];
+      if (next) toggleSelected(next.id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full min-h-[42px] flex items-center justify-between bg-bg-secondary border border-border-default rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary transition-colors text-left"
+      >
+        <div className="flex flex-wrap gap-1 items-center max-w-[85%]">
+          {selectedIds.length === 0 ? (
+            <span className="text-text-tertiary">Select languages...</span>
+          ) : (
+            selectedIds.map((id) => {
+              const lang = languages.find((l) => l.id === id);
+              if (!lang) return null;
+              return (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1.5 bg-bg-tertiary px-2 py-0.5 rounded text-xs text-text-primary border border-border-subtle"
+                >
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: lang.color }}
+                  />
+                  {lang.name}
+                  <button
+                    type="button"
+                    className="ml-0.5 hover:text-status-error cursor-pointer p-0.5 rounded-sm hover:bg-status-error/10 transition-colors"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleSelected(id);
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              );
+            })
+          )}
+        </div>
+        <ChevronDown
+          size={16}
+          className={`text-text-tertiary transition-transform duration-200 shrink-0 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 w-full mt-1 bg-bg-secondary border border-border-default rounded-lg shadow-xl z-[100] overflow-hidden flex flex-col max-h-64 animate-fade-in">
+          <div className="p-2 border-b border-border-subtle flex items-center gap-2 bg-bg-secondary">
+            <Search size={14} className="text-text-tertiary shrink-0" />
             <input
-              autoFocus
+              ref={inputRef}
               className="bg-transparent border-none outline-none text-sm text-text-primary w-full placeholder:text-text-tertiary"
-              placeholder="Search languages..."
+              placeholder="Search languages"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setActiveIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
             />
           </div>
-          <div className="overflow-y-auto custom-scrollbar p-1">
+          <div className="px-3 py-1 text-[11px] text-text-tertiary border-b border-border-subtle bg-bg-secondary">
+            {selectedIds.length}/5 selected
+          </div>
+          <div ref={listRef} className="overflow-y-auto custom-scrollbar p-1">
             {items.length === 0 ? (
               <div className="p-3 text-sm text-text-tertiary text-center">
                 No languages found.
               </div>
             ) : (
-              items.map((lang) => {
+              items.map((lang, index) => {
                 const isSelected = selectedIds.includes(lang.id);
                 const isDisabled = !isSelected && selectedIds.length >= 5;
 
@@ -236,23 +360,28 @@ function LanguageDropdown({
                   <button
                     key={lang.id}
                     type="button"
+                    onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => !isDisabled && toggleSelected(lang.id)}
-                    className={`flex w-full items-center gap-3 p-2 rounded-md transition-all border-none bg-transparent text-left ${
+                    className={`flex w-full items-center gap-3 py-1 hover:bg-bg-tertiary rounded-md transition-colors border-none bg-transparent text-left ${
                       isDisabled
                         ? "opacity-50 cursor-not-allowed"
-                        : "cursor-pointer hover:bg-bg-tertiary"
-                    } ${isSelected ? "bg-accent-primary/10" : ""}`}
+                        : "cursor-pointer"
+                    } ${activeIndex === index ?? "bg-bg-tertiary"}`}
                     disabled={isDisabled}
                   >
+                    <span
+                      className={`w-0.5 self-stretch rounded-full ${isSelected ? "bg-accent-primary" : "bg-transparent"}`}
+                    />
                     <div
                       className="w-5 h-5 rounded shrink-0"
                       style={{ backgroundColor: lang.color }}
                     />
                     <div className="flex-1 min-w-0">
-                      <div
-                        className={`text-sm truncate ${isSelected ? "text-accent-primary font-medium" : "text-text-primary"}`}
-                      >
+                      <div className="text-sm truncate text-text-primary">
                         {lang.name}
+                      </div>
+                      <div className="text-[11px] text-text-tertiary truncate">
+                        {lang.id}
                       </div>
                     </div>
                     {isSelected && (
@@ -266,9 +395,9 @@ function LanguageDropdown({
               })
             )}
           </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -378,7 +507,7 @@ export function CreateProjectModal({
           <Tabs.Root
             value={activeTab}
             onValueChange={setActiveTab}
-            className="flex-1 flex flex-col overflow-hidden"
+            className="flex-1 flex flex-col overflow-visible"
           >
             <Tabs.List className="flex gap-4 border-b border-border-default mb-4">
               <Tabs.Trigger
@@ -396,7 +525,7 @@ export function CreateProjectModal({
               </Tabs.Trigger>
             </Tabs.List>
 
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <div className="flex-1 overflow-visible pr-2">
               <Tabs.Content
                 value="info"
                 className="space-y-5 focus:outline-none"
