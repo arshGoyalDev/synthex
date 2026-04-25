@@ -75,6 +75,8 @@ model Project {
   containerLogs   ContainerLog[]
   executionLogs   ExecutionLog[]
 
+  snapshots ProjectSnapshot[]
+  
   @@index([userId])
   @@index([languages])
   @@map("projects")
@@ -102,6 +104,22 @@ model ProjectFile {
   @@index([filePath])
   @@index([fileName])
   @@map("project_files")
+}
+
+model ProjectSnapshot {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  userId      String   @map("user_id")
+  minioKey    String   @map("minio_key")
+  sizeBytes   BigInt   @map("size_bytes")
+  fileCount   Int      @map("file_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([createdAt(sort: Desc)])
+  @@map("project_snapshots")
 }
 
 model ContainerLog {

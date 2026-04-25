@@ -1,6 +1,9 @@
 import Dockerode from "dockerode";
 import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import { AppError } from "../../utils/AppError";
+import { createSnapshot, getLatestSnapshotKey } from "../../utils/snapshots";
+import { restoreSnapshot } from "../../utils/restore";
+import { pubsub } from "../../config/database";
 
 class ContainerService {
   docker = new Dockerode();
@@ -19,14 +22,14 @@ class ContainerService {
 
     if (template) {
       const tmpl = TEMPLATES[template];
-      
+
       if (!tmpl) throw new AppError(`Unknown Template: ${template}`, 400);
       selectedTemplate = tmpl;
 
       const { install, setup, postSetup } = tmpl.getCommands(projectName);
-      
+
       const languageConfig = LANGUAGES[tmpl.language];
-      
+
       const templateBaseImage = tmpl.baseImage;
       const resolvedBaseImage = templateBaseImage ?? languageConfig?.baseImage;
 
@@ -71,13 +74,18 @@ class ContainerService {
 
     try {
       container = this.docker.getContainer(`synthex-${projectId}`);
-      console.log(container);
       const info = await container.inspect();
 
       if (!info.State.Running) {
         await container.start();
 
         console.log(`[container-service] Started container for ${projectId}`);
+      }
+
+      const snapshotKey = await getLatestSnapshotKey(projectId, userId);
+
+      if (snapshotKey) {
+        await restoreSnapshot(container, snapshotKey);
       }
     } catch (error) {
       container = await this.docker.createContainer({
@@ -102,7 +110,20 @@ class ContainerService {
 
       await container.start();
 
-      await this.runSetupCommands(container, commands, projectId);
+      const snapshotKey = await getLatestSnapshotKey(projectId, userId);
+
+      if (snapshotKey) {
+        console.log(
+          `[container-service] Found existing snapshot, restoring...`,
+        );
+        await restoreSnapshot(container, snapshotKey);
+      } else {
+        if (commands.length > 0) {
+          await this.runSetupCommands(container, commands, projectId);
+        }
+
+        await this.takeSnapshot(container, projectId, userId, projectName);
+      }
     }
 
     return {
@@ -115,12 +136,13 @@ class ContainerService {
     };
   }
 
-  async stopContainer(projectId: string) {
+  async stopContainer(projectId: string, userId: string, projectName: string) {
     try {
       const container = this.docker.getContainer(`synthex-${projectId}`);
       const info = await container.inspect();
 
       if (info.State.Running) {
+        await this.takeSnapshot(container, projectId, userId, projectName);
         await container.stop({ t: 10 });
 
         console.log(`[container-service] Stopped container for ${projectId}`);
@@ -136,12 +158,27 @@ class ContainerService {
     }
   }
 
-  async cleanupContainer(projectId: string) {
+  async cleanupContainer(
+    projectId: string,
+    userId?: string,
+    projectName?: string,
+  ) {
     try {
       const container = this.docker.getContainer(`synthex-${projectId}`);
       const info = await container.inspect();
+      const labels = info.Config?.Labels ?? {};
+      const resolvedUserId = userId ?? labels.userId;
+      const resolvedProjectName = projectName ?? labels.projectName;
 
       if (info.State.Running) {
+        if (resolvedUserId && resolvedProjectName) {
+          await this.takeSnapshot(
+            container,
+            projectId,
+            resolvedUserId,
+            resolvedProjectName,
+          );
+        }
         await container.stop({ t: 5 });
       }
 
@@ -252,6 +289,71 @@ class ContainerService {
         );
       }
     }
+  }
+
+  async takeSnapshot(
+    container: Dockerode.Container,
+    projectId: string,
+    userId: string,
+    projectName: string,
+  ) {
+    try {
+      const result = await createSnapshot(
+        container,
+        projectId,
+        userId,
+        projectName,
+      );
+
+      await pubsub.publish("files:snapshot", {
+        projectId,
+        userId,
+        minioKey: result.minioKey,
+        sizeBytes: result.sizeBytes,
+        fileCount: result.fileCount,
+        manifest: result.manifest,
+      });
+
+      console.log(
+        `[container-service] Snapshot taken: ${result.fileCount} files`,
+      );
+
+      return result;
+    } catch (err: any) {
+      console.log(`[container-service] Snapshot failed: ${err.message}`);
+      throw err;
+    }
+  }
+
+  async getContainerFile(projectId: string, filePath: string): Promise<string> {
+    const container = this.docker.getContainer(`synthex-${projectId}`);
+    return this.execInContainer(container, `cat "${filePath}"`);
+  }
+
+  private async execInContainer(
+    container: Dockerode.Container,
+    command: string,
+  ): Promise<string> {
+    const exec = await container.exec({
+      Cmd: ["bash", "-c", command],
+      AttachStdout: true,
+      AttachStderr: false,
+    });
+
+    return new Promise((resolve, reject) => {
+      exec.start({ hijack: false, stdin: false }, (err, stream) => {
+        if (err) return reject(err);
+        if (!stream) return resolve("");
+
+        const chunks: Buffer[] = [];
+        stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+        stream.on("end", () => {
+          const output = chunks.map((c) => c.slice(8).toString()).join("");
+          resolve(output);
+        });
+        stream.on("error", reject);
+      });
+    });
   }
 }
 

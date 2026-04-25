@@ -12,6 +12,16 @@ export {
   getContainerRepository,
 } from "./clients/container.client";
 
+export {
+  getStorageDbClient,
+  getStorageRepository,
+} from "./clients/storage.client";
+
 export { createRedisClient, CacheManager, PubSubManager } from "./redis";
 export type { RedisClient } from "./redis";
-export { createMinioClient, MinioManager } from "./minio";
+export {
+  createMinioClient,
+  MinioManager,
+  SNAPSHOT_BUCKET,
+  FILES_BUCKET,
+} from "./minio";

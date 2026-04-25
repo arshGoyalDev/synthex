@@ -18,6 +18,5 @@ export function getProjectDbClient() {
 export function getProjectRepository(prisma: PrismaClient) {
   return {
     project: prisma.project,
-    projectFile: prisma.projectFile,
   };
 }

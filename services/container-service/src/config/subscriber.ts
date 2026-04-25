@@ -17,7 +17,7 @@ const registerSubscribers = async () => {
     const { projectId } = data;
 
     console.log(
-      "Received project:created event:",
+      "[container-service] project:created event:",
       data.projectId,
       data.projectName,
     );
@@ -34,7 +34,7 @@ const registerSubscribers = async () => {
     const { projectId, userId } = data;
 
     console.log(
-      "Received project:start event:",
+      "[container-service] project:start event:",
       data.projectId,
       data.projectName,
     );
@@ -49,12 +49,14 @@ const registerSubscribers = async () => {
 
   await pubsub.subscribe("project:stop", async (data) => {
     try {
-      await containerService.stopContainer(data.projectId).catch((err) => {
-        console.error(
-          `[container-service] Unhandled error for ${data.projectId}:`,
-          err.message,
-        );
-      });
+      await containerService
+        .stopContainer(data.projectId, data.userId, data.projectName)
+        .catch((err) => {
+          console.error(
+            `[container-service] Unhandled error for ${data.projectId}:`,
+            err.message,
+          );
+        });
 
       await pubsub.publish("container:status", {
         projectId: data.projectId,
@@ -82,7 +84,9 @@ const registerSubscribers = async () => {
       `[container-service] Cleaning up timed out container for ${data.projectId}`,
     );
 
-    await containerService.cleanupContainer(data.projectId).catch((err) => {
+    await containerService
+      .cleanupContainer(data.projectId, data.userId, data.projectName ?? data.projectId)
+      .catch((err) => {
       console.error("Cleanup failed:", err);
     });
 
@@ -138,7 +142,9 @@ const startContainerSetup = async (projectData: ProjectData) => {
   } catch (err: any) {
     console.error(`[container-service] Failed for ${projectId}:`, err);
 
-    await containerService.cleanupContainer(projectId).catch(() => {});
+    await containerService
+      .cleanupContainer(projectId, userId, projectName)
+      .catch(() => {});
 
     await redis.del(`container:timeout:${projectId}`);
 

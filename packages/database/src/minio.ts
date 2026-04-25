@@ -13,7 +13,9 @@ export function createMinioClient() {
 }
 
 export class MinioManager {
-  constructor(private client: MinioClient) {}
+  constructor(private client: MinioClient) {
+    this.client = client;
+  }
 
   async upload(bucket: string, key: string, stream: Buffer | Readable, size?: number, metadata?: Record<string, string>) {
     await this.client.putObject(bucket, key, stream, size, metadata);
@@ -50,3 +52,6 @@ export class MinioManager {
     });
   }
 }
+
+export const SNAPSHOT_BUCKET = "project-snapshots";
+export const FILES_BUCKET = "project-files";
