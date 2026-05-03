@@ -111,6 +111,17 @@ const registerSubscribers = async () => {
       );
     }
   });
+
+  await pubsub.subscribe("storage:file:mutation", async (data) => {
+    try {
+      await containerService.applyStorageMutation(data);
+    } catch (err: any) {
+      console.error(
+        `[container-service] Failed to apply storage mutation for ${data.projectId}:`,
+        err.message,
+      );
+    }
+  });
 };
 
 const startContainerSetup = async (projectData: ProjectData) => {

@@ -1,4 +1,9 @@
-import { minioClient, SNAPSHOT_BUCKET, FILES_BUCKET } from "../../config/database";
+import {
+  minioClient,
+  pubsub,
+  SNAPSHOT_BUCKET,
+  FILES_BUCKET,
+} from "../../config/database";
 import { FilesRepository } from "./files.repository";
 import { SnapshotRepository } from "../snapshots/snapshot.repository";
 import { getMimeType } from "../../utils/mime";
@@ -8,6 +13,28 @@ import { Readable } from "stream";
 class FilesService {
   private filesRepo = new FilesRepository();
   private snapshotRepo = new SnapshotRepository();
+
+  private filesPrefix(userId: string, projectId: string) {
+    return `${userId}/${projectId}/files/`;
+  }
+
+  private deletesPrefix(userId: string, projectId: string) {
+    return `${userId}/${projectId}/deletes/`;
+  }
+
+  normalizeFilePath(filePath: string): string {
+    const normalized = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
+    const parts = normalized.split("/").filter(Boolean);
+
+    if (
+      parts.length === 0 ||
+      parts.some((part) => part === "." || part === "..")
+    ) {
+      throw new AppError("Invalid filePath", 400);
+    }
+
+    return parts.join("/");
+  }
 
   // ─── Called when container-service publishes "files:snapshot" ─────────────
 
@@ -33,23 +60,51 @@ class FilesService {
       fileCount: data.fileCount,
     });
 
+    const deletedPaths = await this.listMarkedDeletedPaths(
+      data.userId,
+      data.projectId,
+    );
+    const savedObjectPaths = await this.listSavedObjectPaths(
+      data.userId,
+      data.projectId,
+    );
+    const manifest = data.manifest.filter((f) => !deletedPaths.has(f.filePath));
+
     // 2. update file metadata from manifest
     await this.filesRepo.upsertMany(
-      data.manifest.map((f) => ({
+      manifest.map((f) => ({
         projectId: data.projectId,
         filePath: f.filePath,
         fileName: f.filePath.split("/").pop()!,
-        minioPath: `${data.userId}/${data.projectId}/files/${f.filePath}`,
+        minioPath: `${this.filesPrefix(data.userId, data.projectId)}${
+          f.filePath
+        }`,
         sizeBytes: f.sizeBytes,
         mimeType: f.mimeType,
         content: null,
       })),
     );
 
+    const keepFilePaths = new Set<string>([
+      ...manifest.map((f) => f.filePath),
+      ...savedObjectPaths,
+    ]);
+    for (const deletedPath of deletedPaths) {
+      keepFilePaths.delete(deletedPath);
+    }
+    await this.filesRepo.deleteMissing(data.projectId, [...keepFilePaths]);
+
+    await pubsub.publish("storage:file:list-changed", {
+      projectId: data.projectId,
+      userId: data.userId,
+    });
+
     // 3. keep only last 5 snapshots — delete old ones from MinIO too
     const deleted = await this.snapshotRepo.deleteOld(data.projectId, 5);
     for (const snap of deleted) {
-      await minioClient.removeObject(SNAPSHOT_BUCKET, snap.minioKey).catch(() => {});
+      await minioClient
+        .removeObject(SNAPSHOT_BUCKET, snap.minioKey)
+        .catch(() => {});
     }
 
     console.log(
@@ -66,6 +121,7 @@ class FilesService {
   // ─── Get single file content ─────────────────────────────────────────────
 
   async getFile(projectId: string, filePath: string) {
+    filePath = this.normalizeFilePath(filePath);
     const file = await this.filesRepo.findByPath(projectId, filePath);
     if (!file) throw new AppError("File not found", 404);
 
@@ -98,6 +154,7 @@ class FilesService {
   // ─── Delete file from manifest ───────────────────────────────────────────
 
   async deleteFile(projectId: string, filePath: string) {
+    filePath = this.normalizeFilePath(filePath);
     await this.filesRepo.delete(projectId, filePath);
   }
 
@@ -106,8 +163,10 @@ class FilesService {
     userId: string,
     filePath: string,
     content: string,
+    options: { publish?: boolean } = {},
   ) {
-    const minioPath = `${userId}/${projectId}/files/${filePath}`;
+    filePath = this.normalizeFilePath(filePath);
+    const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
     const buffer = Buffer.from(content, "utf8");
     const mimeType = getMimeType(filePath);
 
@@ -131,7 +190,72 @@ class FilesService {
       },
     ]);
 
+    await this.removeDeleteMarker(userId, projectId, filePath);
+
+    if (options.publish !== false) {
+      await pubsub.publish("storage:file:mutation", {
+        projectId,
+        userId,
+        event: "change",
+        filePath,
+        content,
+      });
+    }
+
     console.log(`[storage-service] Saved file ${filePath} for ${projectId}`);
+  }
+
+  async deleteStoredFile(projectId: string, userId: string, filePath: string) {
+    filePath = this.normalizeFilePath(filePath);
+    await this.filesRepo.delete(projectId, filePath);
+
+    await minioClient
+      .removeObject(
+        FILES_BUCKET,
+        `${this.filesPrefix(userId, projectId)}${filePath}`,
+      )
+      .catch(() => {});
+    await this.putDeleteMarker(userId, projectId, filePath);
+
+    await pubsub.publish("storage:file:mutation", {
+      projectId,
+      userId,
+      event: "delete",
+      filePath,
+    });
+  }
+
+  async renameFile(
+    projectId: string,
+    userId: string,
+    oldPath: string,
+    newPath: string,
+  ) {
+    oldPath = this.normalizeFilePath(oldPath);
+    newPath = this.normalizeFilePath(newPath);
+
+    if (oldPath === newPath) return;
+
+    const file = await this.getFile(projectId, oldPath);
+    const content = file.content ?? "";
+    const oldObjectKey = `${this.filesPrefix(userId, projectId)}${oldPath}`;
+
+    await this.saveFile(projectId, userId, newPath, content, {
+      publish: false,
+    });
+    await this.filesRepo.delete(projectId, oldPath);
+    await minioClient.removeObject(FILES_BUCKET, oldObjectKey).catch(() => {});
+    await this.putDeleteMarker(userId, projectId, oldPath);
+    await this.removeDeleteMarker(userId, projectId, newPath);
+
+    await pubsub.publish("storage:file:mutation", {
+      projectId,
+      userId,
+      event: "rename",
+      filePath: oldPath,
+      newPath,
+      content,
+    });
   }
 
   // ─── Extract single file from tar.gz snapshot ────────────────────────────
@@ -148,21 +272,26 @@ class FilesService {
       const extract = tarStream.extract();
       const gunzip = zlib.createGunzip();
 
-      extract.on("entry", (header: any, entryStream: Readable, next: () => void) => {
-        if (header.name === targetFilePath) {
-          const chunks: Buffer[] = [];
-          entryStream.on("data", (chunk) => chunks.push(chunk));
-          entryStream.on("end", () => {
-            resolve(Buffer.concat(chunks).toString("utf8"));
-          });
-          entryStream.on("error", reject);
-        } else {
-          entryStream.resume();
-          next();
-        }
-      });
+      extract.on(
+        "entry",
+        (header: any, entryStream: Readable, next: () => void) => {
+          if (header.name === targetFilePath) {
+            const chunks: Buffer[] = [];
+            entryStream.on("data", (chunk) => chunks.push(chunk));
+            entryStream.on("end", () => {
+              resolve(Buffer.concat(chunks).toString("utf8"));
+            });
+            entryStream.on("error", reject);
+          } else {
+            entryStream.resume();
+            next();
+          }
+        },
+      );
 
-      extract.on("finish", () => reject(new AppError("File not found in snapshot", 404)));
+      extract.on("finish", () =>
+        reject(new AppError("File not found in snapshot", 404)),
+      );
       extract.on("error", reject);
 
       stream.pipe(gunzip).pipe(extract);
@@ -186,6 +315,61 @@ class FilesService {
 
       stream.on("data", (chunk: Buffer) => chunks.push(chunk));
       stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      stream.on("error", reject);
+    });
+  }
+
+  private async putDeleteMarker(
+    userId: string,
+    projectId: string,
+    filePath: string,
+  ) {
+    await minioClient.putObject(
+      FILES_BUCKET,
+      `${this.deletesPrefix(userId, projectId)}${filePath}`,
+      Buffer.alloc(0),
+      0,
+    );
+  }
+
+  private async removeDeleteMarker(
+    userId: string,
+    projectId: string,
+    filePath: string,
+  ) {
+    await minioClient
+      .removeObject(
+        FILES_BUCKET,
+        `${this.deletesPrefix(userId, projectId)}${filePath}`,
+      )
+      .catch(() => {});
+  }
+
+  private async listMarkedDeletedPaths(userId: string, projectId: string) {
+    return this.listObjectPaths(
+      FILES_BUCKET,
+      this.deletesPrefix(userId, projectId),
+    );
+  }
+
+  private async listSavedObjectPaths(userId: string, projectId: string) {
+    return this.listObjectPaths(
+      FILES_BUCKET,
+      this.filesPrefix(userId, projectId),
+    );
+  }
+
+  private async listObjectPaths(bucket: string, prefix: string) {
+    return new Promise<Set<string>>((resolve, reject) => {
+      const paths = new Set<string>();
+      const stream = minioClient.listObjects(bucket, prefix, true);
+
+      stream.on("data", (obj) => {
+        if (!obj.name || obj.name === prefix) return;
+        const filePath = obj.name.slice(prefix.length);
+        if (filePath) paths.add(filePath);
+      });
+      stream.on("end", () => resolve(paths));
       stream.on("error", reject);
     });
   }

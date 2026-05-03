@@ -3,6 +3,7 @@ import cors from "cors";
 import { createServer } from "http";
 
 import { env } from "./config";
+import { ensureBuckets } from "./config/database";
 
 import { registerSubscribers } from "./config/subscriber";
 
@@ -77,10 +78,17 @@ app.use(
 
 registerTerminalHandlers(io);
 
-registerSubscribers().then(() => {
-  console.log("[container-service] Subscribers registered");
-});
+const start = async () => {
+  await ensureBuckets();
 
-httpServer.listen(env.PORT, () => {
-  console.log(`container-service running on port ${env.PORT}`);
+  await registerSubscribers();
+  console.log("[container-service] Subscribers registered");
+
+  httpServer.listen(env.PORT, () => {
+    console.log(`container-service running on port ${env.PORT}`);
+  });
+};
+
+start().catch((err) => {
+  console.error("[container-service] Startup failed:", err.message);
 });

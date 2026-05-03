@@ -3,6 +3,7 @@ import cors from "cors";
 
 import { filesRoutes } from "./modules/files/files.routes";
 import { registerSubscribers } from "./config/subscriber";
+import { minioClient, SNAPSHOT_BUCKET, FILES_BUCKET } from "./config/database";
 
 import { env } from "./config";
 
@@ -24,10 +25,28 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   return res.status(status).json({ error: err.message || "Internal server error" });
 });
 
-registerSubscribers().then(() => {
-  console.log("[storage-service] Subscribers registered");
-});
+const ensureBuckets = async () => {
+  for (const bucket of [SNAPSHOT_BUCKET, FILES_BUCKET]) {
+    const exists = await minioClient.bucketExists(bucket);
 
-app.listen(env.PORT, () => {
-  console.log(`storage-service running on port ${env.PORT}`);
+    if (!exists) {
+      await minioClient.makeBucket(bucket);
+      console.log(`[minio] Created bucket: ${bucket}`);
+    }
+  }
+};
+
+const start = async () => {
+  await ensureBuckets();
+
+  await registerSubscribers();
+  console.log("[storage-service] Subscribers registered");
+
+  app.listen(env.PORT, () => {
+    console.log(`storage-service running on port ${env.PORT}`);
+  });
+};
+
+start().catch((err) => {
+  console.error("[storage-service] Startup failed:", err.message);
 });

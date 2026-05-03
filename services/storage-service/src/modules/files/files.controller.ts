@@ -10,18 +10,38 @@ const saveFileSchema = z.object({
   content: z.string(),
 });
 
+const renameFileSchema = z.object({
+  newPath: z.string().min(1),
+});
+
+function getProjectId(req: Request): string {
+  const projectId = req.params.projectId;
+  if (!projectId) {
+    throw new AppError("projectId is required", 400);
+  }
+  return projectId;
+}
+
+function getUserId(req: Request): string {
+  const userId = req.headers["x-user-id"];
+  if (typeof userId !== "string" || !userId) {
+    throw new AppError("userId is required", 401);
+  }
+  return userId;
+}
+
 function getWildcardPath(req: Request): string {
   const wildcard = (req.params as Record<string, string | undefined>)["0"];
   if (!wildcard) {
     throw new AppError("filePath is required", 400);
   }
-  return wildcard;
+  return filesService.normalizeFilePath(wildcard);
 }
 
 class FilesController {
   async listFiles(req: Request, res: Response, next: NextFunction) {
     try {
-      const projectId = req.params.projectId;
+      const projectId = getProjectId(req);
       const files = await filesService.listFiles(projectId);
 
       res.json({ data: files });
@@ -32,7 +52,7 @@ class FilesController {
 
   async getLatestSnapshot(req: Request, res: Response, next: NextFunction) {
     try {
-      const projectId = req.params.projectId;
+      const projectId = getProjectId(req);
       const key = await filesService.getLatestSnapshotKey(projectId);
 
       res.json({ data: { snapshotKey: key } });
@@ -43,7 +63,7 @@ class FilesController {
 
   async getFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const projectId = req.params.projectId;
+      const projectId = getProjectId(req);
       const filePath = getWildcardPath(req);
       const file = await filesService.getFile(projectId, filePath);
 
@@ -55,8 +75,8 @@ class FilesController {
 
   async saveFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const projectId = req.params.projectId;
-      const userId = req.headers["x-user-id"];
+      const projectId = getProjectId(req);
+      const userId = getUserId(req);
       const { filePath, content } = saveFileSchema.parse(req.body);
 
       await filesService.saveFile(
@@ -75,11 +95,27 @@ class FilesController {
   async deleteFile(req: Request, res: Response, next: NextFunction) {
     try {
       const projectId = getProjectId(req);
+      const userId = getUserId(req);
       const filePath = getWildcardPath(req);
 
-      await filesService.deleteFile(projectId, filePath);
+      await filesService.deleteStoredFile(projectId, userId, filePath);
 
       res.json({ message: "File deleted" });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async renameFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const projectId = getProjectId(req);
+      const userId = getUserId(req);
+      const filePath = getWildcardPath(req);
+      const { newPath } = renameFileSchema.parse(req.body);
+
+      await filesService.renameFile(projectId, userId, filePath, newPath);
+
+      res.json({ message: "File renamed" });
     } catch (err) {
       next(err);
     }

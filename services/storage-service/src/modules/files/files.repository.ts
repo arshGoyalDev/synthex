@@ -2,16 +2,25 @@ import { db, prisma } from "../../config/database";
 
 class FilesRepository {
   async findByProject(projectId: string) {
-    return db.projectFile.findMany({
+    const files = await db.projectFile.findMany({
       where: { projectId },
       orderBy: { filePath: "asc" },
     });
+    return files.map((file) => ({
+      ...file,
+      sizeBytes: file.sizeBytes ? Number(file.sizeBytes) : null,
+    }));
   }
 
   async findByPath(projectId: string, filePath: string) {
-    return db.projectFile.findUnique({
+    const file = await db.projectFile.findUnique({
       where: { projectId_filePath: { projectId, filePath } },
     });
+    if (!file) return null;
+    return {
+      ...file,
+      sizeBytes: file.sizeBytes ? Number(file.sizeBytes) : null,
+    };
   }
 
   async upsertMany(
@@ -59,6 +68,19 @@ class FilesRepository {
   async delete(projectId: string, filePath: string) {
     return db.projectFile.deleteMany({
       where: { projectId, filePath },
+    });
+  }
+
+  async deleteMissing(projectId: string, keepFilePaths: string[]) {
+    if (keepFilePaths.length === 0) {
+      return db.projectFile.deleteMany({ where: { projectId } });
+    }
+
+    return db.projectFile.deleteMany({
+      where: {
+        projectId,
+        filePath: { notIn: keepFilePaths },
+      },
     });
   }
 

@@ -3,11 +3,33 @@ import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import { AppError } from "../../utils/AppError";
 import { createSnapshot, getLatestSnapshotKey } from "../../utils/snapshots";
 import { restoreSnapshot } from "../../utils/restore";
-import { pubsub } from "../../config/database";
+import { FILES_BUCKET, minioClient, pubsub } from "../../config/database";
 
 class ContainerService {
   docker = new Dockerode();
   private readonly DEFAULT_IMAGE = "synthex/base:latest";
+
+  private filesPrefix(userId: string, projectId: string) {
+    return `${userId}/${projectId}/files/`;
+  }
+
+  private deletesPrefix(userId: string, projectId: string) {
+    return `${userId}/${projectId}/deletes/`;
+  }
+
+  private normalizeFilePath(filePath: string): string {
+    const normalized = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
+    const parts = normalized.split("/").filter(Boolean);
+
+    if (
+      parts.length === 0 ||
+      parts.some((part) => part === "." || part === "..")
+    ) {
+      throw new AppError("Invalid filePath", 400);
+    }
+
+    return parts.join("/");
+  }
 
   async startProjectContainer(
     projectId: string,
@@ -86,8 +108,18 @@ class ContainerService {
 
       if (snapshotKey) {
         await restoreSnapshot(container, snapshotKey);
+        await this.applyStoredFileState(
+          container,
+          projectId,
+          userId,
+          projectName,
+        );
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.statusCode !== 404) {
+        throw error;
+      }
+
       container = await this.docker.createContainer({
         Image: image,
         name: `synthex-${projectId}`,
@@ -117,6 +149,12 @@ class ContainerService {
           `[container-service] Found existing snapshot, restoring...`,
         );
         await restoreSnapshot(container, snapshotKey);
+        await this.applyStoredFileState(
+          container,
+          projectId,
+          userId,
+          projectName,
+        );
       } else {
         if (commands.length > 0) {
           await this.runSetupCommands(container, commands, projectId);
@@ -328,6 +366,218 @@ class ContainerService {
   async getContainerFile(projectId: string, filePath: string): Promise<string> {
     const container = this.docker.getContainer(`synthex-${projectId}`);
     return this.execInContainer(container, `cat "${filePath}"`);
+  }
+
+  async applyStorageMutation(data: {
+    projectId: string;
+    userId: string;
+    event: "change" | "delete" | "rename";
+    filePath: string;
+    newPath?: string;
+    content?: string;
+  }) {
+    const container = this.docker.getContainer(`synthex-${data.projectId}`);
+    let info: Dockerode.ContainerInspectInfo;
+
+    try {
+      info = await container.inspect();
+    } catch (err: any) {
+      if (err.statusCode === 404) return;
+      throw err;
+    }
+
+    if (!info.State.Running) return;
+
+    const projectName = info.Config?.Labels?.projectName;
+    if (!projectName) {
+      throw new AppError("Container projectName label is missing", 500);
+    }
+
+    const filePath = this.normalizeFilePath(data.filePath);
+
+    if (data.event === "delete") {
+      await this.deleteFileInContainer(container, projectName, filePath);
+      return;
+    }
+
+    if (data.event === "rename") {
+      if (!data.newPath) throw new AppError("newPath is required", 400);
+      const newPath = this.normalizeFilePath(data.newPath);
+      await this.renameFileInContainer(
+        container,
+        projectName,
+        filePath,
+        newPath,
+      );
+
+      if (data.content !== undefined) {
+        await this.writeFileToContainer(
+          container,
+          projectName,
+          newPath,
+          Buffer.from(data.content, "utf8"),
+        );
+      }
+      return;
+    }
+
+    const content =
+      data.content !== undefined
+        ? Buffer.from(data.content, "utf8")
+        : await this.readStoredFile(data.userId, data.projectId, filePath);
+    await this.writeFileToContainer(container, projectName, filePath, content);
+  }
+
+  private async applyStoredFileState(
+    container: Dockerode.Container,
+    projectId: string,
+    userId: string,
+    projectName: string,
+  ) {
+    const deletedPaths = await this.listObjectPaths(
+      FILES_BUCKET,
+      this.deletesPrefix(userId, projectId),
+    );
+    const filePaths = await this.listObjectPaths(
+      FILES_BUCKET,
+      this.filesPrefix(userId, projectId),
+    );
+
+    for (const filePath of deletedPaths) {
+      await this.deleteFileInContainer(container, projectName, filePath);
+    }
+
+    for (const filePath of filePaths) {
+      if (deletedPaths.has(filePath)) continue;
+      const content = await this.readStoredFile(userId, projectId, filePath);
+      await this.writeFileToContainer(container, projectName, filePath, content);
+    }
+  }
+
+  private async writeFileToContainer(
+    container: Dockerode.Container,
+    projectName: string,
+    filePath: string,
+    content: Buffer,
+  ) {
+    filePath = this.normalizeFilePath(filePath);
+    const dirName = filePath.split("/").slice(0, -1).join("/");
+    if (dirName) {
+      await this.runShell(
+        container,
+        projectName,
+        `mkdir -p -- ${this.shellQuote(dirName)}`,
+      );
+    }
+
+    const tarStream = require("tar-stream");
+    const pack = tarStream.pack();
+
+    pack.entry({ name: filePath, size: content.length, mode: 0o644 }, content);
+    pack.finalize();
+
+    await container.putArchive(pack, {
+      path: `/workspace/${projectName}`,
+    });
+  }
+
+  private async deleteFileInContainer(
+    container: Dockerode.Container,
+    projectName: string,
+    filePath: string,
+  ) {
+    filePath = this.normalizeFilePath(filePath);
+    await this.runShell(
+      container,
+      projectName,
+      `rm -rf -- ${this.shellQuote(filePath)}`,
+    );
+  }
+
+  private async renameFileInContainer(
+    container: Dockerode.Container,
+    projectName: string,
+    oldPath: string,
+    newPath: string,
+  ) {
+    oldPath = this.normalizeFilePath(oldPath);
+    newPath = this.normalizeFilePath(newPath);
+    const newDir = newPath.split("/").slice(0, -1).join("/");
+    const mkdir = newDir ? `mkdir -p -- ${this.shellQuote(newDir)} && ` : "";
+    await this.runShell(
+      container,
+      projectName,
+      `${mkdir}if [ -e ${this.shellQuote(
+        oldPath,
+      )} ]; then mv -- ${this.shellQuote(oldPath)} ${this.shellQuote(
+        newPath,
+      )}; fi`,
+    );
+  }
+
+  private async readStoredFile(
+    userId: string,
+    projectId: string,
+    filePath: string,
+  ): Promise<Buffer> {
+    const stream = await minioClient.getObject(
+      FILES_BUCKET,
+      `${this.filesPrefix(userId, projectId)}${filePath}`,
+    );
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("end", () => resolve(Buffer.concat(chunks)));
+      stream.on("error", reject);
+    });
+  }
+
+  private async listObjectPaths(bucket: string, prefix: string) {
+    return new Promise<Set<string>>((resolve, reject) => {
+      const paths = new Set<string>();
+      const stream = minioClient.listObjects(bucket, prefix, true);
+
+      stream.on("data", (obj) => {
+        if (!obj.name || obj.name === prefix) return;
+        const filePath = obj.name.slice(prefix.length);
+        if (filePath) paths.add(filePath);
+      });
+      stream.on("end", () => resolve(paths));
+      stream.on("error", reject);
+    });
+  }
+
+  private async runShell(
+    container: Dockerode.Container,
+    projectName: string,
+    command: string,
+  ) {
+    const exec = await container.exec({
+      Cmd: ["sh", "-lc", command],
+      WorkingDir: `/workspace/${projectName}`,
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      exec.start({ hijack: false, stdin: false }, (err, stream) => {
+        if (err) return reject(err);
+        if (!stream) return resolve();
+        stream.on("data", () => {});
+        stream.on("end", resolve);
+        stream.on("error", reject);
+      });
+    });
+
+    const info = await exec.inspect();
+    if ((info.ExitCode ?? 0) !== 0) {
+      throw new AppError(`Container command failed: ${command}`, 500);
+    }
+  }
+
+  private shellQuote(value: string) {
+    return `'${value.replace(/'/g, "'\\''")}'`;
   }
 
   private async execInContainer(

@@ -20,7 +20,15 @@ export async function registerSubscribers() {
     if (data.event !== "delete") return;
 
     try {
-      await filesService.deleteFile(data.projectId, data.filePath);
+      if (data.userId) {
+        await filesService.deleteStoredFile(
+          data.projectId,
+          data.userId,
+          data.filePath,
+        );
+      } else {
+        await filesService.deleteFile(data.projectId, data.filePath);
+      }
       console.log(`[storage-service] Deleted file record: ${data.filePath}`);
     } catch (err: any) {
       console.error(`[storage-service] fs:change handler failed:`, err.message);
