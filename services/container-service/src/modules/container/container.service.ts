@@ -3,7 +3,7 @@ import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import { AppError } from "../../utils/AppError";
 import { createSnapshot, getLatestSnapshotKey } from "../../utils/snapshots";
 import { restoreSnapshot } from "../../utils/restore";
-import { FILES_BUCKET, minioClient, pubsub } from "../../config/database";
+import { FILES_BUCKET, minioClient, pubsub, redis } from "../../config/database";
 
 class ContainerService {
   docker = new Dockerode();
@@ -114,6 +114,7 @@ class ContainerService {
           userId,
           projectName,
         );
+        await this.takeSnapshot(container, projectId, userId, projectName);
       }
     } catch (error: any) {
       if (error.statusCode !== 404) {
@@ -155,6 +156,7 @@ class ContainerService {
           userId,
           projectName,
         );
+        await this.takeSnapshot(container, projectId, userId, projectName);
       } else {
         if (commands.length > 0) {
           await this.runSetupCommands(container, commands, projectId);
@@ -352,6 +354,8 @@ class ContainerService {
         manifest: result.manifest,
       });
 
+      await this.waitForSnapshotIndex(projectId, result.minioKey);
+
       console.log(
         `[container-service] Snapshot taken: ${result.fileCount} files`,
       );
@@ -426,6 +430,26 @@ class ContainerService {
         ? Buffer.from(data.content, "utf8")
         : await this.readStoredFile(data.userId, data.projectId, filePath);
     await this.writeFileToContainer(container, projectName, filePath, content);
+  }
+
+  private async waitForSnapshotIndex(projectId: string, minioKey: string) {
+    const key = `files:snapshot:indexed:${projectId}:${minioKey}`;
+    const startedAt = Date.now();
+    const timeoutMs = 15000;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const indexed = await redis.get(key);
+      if (indexed) {
+        await redis.del(key);
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    console.warn(
+      `[container-service] Timed out waiting for storage to index ${minioKey}`,
+    );
   }
 
   private async applyStoredFileState(

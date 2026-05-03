@@ -1,6 +1,7 @@
 import {
   minioClient,
   pubsub,
+  redis,
   SNAPSHOT_BUCKET,
   FILES_BUCKET,
 } from "../../config/database";
@@ -60,44 +61,17 @@ class FilesService {
       fileCount: data.fileCount,
     });
 
-    const deletedPaths = await this.listMarkedDeletedPaths(
-      data.userId,
+    await this.reconcileFileIndex(
       data.projectId,
-    );
-    const savedObjectPaths = await this.listSavedObjectPaths(
       data.userId,
-      data.projectId,
-    );
-    const manifest = data.manifest.filter((f) => !deletedPaths.has(f.filePath));
-
-    // 2. update file metadata from manifest
-    await this.filesRepo.upsertMany(
-      manifest.map((f) => ({
-        projectId: data.projectId,
-        filePath: f.filePath,
-        fileName: f.filePath.split("/").pop()!,
-        minioPath: `${this.filesPrefix(data.userId, data.projectId)}${
-          f.filePath
-        }`,
-        sizeBytes: f.sizeBytes,
-        mimeType: f.mimeType,
-        content: null,
-      })),
+      data.manifest,
     );
 
-    const keepFilePaths = new Set<string>([
-      ...manifest.map((f) => f.filePath),
-      ...savedObjectPaths,
-    ]);
-    for (const deletedPath of deletedPaths) {
-      keepFilePaths.delete(deletedPath);
-    }
-    await this.filesRepo.deleteMissing(data.projectId, [...keepFilePaths]);
-
-    await pubsub.publish("storage:file:list-changed", {
-      projectId: data.projectId,
-      userId: data.userId,
-    });
+    await redis.setex(
+      `files:snapshot:indexed:${data.projectId}:${data.minioKey}`,
+      300,
+      "1",
+    );
 
     // 3. keep only last 5 snapshots — delete old ones from MinIO too
     const deleted = await this.snapshotRepo.deleteOld(data.projectId, 5);
@@ -115,7 +89,96 @@ class FilesService {
   // ─── List files ──────────────────────────────────────────────────────────
 
   async listFiles(projectId: string) {
+    const existing = await this.filesRepo.findByProject(projectId);
+    if (existing.length > 0) {
+      return existing;
+    }
+
+    const latestSnapshot = await this.snapshotRepo.getLatest(projectId);
+    if (!latestSnapshot) {
+      return existing;
+    }
+
+    const manifest = await this.extractManifestFromSnapshot(latestSnapshot.minioKey);
+    if (manifest.length === 0) {
+      return existing;
+    }
+
+    await this.reconcileFileIndex(projectId, latestSnapshot.userId, manifest);
+
     return this.filesRepo.findByProject(projectId);
+  }
+
+  private async reconcileFileIndex(
+    projectId: string,
+    userId: string,
+    manifestInput: Array<{
+      filePath: string;
+      sizeBytes: number;
+      mimeType: string;
+      checksum: string;
+    }>,
+  ) {
+    const deletedPaths = await this.listMarkedDeletedPaths(
+      userId,
+      projectId,
+    );
+    const savedObjectPaths = await this.listSavedObjectPaths(
+      userId,
+      projectId,
+    );
+    const manifest = manifestInput.filter((f) => !deletedPaths.has(f.filePath));
+    const manifestPaths = new Set(manifest.map((f) => f.filePath));
+    const savedOnlyPaths = [...savedObjectPaths].filter(
+      (filePath) => !manifestPaths.has(filePath) && !deletedPaths.has(filePath),
+    );
+
+    // 2. update file metadata from manifest
+    await this.filesRepo.upsertMany(
+      [
+        ...manifest.map((f) => ({
+          projectId,
+          filePath: f.filePath,
+          fileName: f.filePath.split("/").pop()!,
+          minioPath: `${this.filesPrefix(userId, projectId)}${
+            f.filePath
+          }`,
+          sizeBytes: f.sizeBytes,
+          mimeType: f.mimeType,
+          content: null,
+        })),
+        ...(await Promise.all(
+          savedOnlyPaths.map(async (filePath) => {
+            const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
+            const stat = await minioClient.statObject(FILES_BUCKET, minioPath);
+
+            return {
+              projectId,
+              filePath,
+              fileName: filePath.split("/").pop() ?? filePath,
+              minioPath,
+              sizeBytes: stat.size,
+              mimeType: getMimeType(filePath),
+              content: null,
+            };
+          }),
+        )),
+      ],
+    );
+
+    const keepFilePaths = new Set<string>([
+      ...manifest.map((f) => f.filePath),
+      ...savedObjectPaths,
+    ]);
+    for (const deletedPath of deletedPaths) {
+      keepFilePaths.delete(deletedPath);
+    }
+    await this.filesRepo.deleteMissing(projectId, [...keepFilePaths]);
+
+    await pubsub.publish("storage:file:list-changed", {
+      projectId,
+      userId,
+    });
   }
 
   // ─── Get single file content ─────────────────────────────────────────────
@@ -292,6 +355,57 @@ class FilesService {
       extract.on("finish", () =>
         reject(new AppError("File not found in snapshot", 404)),
       );
+      extract.on("error", reject);
+
+      stream.pipe(gunzip).pipe(extract);
+    });
+  }
+
+  private async extractManifestFromSnapshot(snapshotKey: string) {
+    const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
+
+    return new Promise<
+      Array<{
+        filePath: string;
+        sizeBytes: number;
+        mimeType: string;
+        checksum: string;
+      }>
+    >((resolve, reject) => {
+      const tarStream = require("tar-stream");
+      const zlib = require("zlib");
+      const extract = tarStream.extract();
+      const gunzip = zlib.createGunzip();
+      const manifest: Array<{
+        filePath: string;
+        sizeBytes: number;
+        mimeType: string;
+        checksum: string;
+      }> = [];
+
+      extract.on(
+        "entry",
+        (header: any, entryStream: Readable, next: () => void) => {
+          const filePath = String(header.name ?? "");
+          if (!filePath || header.type === "directory") {
+            entryStream.resume();
+            next();
+            return;
+          }
+
+          manifest.push({
+            filePath,
+            sizeBytes: Number(header.size ?? 0),
+            mimeType: getMimeType(filePath),
+            checksum: "",
+          });
+
+          entryStream.resume();
+          entryStream.on("end", next);
+          entryStream.on("error", reject);
+        },
+      );
+      extract.on("finish", () => resolve(manifest));
       extract.on("error", reject);
 
       stream.pipe(gunzip).pipe(extract);

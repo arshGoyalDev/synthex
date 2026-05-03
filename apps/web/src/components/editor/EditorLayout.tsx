@@ -3,8 +3,6 @@ import { FileExplorer } from "./FileExplorer";
 import { Terminal } from "./Terminal";
 import { Pane } from "./Pane";
 import { useEditorStore } from "../../stores/editor.store";
-import { useFileSync } from "../../hooks/useFileSync";
-import { useSocket } from "../../contexts/SocketContext";
 import { Files, Search } from "lucide-react";
 import {
   Panel,
@@ -24,7 +22,6 @@ export function EditorLayout({
   userId,
   containerStatus,
 }: EditorLayoutProps) {
-  const { socket } = useSocket();
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
   const sidebarTab = useEditorStore((s) => s.sidebarTab);
@@ -36,12 +33,6 @@ export function EditorLayout({
   const activeFile = useEditorStore(
     (s) => s.groups[activeGroupId]?.activeFile ?? null,
   );
-
-  const { handleSaveNow } = useFileSync({
-    projectId,
-    socket,
-    enabled: Boolean(projectId),
-  });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,7 +50,6 @@ export function EditorLayout({
       if (key === "s") {
         if (!activeFile) return;
         event.preventDefault();
-        void handleSaveNow(activeFile);
         return;
       }
 
@@ -74,7 +64,7 @@ export function EditorLayout({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [toggleTerminal, openNewTerminal, handleSaveNow, activeFile]);
+  }, [toggleTerminal, openNewTerminal, activeFile]);
 
   return (
     <div className="flex h-full overflow-hidden bg-bg-secondary">

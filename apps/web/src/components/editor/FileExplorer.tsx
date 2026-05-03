@@ -15,9 +15,6 @@ import {
   Scissors,
 } from "lucide-react";
 import { useEditorStore } from "../../stores/editor.store";
-import { useFileSync } from "../../hooks/useFileSync";
-import { useSocket } from "../../contexts/SocketContext";
-import { ensureLeadingSlash } from "../../utils/filePath";
 import type { FileEntry } from "../../stores/editor.store";
 
 /* ——— Tree data types ——— */
@@ -356,8 +353,6 @@ function TreeItem({
 
 /* ——— File Explorer Main Component ——— */
 export function FileExplorer() {
-  const projectId = useEditorStore((s) => s.projectId ?? "");
-  const { socket } = useSocket();
   const files = useEditorStore((s) => s.files);
   const createNode = useEditorStore((s) => s.createNode);
   const renameNode = useEditorStore((s) => s.renameNode);
@@ -365,13 +360,6 @@ export function FileExplorer() {
   const clipboard = useEditorStore((s) => s.clipboard);
   const setClipboard = useEditorStore((s) => s.setClipboard);
   const pasteNode = useEditorStore((s) => s.pasteNode);
-
-  const { handleCreate, handleDelete, handleRename } = useFileSync({
-    projectId,
-    socket,
-    enabled: Boolean(projectId),
-    mode: "actions",
-  });
 
   const fileTree = useMemo(() => buildTreeConfig(files), [files]);
 
@@ -421,9 +409,8 @@ export function FileExplorer() {
     isFolder: boolean,
   ) => {
     const cleanParent = parentPath === "/" ? "" : parentPath;
-    const newPath = ensureLeadingSlash(`${cleanParent}/${name}`);
+    const newPath = `/${`${cleanParent}/${name}`.replace(/^\/+/, "")}`;
     createNode(newPath, name, isFolder);
-    void handleCreate(newPath, isFolder);
     setCreatingNode(null);
   };
 
@@ -438,9 +425,8 @@ export function FileExplorer() {
   const handleRenameCommit = (node: TreeNode, newName: string) => {
     if (newName && newName !== node.name) {
       const dirPath = node.path.substring(0, node.path.lastIndexOf("/"));
-      const newPath = ensureLeadingSlash(`${dirPath}/${newName}`);
+      const newPath = `/${`${dirPath}/${newName}`.replace(/^\/+/, "")}`;
       renameNode(node.path, newPath, newName);
-      void handleRename(node.path, newPath);
     }
     setRenamingPath(null);
   };
@@ -456,7 +442,6 @@ export function FileExplorer() {
   const handleDeleteConfirm = () => {
     if (deletingNode) {
       deleteNode(deletingNode.path);
-      void handleDelete(deletingNode.path);
     }
     setDeletingNode(null);
   };
