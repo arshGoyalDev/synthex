@@ -15,6 +15,7 @@ import { Loader2, Play, Square, AlertCircle, ChevronLeft } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
 
 import { FilePalette } from "../../components/editor/FilePalette";
+import { useEditorStore } from "../../stores/editor.store";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -39,6 +40,7 @@ function ProjectPage() {
   const currentStatusRef = useRef(project?.containerStatus || "unknown");
   const startRequestedRef = useRef(false);
   const restartAfterStoppedRef = useRef(false);
+  const setProjectContext = useEditorStore((s) => s.setProjectContext);
 
   const requestStart = async () => {
     startRequestedRef.current = true;
@@ -71,6 +73,7 @@ function ProjectPage() {
           const initialStatus = p.containerStatus || "unknown";
           setContainerStatus(initialStatus);
           currentStatusRef.current = initialStatus;
+          setProjectContext(projectId, initialStatus);
 
           if (
             initialStatus !== "ready" &&
@@ -117,12 +120,13 @@ function ProjectPage() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onContainerStatus = (data: any) => {
-      if (data.projectId === projectId) {
-        currentStatusRef.current = data.status;
-        setContainerStatus(data.status);
-        if (data.message) {
-          setContainerMsg(data.message);
-        }
+        if (data.projectId === projectId) {
+          currentStatusRef.current = data.status;
+          setContainerStatus(data.status);
+          setProjectContext(projectId, data.status);
+          if (data.message) {
+            setContainerMsg(data.message);
+          }
 
         if (data.status === "stopped" && !restartAfterStoppedRef.current) {
           restartAfterStoppedRef.current = true;

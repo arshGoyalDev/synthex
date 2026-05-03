@@ -6,6 +6,12 @@ export interface FileEntry {
   language?: string;
   content?: string;
   isFolder?: boolean;
+  isDirty?: boolean;
+  isSaving?: boolean;
+  lastSavedAt?: number;
+  lastSavedContent?: string;
+  lastSaveAttemptContent?: string;
+  lastSaveError?: string | null;
 }
 
 export interface EditorGroup {
@@ -28,6 +34,10 @@ export interface TerminalGroup {
 
 interface EditorState {
   files: Map<string, FileEntry>;
+  isFilesLoading: boolean;
+  filesError: string | null;
+  projectId: string | null;
+  containerStatus: string | null;
 
   // Split view state
   groups: Record<string, EditorGroup>;
@@ -70,6 +80,14 @@ interface EditorState {
   closeTab: (path: string, groupId: string) => void;
   setActiveFile: (path: string, groupId: string) => void;
   updateFileContent: (path: string, content: string) => void;
+  setFilesLoading: (loading: boolean) => void;
+  setFilesError: (message: string | null) => void;
+  setProjectContext: (projectId: string, containerStatus: string) => void;
+  setFilesFromServer: (files: FileEntry[]) => void;
+  setFileContentFromServer: (path: string, content: string) => void;
+  markFileSaving: (path: string, saving: boolean) => void;
+  markFileSaved: (path: string) => void;
+  markFileSaveError: (path: string, message: string) => void;
   openPreviewToSide: (groupId: string) => void;
 
   // Split View Routing
@@ -98,60 +116,7 @@ interface EditorState {
   ) => void;
 }
 
-/* ——— Dummy project files ——— */
-const DUMMY_FILES: FileEntry[] = [
-  {
-    path: "/src/main.tsx",
-    name: "main.tsx",
-    language: "typescript",
-    content: `import React from "react";\nimport ReactDOM from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\n\nconst root = ReactDOM.createRoot(\n  document.getElementById("root") as HTMLElement\n);\n\nroot.render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);`,
-  },
-  {
-    path: "/src/App.tsx",
-    name: "App.tsx",
-    language: "typescript",
-    content: `import { useState } from "react";\nimport { Header } from "./components/Header";\nimport { TodoList } from "./components/TodoList";\n\ninterface Todo {\n  id: number;\n  text: string;\n  completed: boolean;\n}\n\nexport default function App() {\n  const [todos, setTodos] = useState<Todo[]>([\n    { id: 1, text: "Build the UI", completed: true },\n    { id: 2, text: "Add dark mode", completed: false },\n    { id: 3, text: "Write tests", completed: false },\n  ]);\n\n  const toggleTodo = (id: number) => {\n    setTodos((prev) =>\n      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))\n    );\n  };\n\n  return (\n    <div className="app">\n      <Header count={todos.filter((t) => !t.completed).length} />\n      <TodoList todos={todos} onToggle={toggleTodo} />\n    </div>\n  );\n}`,
-  },
-  {
-    path: "/src/index.css",
-    name: "index.css",
-    language: "css",
-    content: `:root {\n  --bg-primary: #0a0a0f;\n  --bg-secondary: #12121a;\n  --text-primary: #e4e4e7;\n  --accent: #16a34a;\n}\n\n* {\n  margin: 0;\n  padding: 0;\n  box-sizing: border-box;\n}\n\nbody {\n  font-family: "Inter", sans-serif;\n  background: var(--bg-primary);\n  color: var(--text-primary);\n  min-height: 100vh;\n}\n\n.app {\n  max-width: 640px;\n  margin: 0 auto;\n  padding: 2rem;\n}`,
-  },
-  {
-    path: "/src/components/Header.tsx",
-    name: "Header.tsx",
-    language: "typescript",
-    content: `interface HeaderProps {\n  count: number;\n}\n\nexport function Header({ count }: HeaderProps) {\n  return (\n    <header className="header">\n      <h1>My Todos</h1>\n      <span className="badge">{count} remaining</span>\n    </header>\n  );\n}`,
-  },
-  {
-    path: "/src/components/TodoList.tsx",
-    name: "TodoList.tsx",
-    language: "typescript",
-    content: `interface Todo {\n  id: number;\n  text: string;\n  completed: boolean;\n}\n\ninterface TodoListProps {\n  todos: Todo[];\n  onToggle: (id: number) => void;\n}\n\nexport function TodoList({ todos, onToggle }: TodoListProps) {\n  return (\n    <ul className="todo-list">\n      {todos.map((todo) => (\n        <li\n          key={todo.id}\n          className={\`todo-item \${todo.completed ? "done" : ""}\`}\n          onClick={() => onToggle(todo.id)}\n        >\n          <span className="checkbox">\n            {todo.completed ? "✓" : ""}\n          </span>\n          <span className="text">{todo.text}</span>\n        </li>\n      ))}\n    </ul>\n  );\n}`,
-  },
-  {
-    path: "/package.json",
-    name: "package.json",
-    language: "json",
-    content: `{\n  "name": "my-project",\n  "version": "1.0.0",\n  "private": true,\n  "scripts": {\n    "dev": "vite",\n    "build": "vite build",\n    "preview": "vite preview"\n  },\n  "dependencies": {\n    "react": "^19.2.0",\n    "react-dom": "^19.2.0"\n  },\n  "devDependencies": {\n    "vite": "^7.3.1",\n    "typescript": "~5.9.3"\n  }\n}`,
-  },
-  {
-    path: "/tsconfig.json",
-    name: "tsconfig.json",
-    language: "json",
-    content: `{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "ESNext",\n    "lib": ["ES2020", "DOM", "DOM.Iterable"],\n    "jsx": "react-jsx",\n    "strict": true,\n    "esModuleInterop": true,\n    "skipLibCheck": true,\n    "forceConsistentCasingInFileNames": true,\n    "resolveJsonModule": true,\n    "isolatedModules": true,\n    "noEmit": true\n  },\n  "include": ["src"]\n}`,
-  },
-  {
-    path: "/README.md",
-    name: "README.md",
-    language: "markdown",
-    content: `# My Project\n\nA simple Todo application built with React and TypeScript.\n\n## Getting Started\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n\n## Features\n\n- Add and remove todos\n- Mark todos as complete\n- Dark theme UI\n`,
-  },
-];
-
 const initialFiles = new Map<string, FileEntry>();
-DUMMY_FILES.forEach((f) => initialFiles.set(f.path, f));
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 const MAX_TERMINALS = 6;
@@ -159,12 +124,16 @@ const MAX_TERMINAL_GROUPS = 2;
 
 export const useEditorStore = create<EditorState>((set) => ({
   files: initialFiles,
+  isFilesLoading: false,
+  filesError: null,
+  projectId: null,
+  containerStatus: null,
 
   groups: {
     main: {
       id: "main",
-      openTabs: ["/src/main.tsx", "/src/App.tsx", "/README.md"],
-      activeFile: "/src/main.tsx",
+      openTabs: [],
+      activeFile: null,
       isPreviewMode: false,
     },
   },
@@ -193,6 +162,113 @@ export const useEditorStore = create<EditorState>((set) => ({
   activeSearchMatch: null,
   setActiveSearchMatch: (path, line) =>
     set({ activeSearchMatch: { path, line, ts: Date.now() } }),
+
+  setFilesLoading: (loading) => set({ isFilesLoading: loading }),
+  setFilesError: (message) => set({ filesError: message }),
+  setProjectContext: (projectId, containerStatus) =>
+    set({ projectId, containerStatus }),
+
+  setFilesFromServer: (files) =>
+    set((state) => {
+      const nextFiles = new Map<string, FileEntry>();
+
+      files.forEach((file) => {
+        const existing = state.files.get(file.path);
+        nextFiles.set(file.path, {
+          ...file,
+          content: existing?.content ?? file.content,
+          isDirty: existing?.isDirty ?? false,
+          isSaving: existing?.isSaving ?? false,
+          lastSavedAt: existing?.lastSavedAt ?? file.lastSavedAt,
+          lastSavedContent: existing?.lastSavedContent ?? file.lastSavedContent,
+          lastSaveAttemptContent:
+            existing?.lastSaveAttemptContent ?? file.lastSaveAttemptContent,
+          lastSaveError: existing?.lastSaveError ?? file.lastSaveError ?? null,
+        });
+      });
+
+      const nextGroups: Record<string, EditorGroup> = { ...state.groups };
+      Object.keys(nextGroups).forEach((groupId) => {
+        const group = nextGroups[groupId];
+        const filteredTabs = group.openTabs.filter((path) => nextFiles.has(path));
+        const activeFile =
+          group.activeFile && nextFiles.has(group.activeFile)
+            ? group.activeFile
+            : filteredTabs[filteredTabs.length - 1] ?? null;
+        nextGroups[groupId] = {
+          ...group,
+          openTabs: filteredTabs,
+          activeFile,
+        };
+      });
+
+      return { files: nextFiles, groups: nextGroups };
+    }),
+
+  setFileContentFromServer: (path, content) =>
+    set((state) => {
+      const nextFiles = new Map(state.files);
+      const file = nextFiles.get(path);
+      if (!file) return state;
+      nextFiles.set(path, {
+        ...file,
+        content,
+        isDirty: false,
+        isSaving: false,
+        lastSavedContent: content,
+        lastSaveAttemptContent: content,
+        lastSavedAt: Date.now(),
+        lastSaveError: null,
+      });
+      return { files: nextFiles };
+    }),
+
+  markFileSaving: (path, saving) =>
+    set((state) => {
+      const nextFiles = new Map(state.files);
+      const file = nextFiles.get(path);
+      if (!file) return state;
+      const attemptContent = saving ? file.content ?? "" : file.lastSaveAttemptContent;
+      nextFiles.set(path, {
+        ...file,
+        isSaving: saving,
+        lastSaveAttemptContent: attemptContent,
+        lastSaveError: saving ? null : file.lastSaveError ?? null,
+      });
+      return { files: nextFiles };
+    }),
+
+  markFileSaved: (path) =>
+    set((state) => {
+      const nextFiles = new Map(state.files);
+      const file = nextFiles.get(path);
+      if (!file) return state;
+      const content = file.content ?? "";
+      nextFiles.set(path, {
+        ...file,
+        isDirty: false,
+        isSaving: false,
+        lastSavedContent: content,
+        lastSaveAttemptContent: content,
+        lastSavedAt: Date.now(),
+        lastSaveError: null,
+      });
+      return { files: nextFiles };
+    }),
+
+  markFileSaveError: (path, message) =>
+    set((state) => {
+      const nextFiles = new Map(state.files);
+      const file = nextFiles.get(path);
+      if (!file) return state;
+      nextFiles.set(path, {
+        ...file,
+        isSaving: false,
+        isDirty: true,
+        lastSaveError: message,
+      });
+      return { files: nextFiles };
+    }),
 
   toggleExplorer: () =>
     set((state) => ({
@@ -283,9 +359,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       if (!targetGroup) return state;
       if (!targetGroup.terminalIds.includes(terminalId)) return state;
 
-      const terminalIds = targetGroup.terminalIds.filter(
-        (id) => id !== terminalId,
-      );
+      const terminalIds = targetGroup.terminalIds.filter((id) => id !== terminalId);
       const idx = targetGroup.terminalIds.indexOf(terminalId);
 
       const terminalTabs = { ...state.terminalTabs };
@@ -582,7 +656,13 @@ export const useEditorStore = create<EditorState>((set) => ({
       const newFiles = new Map(state.files);
       const file = newFiles.get(path);
       if (file) {
-        newFiles.set(path, { ...file, content });
+        const lastSaved = file.lastSavedContent ?? file.content ?? "";
+        newFiles.set(path, {
+          ...file,
+          content,
+          isDirty: content !== lastSaved,
+          lastSaveError: null,
+        });
       }
       return { files: newFiles };
     }),
@@ -965,5 +1045,3 @@ export const useEditorStore = create<EditorState>((set) => ({
       return { files: newFiles };
     }),
 }));
-
-export { DUMMY_FILES };

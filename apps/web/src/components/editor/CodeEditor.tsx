@@ -19,6 +19,9 @@ export function CodeEditor({ groupId }: { groupId: string }) {
   const flashDecorationsRef = useRef<string[]>([]);
 
   const file = group && group.activeFile ? files.get(group.activeFile) : null;
+  const isSaving = file?.isSaving;
+  const isDirty = file?.isDirty;
+  const lastSaveError = file?.lastSaveError;
 
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
@@ -216,6 +219,17 @@ export function CodeEditor({ groupId }: { groupId: string }) {
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden relative">
+      {(isSaving || isDirty || lastSaveError) && (
+        <div className="absolute right-3 top-2 z-10 text-[11px] font-medium">
+          {lastSaveError ? (
+            <span className="text-red-400">Save failed</span>
+          ) : isSaving ? (
+            <span className="text-text-tertiary">Saving…</span>
+          ) : (
+            <span className="text-text-tertiary">Unsaved</span>
+          )}
+        </div>
+      )}
       <Editor
         key={file.path + groupId}
         height="100%"
