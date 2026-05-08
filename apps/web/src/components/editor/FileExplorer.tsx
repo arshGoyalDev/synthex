@@ -13,9 +13,11 @@ import {
   Trash2,
   Copy,
   Scissors,
+  Loader2,
 } from "lucide-react";
 import { useEditorStore } from "../../stores/editor.store";
 import type { FileEntry } from "../../stores/editor.store";
+import { useFileSyncActions } from "./EditorLayout";
 
 /* ——— Tree data types ——— */
 interface TreeNode {
@@ -354,12 +356,13 @@ function TreeItem({
 /* ——— File Explorer Main Component ——— */
 export function FileExplorer() {
   const files = useEditorStore((s) => s.files);
-  const createNode = useEditorStore((s) => s.createNode);
-  const renameNode = useEditorStore((s) => s.renameNode);
-  const deleteNode = useEditorStore((s) => s.deleteNode);
+  const isFilesLoading = useEditorStore((s) => s.isFilesLoading);
+  const filesError = useEditorStore((s) => s.filesError);
   const clipboard = useEditorStore((s) => s.clipboard);
   const setClipboard = useEditorStore((s) => s.setClipboard);
   const pasteNode = useEditorStore((s) => s.pasteNode);
+
+  const syncActions = useFileSyncActions();
 
   const fileTree = useMemo(() => buildTreeConfig(files), [files]);
 
@@ -410,7 +413,12 @@ export function FileExplorer() {
   ) => {
     const cleanParent = parentPath === "/" ? "" : parentPath;
     const newPath = `/${`${cleanParent}/${name}`.replace(/^\/+/, "")}`;
-    createNode(newPath, name, isFolder);
+
+    if (syncActions) {
+      syncActions.createFileOnServer(newPath, name, isFolder);
+    } else {
+      useEditorStore.getState().createNode(newPath, name, isFolder);
+    }
     setCreatingNode(null);
   };
 
@@ -426,7 +434,12 @@ export function FileExplorer() {
     if (newName && newName !== node.name) {
       const dirPath = node.path.substring(0, node.path.lastIndexOf("/"));
       const newPath = `/${`${dirPath}/${newName}`.replace(/^\/+/, "")}`;
-      renameNode(node.path, newPath, newName);
+
+      if (syncActions) {
+        syncActions.renameFileOnServer(node.path, newPath, newName);
+      } else {
+        useEditorStore.getState().renameNode(node.path, newPath, newName);
+      }
     }
     setRenamingPath(null);
   };
@@ -441,7 +454,11 @@ export function FileExplorer() {
 
   const handleDeleteConfirm = () => {
     if (deletingNode) {
-      deleteNode(deletingNode.path);
+      if (syncActions) {
+        syncActions.deleteFileOnServer(deletingNode.path);
+      } else {
+        useEditorStore.getState().deleteNode(deletingNode.path);
+      }
     }
     setDeletingNode(null);
   };
@@ -508,36 +525,53 @@ export function FileExplorer() {
           </div>
         </div>
 
-        {/* Scrollable Tree Container */}
-        <div className="flex-1 overflow-y-auto py-1 outline-none" tabIndex={-1}>
-          {creatingNode?.parentPath === "/" && (
-            <InlineInput
-              depth={0}
-              isFolder={creatingNode.isFolder}
-              onSubmit={(name) =>
-                handleCreateCommit("/", name, creatingNode.isFolder)
-              }
-              onCancel={handleCreateCancel}
-            />
-          )}
+        {/* Loading state */}
+        {isFilesLoading && (
+          <div className="flex items-center justify-center py-8 gap-2 text-text-tertiary">
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-xs">Loading files…</span>
+          </div>
+        )}
 
-          {fileTree.children?.map((child) => (
-            <TreeItem
-              key={child.path}
-              node={child}
-              depth={0}
-              focusedPath={focusedPath}
-              setFocusedPath={setFocusedPath}
-              onContextMenu={handleContextMenu}
-              renamingPath={renamingPath}
-              creatingNode={creatingNode}
-              onRenameCommit={handleRenameCommit}
-              onRenameCancel={handleRenameCancel}
-              onCreateCommit={handleCreateCommit}
-              onCreateCancel={handleCreateCancel}
-            />
-          ))}
-        </div>
+        {/* Error state */}
+        {filesError && !isFilesLoading && (
+          <div className="flex items-center justify-center py-8 px-3">
+            <span className="text-xs text-red-400">{filesError}</span>
+          </div>
+        )}
+
+        {/* Scrollable Tree Container */}
+        {!isFilesLoading && !filesError && (
+          <div className="flex-1 overflow-y-auto py-1 outline-none" tabIndex={-1}>
+            {creatingNode?.parentPath === "/" && (
+              <InlineInput
+                depth={0}
+                isFolder={creatingNode.isFolder}
+                onSubmit={(name) =>
+                  handleCreateCommit("/", name, creatingNode.isFolder)
+                }
+                onCancel={handleCreateCancel}
+              />
+            )}
+
+            {fileTree.children?.map((child) => (
+              <TreeItem
+                key={child.path}
+                node={child}
+                depth={0}
+                focusedPath={focusedPath}
+                setFocusedPath={setFocusedPath}
+                onContextMenu={handleContextMenu}
+                renamingPath={renamingPath}
+                creatingNode={creatingNode}
+                onRenameCommit={handleRenameCommit}
+                onRenameCancel={handleRenameCancel}
+                onCreateCommit={handleCreateCommit}
+                onCreateCancel={handleCreateCancel}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Context Menu Overlay */}
         {contextMenu &&

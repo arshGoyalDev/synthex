@@ -1,6 +1,7 @@
 import Editor from "@monaco-editor/react";
 import { useRef, useEffect, useState } from "react";
 import { useEditorStore } from "../../stores/editor.store";
+import { useFileSyncActions } from "./EditorLayout";
 import { Loader2 } from "lucide-react";
 
 export function CodeEditor({ groupId }: { groupId: string }) {
@@ -12,6 +13,8 @@ export function CodeEditor({ groupId }: { groupId: string }) {
   const sidebarTab = useEditorStore((s) => s.sidebarTab);
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
 
+  const syncActions = useFileSyncActions();
+
   const [editorMountCount, setEditorMountCount] = useState(0);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
@@ -22,6 +25,18 @@ export function CodeEditor({ groupId }: { groupId: string }) {
   const isSaving = file?.isSaving;
   const isDirty = file?.isDirty;
   const lastSaveError = file?.lastSaveError;
+
+  // ─── Lazy-load file content when a file is opened without content ─────
+  const fetchedPathsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!file || file.isFolder || !syncActions) return;
+    // If content is undefined/null and we haven't fetched yet
+    if (file.content === undefined && !fetchedPathsRef.current.has(file.path)) {
+      fetchedPathsRef.current.add(file.path);
+      syncActions.fetchFileContent(file.path);
+    }
+  }, [file?.path, file?.content, file?.isFolder, syncActions]);
 
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
@@ -212,6 +227,18 @@ export function CodeEditor({ groupId }: { groupId: string }) {
           <p className="text-xs opacity-60">
             Open a file from the explorer to start editing
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state while content is being fetched
+  if (file.content === undefined) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-bg-primary">
+        <div className="flex flex-col items-center gap-3 text-text-tertiary">
+          <Loader2 className="animate-spin" size={24} />
+          <p className="text-xs font-medium">Loading file…</p>
         </div>
       </div>
     );
