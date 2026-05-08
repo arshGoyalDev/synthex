@@ -1,6 +1,6 @@
 import Dockerode from "dockerode";
 import archiver from "archiver";
-import { PassThrough, Readable } from "stream";
+import { Readable } from "stream";
 import { minioClient, SNAPSHOT_BUCKET } from "../config/database";
 import { shouldIgnore } from "./ignore";
 import { getMimeType } from "./mime";
@@ -35,17 +35,21 @@ export async function createSnapshot(
 
   const manifest: FileManifestEntry[] = [];
   const archive = archiver("tar", { gzip: true });
-  const passThrough = new PassThrough();
 
-  let totalSize = 0;
-  passThrough.on("data", (chunk) => { totalSize += chunk.length; });
+  // Collect all archive output chunks in a single array.
+  // We must start collecting BEFORE piping docker entries into the archive,
+  // otherwise data is emitted and lost.
+  const archiveChunks: Buffer[] = [];
+  const archiveReady = new Promise<Buffer>((resolve, reject) => {
+    archive.on("data", (chunk: Buffer) => archiveChunks.push(chunk));
+    archive.on("end", () => resolve(Buffer.concat(archiveChunks)));
+    archive.on("error", reject);
+  });
 
-  archive.pipe(passThrough);
-
+  // Extract entries from Docker's tar stream and re-pack into our archive
   await new Promise<void>((resolve, reject) => {
     const tarStream = require("tar-stream");
     const extract = tarStream.extract();
-    const gunzip = require("zlib").createGunzip();
 
     extract.on("entry", (header: any, stream: Readable, next: () => void) => {
       const filePath = header.name;
@@ -56,7 +60,7 @@ export async function createSnapshot(
       }
 
       const chunks: Buffer[] = [];
-      stream.on("data", (chunk) => chunks.push(chunk));
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
       stream.on("end", () => {
         const content = Buffer.concat(chunks);
 
@@ -83,29 +87,17 @@ export async function createSnapshot(
     dockerTarStream.pipe(extract);
   });
 
-  await new Promise<void>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    const collectStream = new PassThrough();
+  // Wait for the archive to finish writing all data, then upload
+  const buffer = await archiveReady;
+  const totalSize = buffer.length;
 
-    passThrough.pipe(collectStream);
-
-    collectStream.on("data", (chunk) => chunks.push(chunk));
-    collectStream.on("end", async () => {
-      const buffer = Buffer.concat(chunks);
-      totalSize = buffer.length;
-
-      await minioClient.putObject(
-        SNAPSHOT_BUCKET,
-        minioKey,
-        buffer,
-        buffer.length,
-        { "Content-Type": "application/gzip" },
-      );
-
-      resolve();
-    });
-    collectStream.on("error", reject);
-  });
+  await minioClient.putObject(
+    SNAPSHOT_BUCKET,
+    minioKey,
+    buffer,
+    buffer.length,
+    { "Content-Type": "application/gzip" },
+  );
 
   console.log(
     `[snapshot] Created ${minioKey} — ${manifest.length} files, ${(totalSize / 1024).toFixed(1)}KB`,

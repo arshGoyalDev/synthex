@@ -199,12 +199,22 @@ class FilesService {
     const snapshot = await this.snapshotRepo.getLatest(projectId);
     if (!snapshot) throw new AppError("No snapshot found", 404);
 
-    const content = await this.extractFileFromSnapshot(
-      snapshot.minioKey,
-      filePath,
-    );
-
-    return { ...file, content };
+    try {
+      const content = await this.extractFileFromSnapshot(
+        snapshot.minioKey,
+        filePath,
+      );
+      return { ...file, content };
+    } catch (err: any) {
+      // If snapshot is corrupted, return empty content rather than crashing.
+      // The file will get a proper standalone object once the user saves.
+      if (err.statusCode !== 404) {
+        console.warn(
+          `[storage-service] Failed to extract ${filePath} from snapshot: ${err.message}`,
+        );
+      }
+      return { ...file, content: "" };
+    }
   }
 
   // ─── Get latest snapshot key (for container-service restore) ─────────────
@@ -327,89 +337,136 @@ class FilesService {
     snapshotKey: string,
     targetFilePath: string,
   ): Promise<string> {
-    const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
+    const tarStream = require("tar-stream");
+    const zlib = require("zlib");
 
-    return new Promise((resolve, reject) => {
-      const tarStream = require("tar-stream");
-      const zlib = require("zlib");
+    const tryExtract = async (useGzip: boolean): Promise<string> => {
+      const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
       const extract = tarStream.extract();
-      const gunzip = zlib.createGunzip();
 
-      extract.on(
-        "entry",
-        (header: any, entryStream: Readable, next: () => void) => {
-          if (header.name === targetFilePath) {
-            const chunks: Buffer[] = [];
-            entryStream.on("data", (chunk) => chunks.push(chunk));
-            entryStream.on("end", () => {
-              resolve(Buffer.concat(chunks).toString("utf8"));
-            });
-            entryStream.on("error", reject);
-          } else {
-            entryStream.resume();
-            next();
-          }
-        },
-      );
+      return new Promise<string>((resolve, reject) => {
+        let found = false;
 
-      extract.on("finish", () =>
-        reject(new AppError("File not found in snapshot", 404)),
-      );
-      extract.on("error", reject);
+        extract.on(
+          "entry",
+          (header: any, entryStream: Readable, next: () => void) => {
+            if (header.name === targetFilePath) {
+              found = true;
+              const chunks: Buffer[] = [];
+              entryStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+              entryStream.on("end", () => {
+                resolve(Buffer.concat(chunks).toString("utf8"));
+              });
+              entryStream.on("error", reject);
+            } else {
+              entryStream.resume();
+              next();
+            }
+          },
+        );
 
-      stream.pipe(gunzip).pipe(extract);
-    });
+        extract.on("finish", () => {
+          if (!found) reject(new AppError("File not found in snapshot", 404));
+        });
+        extract.on("error", reject);
+
+        if (useGzip) {
+          const gunzip = zlib.createGunzip();
+          gunzip.on("error", (err: any) => {
+            // Destroy streams to prevent further errors
+            stream.destroy?.();
+            extract.destroy?.();
+            reject(err);
+          });
+          stream.pipe(gunzip).pipe(extract);
+        } else {
+          stream.pipe(extract);
+        }
+      });
+    };
+
+    try {
+      return await tryExtract(true);
+    } catch (err: any) {
+      if (err.code === "Z_DATA_ERROR") {
+        console.warn(
+          `[storage-service] Snapshot ${snapshotKey} is not gzip, retrying as plain tar`,
+        );
+        return tryExtract(false);
+      }
+      throw err;
+    }
   }
 
   private async extractManifestFromSnapshot(snapshotKey: string) {
-    const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
+    const tarStream = require("tar-stream");
+    const zlib = require("zlib");
 
-    return new Promise<
-      Array<{
-        filePath: string;
-        sizeBytes: number;
-        mimeType: string;
-        checksum: string;
-      }>
-    >((resolve, reject) => {
-      const tarStream = require("tar-stream");
-      const zlib = require("zlib");
+    type ManifestEntry = {
+      filePath: string;
+      sizeBytes: number;
+      mimeType: string;
+      checksum: string;
+    };
+
+    const tryExtract = async (
+      useGzip: boolean,
+    ): Promise<ManifestEntry[]> => {
+      const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
       const extract = tarStream.extract();
-      const gunzip = zlib.createGunzip();
-      const manifest: Array<{
-        filePath: string;
-        sizeBytes: number;
-        mimeType: string;
-        checksum: string;
-      }> = [];
+      const manifest: ManifestEntry[] = [];
 
-      extract.on(
-        "entry",
-        (header: any, entryStream: Readable, next: () => void) => {
-          const filePath = String(header.name ?? "");
-          if (!filePath || header.type === "directory") {
+      return new Promise<ManifestEntry[]>((resolve, reject) => {
+        extract.on(
+          "entry",
+          (header: any, entryStream: Readable, next: () => void) => {
+            const filePath = String(header.name ?? "");
+            if (!filePath || header.type === "directory") {
+              entryStream.resume();
+              next();
+              return;
+            }
+
+            manifest.push({
+              filePath,
+              sizeBytes: Number(header.size ?? 0),
+              mimeType: getMimeType(filePath),
+              checksum: "",
+            });
+
             entryStream.resume();
-            next();
-            return;
-          }
+            entryStream.on("end", next);
+            entryStream.on("error", reject);
+          },
+        );
+        extract.on("finish", () => resolve(manifest));
+        extract.on("error", reject);
 
-          manifest.push({
-            filePath,
-            sizeBytes: Number(header.size ?? 0),
-            mimeType: getMimeType(filePath),
-            checksum: "",
+        if (useGzip) {
+          const gunzip = zlib.createGunzip();
+          gunzip.on("error", (err: any) => {
+            stream.destroy?.();
+            extract.destroy?.();
+            reject(err);
           });
+          stream.pipe(gunzip).pipe(extract);
+        } else {
+          stream.pipe(extract);
+        }
+      });
+    };
 
-          entryStream.resume();
-          entryStream.on("end", next);
-          entryStream.on("error", reject);
-        },
-      );
-      extract.on("finish", () => resolve(manifest));
-      extract.on("error", reject);
-
-      stream.pipe(gunzip).pipe(extract);
-    });
+    try {
+      return await tryExtract(true);
+    } catch (err: any) {
+      if (err.code === "Z_DATA_ERROR") {
+        console.warn(
+          `[storage-service] Snapshot ${snapshotKey} is not gzip, retrying as plain tar`,
+        );
+        return tryExtract(false);
+      }
+      throw err;
+    }
   }
 
   private async objectExists(bucket: string, key: string): Promise<boolean> {
