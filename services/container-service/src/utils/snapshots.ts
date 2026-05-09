@@ -52,9 +52,15 @@ export async function createSnapshot(
     const extract = tarStream.extract();
 
     extract.on("entry", (header: any, stream: Readable, next: () => void) => {
-      const filePath = header.name;
+      const rawPath: string = header.name;
 
-      if (header.type === "directory" || shouldIgnore(filePath)) {
+      // Docker's getArchive includes the base directory name as a prefix
+      // (e.g. "testing-2/src/App.css"). Strip it so paths are relative to
+      // the project root (e.g. "src/App.css").
+      const prefixPattern = new RegExp(`^${projectName}/?`);
+      const filePath = rawPath.replace(prefixPattern, "");
+
+      if (!filePath || header.type === "directory" || shouldIgnore(filePath)) {
         stream.resume();
         return next();
       }

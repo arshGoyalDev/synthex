@@ -113,12 +113,19 @@ const registerSubscribers = async () => {
   });
 
   await pubsub.subscribe("storage:file:mutation", async (data) => {
+    console.log(
+      `[container-service] Received storage:file:mutation — event=${data.event}, project=${data.projectId}, file=${data.filePath}`,
+    );
     try {
       await containerService.applyStorageMutation(data);
+      console.log(
+        `[container-service] Applied mutation: ${data.event} ${data.filePath}`,
+      );
     } catch (err: any) {
       console.error(
         `[container-service] Failed to apply storage mutation for ${data.projectId}:`,
         err.message,
+        err.stack,
       );
     }
   });

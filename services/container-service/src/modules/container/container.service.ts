@@ -149,7 +149,7 @@ class ContainerService {
         console.log(
           `[container-service] Found existing snapshot, restoring...`,
         );
-        await restoreSnapshot(container, snapshotKey);
+        await restoreSnapshot(container, snapshotKey, projectName);
         await this.applyStoredFileState(
           container,
           projectId,
@@ -397,7 +397,10 @@ class ContainerService {
       throw new AppError("Container projectName label is missing", 500);
     }
 
-    const filePath = this.normalizeFilePath(data.filePath);
+    let filePath = this.normalizeFilePath(data.filePath);
+    if (filePath.startsWith(`${projectName}/`)) {
+      filePath = filePath.substring(projectName.length + 1);
+    }
 
     if (data.event === "delete") {
       await this.deleteFileInContainer(container, projectName, filePath);
@@ -406,7 +409,10 @@ class ContainerService {
 
     if (data.event === "rename") {
       if (!data.newPath) throw new AppError("newPath is required", 400);
-      const newPath = this.normalizeFilePath(data.newPath);
+      let newPath = this.normalizeFilePath(data.newPath);
+      if (newPath.startsWith(`${projectName}/`)) {
+        newPath = newPath.substring(projectName.length + 1);
+      }
       await this.renameFileInContainer(
         container,
         projectName,
@@ -467,13 +473,21 @@ class ContainerService {
       this.filesPrefix(userId, projectId),
     );
 
-    for (const filePath of deletedPaths) {
+    for (const rawPath of deletedPaths) {
+      let filePath = rawPath;
+      if (filePath.startsWith(`${projectName}/`)) {
+        filePath = filePath.substring(projectName.length + 1);
+      }
       await this.deleteFileInContainer(container, projectName, filePath);
     }
 
-    for (const filePath of filePaths) {
-      if (deletedPaths.has(filePath)) continue;
-      const content = await this.readStoredFile(userId, projectId, filePath);
+    for (const rawPath of filePaths) {
+      if (deletedPaths.has(rawPath)) continue;
+      let filePath = rawPath;
+      if (filePath.startsWith(`${projectName}/`)) {
+        filePath = filePath.substring(projectName.length + 1);
+      }
+      const content = await this.readStoredFile(userId, projectId, rawPath);
       await this.writeFileToContainer(container, projectName, filePath, content);
     }
   }
