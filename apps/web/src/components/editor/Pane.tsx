@@ -76,7 +76,7 @@ export function Pane({ groupId }: { groupId: string }) {
 
   return (
     <div 
-      className={`relative flex-1 flex flex-col min-w-0 min-h-0 bg-bg-primary overflow-hidden ${activeGroupId === groupId ? 'ring-1 ring-inset ring-accent-primary/30 z-10' : 'z-0' }`}
+      className={`relative flex-1 flex flex-col min-w-0 min-h-0 bg-bg-primary overflow-hidden ${activeGroupId === groupId ? 'ring-1 ring-inset ring-accent-primary/30 z-[5]' : 'z-0' }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
