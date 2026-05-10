@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useRef, useCallback } from "react";
 import { useSocket } from "../contexts/SocketContext";
 import { useEditorStore } from "../stores/editor.store";

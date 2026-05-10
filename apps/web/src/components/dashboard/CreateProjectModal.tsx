@@ -171,7 +171,7 @@ function TemplateDropdown({
                   onClick={() => selectItem(tpl.id)}
                   className={`flex w-full items-center gap-3 py-1.5 hover:bg-bg-tertiary rounded-md transition-colors bg-transparent text-left ${
                     activeIndex === index
-                      ?? "bg-bg-tertiary"
+                      ? "bg-bg-tertiary" : ""
                   }`}
                 >
                   <span
@@ -366,7 +366,7 @@ function LanguageDropdown({
                       isDisabled
                         ? "opacity-50 cursor-not-allowed"
                         : "cursor-pointer"
-                    } ${activeIndex === index ?? "bg-bg-tertiary"}`}
+                    } ${activeIndex === index ? "bg-bg-tertiary" : ""}`}
                     disabled={isDisabled}
                   >
                     <span

@@ -11,6 +11,7 @@ import { Server as SocketServer } from "socket.io";
 import { socketService } from "./config/socket";
 import { registerSubscribers } from "./config/subscriber";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { initPreviewProxy } from "./proxy/preview.proxy";
 
 const app = express();
 const httpServer = createServer(app);
@@ -60,6 +61,8 @@ app.get("/health", (req, res) => {
 });
 
 registerProxies(app);
+
+initPreviewProxy(app, httpServer)
 
 httpServer.listen(env.API_GATEWAY_PORT, () => {
   console.log(`API Gateway running on port ${env.API_GATEWAY_PORT}`);

@@ -1,7 +1,7 @@
 import { type Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { env } from ".";
-import { pubsub } from "./database";
+import { pubsub, redis } from "./database";
 
 const USER_CLEANUP_DELAY_MS = 10 * 60 * 1000;
 
@@ -93,6 +93,49 @@ class SocketService {
       this.cancelUserCleanup(userId);
 
       socket.join(`user:${userId}`);
+
+      socket.on("execution:join", async ({ executionId, fromSeq = 0 }) => {
+        socket.join(`execution:${executionId}`);
+        console.log(`[gateway] ${userId} joined execution:${executionId}`);
+
+        // replay buffered output for reconnect
+        if (fromSeq > 0) {
+          const buffered = await redis.lrange(
+            `execution:buffer:${executionId}`,
+            0,
+            -1,
+          );
+
+          const chunks = buffered
+            .map((r) => JSON.parse(r))
+            .filter((c) => c.seq >= fromSeq)
+            .sort((a: any, b: any) => a.seq - b.seq);
+
+          for (const chunk of chunks) {
+            socket.emit("execution:output", {
+              executionId,
+              ...chunk,
+            });
+          }
+        }
+      });
+
+      socket.on("execution:leave", ({ executionId }) => {
+        socket.leave(`execution:${executionId}`);
+      });
+
+      socket.on("preview:join", ({ projectId }) => {
+        socket.join(`preview:${projectId}`);
+        console.log(`[gateway] ${userId} joined preview:${projectId}`);
+      });
+
+      socket.on("preview:leave", ({ projectId }) => {
+        socket.leave(`preview:${projectId}`);
+      });
+
+      socket.on("disconnect", () => {
+        console.log(`[gateway] User disconnected: ${userId}`);
+      });
 
       socket.on("disconnect", () => {
         console.log(`[api_gateway] User disconnected: ${userId}`);
