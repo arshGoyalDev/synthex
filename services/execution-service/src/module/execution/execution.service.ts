@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { ExecutionRepository } from "./execution.repository";
 import { pubsub, redis } from "../../config/database";
 import { acquireLock, releaseLock, getLock } from "../../utils/lock";
-import { flushBuffer, clearBuffer, readBuffer } from "../../utils/buffer";
+import { flushBuffer, clearBuffer, readBuffer } from "@synthex/database";
 import { AppError } from "../../utils/AppError"
 import { StartExecutionDto, StartPreviewDto } from "./execution.schema";
 import { TEMPLATES } from "@synthex/templates";

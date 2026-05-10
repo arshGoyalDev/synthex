@@ -1,6 +1,6 @@
 import { db } from "../config/database";
 import { releaseLock } from "../utils/lock";
-import { clearBuffer } from "../utils/buffer";
+import { clearBuffer } from "@synthex/database";
 
 const STALE_THRESHOLD_MS = 35 * 60 * 1000; // 35 minutes
 
