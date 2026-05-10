@@ -1,7 +1,12 @@
 import { ContainerService } from "../modules/container/container.service";
+import { ExecutionHandler } from "../modules/execution/execution.handler";
+import { PreviewHandler } from "../modules/preview/preview.handler";
+
 import { pubsub, redis } from "./database";
 
 const containerService = new ContainerService();
+const executionHandler = new ExecutionHandler();
+const previewHandler = new PreviewHandler();
 
 interface ProjectData {
   projectId: string;
@@ -14,8 +19,6 @@ interface ProjectData {
 
 const registerSubscribers = async () => {
   await pubsub.subscribe("project:created", async (data) => {
-    const { projectId } = data;
-
     console.log(
       "[container-service] project:created event:",
       data.projectId,
@@ -24,15 +27,13 @@ const registerSubscribers = async () => {
 
     startContainerSetup(data).catch((err) => {
       console.error(
-        `[container-service] Unhandled error for ${projectId}:`,
+        `[container-service] Unhandled error for ${data.projectId}:`,
         err.message,
       );
     });
   });
 
   await pubsub.subscribe("project:start", async (data) => {
-    const { projectId, userId } = data;
-
     console.log(
       "[container-service] project:start event:",
       data.projectId,
@@ -41,7 +42,7 @@ const registerSubscribers = async () => {
 
     startContainerSetup(data).catch((err) => {
       console.error(
-        `[container-service] Unhandled error for ${projectId}:`,
+        `[container-service] Unhandled error for ${data.projectId}:`,
         err.message,
       );
     });
@@ -85,10 +86,14 @@ const registerSubscribers = async () => {
     );
 
     await containerService
-      .cleanupContainer(data.projectId, data.userId, data.projectName ?? data.projectId)
+      .cleanupContainer(
+        data.projectId,
+        data.userId,
+        data.projectName ?? data.projectId,
+      )
       .catch((err) => {
-      console.error("Cleanup failed:", err);
-    });
+        console.error("Cleanup failed:", err);
+      });
 
     await pubsub.publish("container:status", {
       projectId: data.projectId,
@@ -128,6 +133,51 @@ const registerSubscribers = async () => {
         err.stack,
       );
     }
+  });
+
+  await pubsub.subscribe("execution:start", async (data) => {
+    console.log(`[container-service] execution:start ${data.executionId}`);
+
+    // fire and forget — streaming is async
+    executionHandler.startExecution(data).catch(async (err) => {
+      console.error(`[container-service] Execution failed:`, err.message);
+      await pubsub.publish("execution:done", {
+        executionId: data.executionId,
+        projectId: data.projectId,
+        userId: data.userId,
+        exitCode: -1,
+        durationMs: 0,
+        timedOut: false,
+        error: err.message,
+      });
+    });
+  });
+
+  await pubsub.subscribe("execution:kill", async (data) => {
+    console.log(`[container-service] execution:kill ${data.executionId}`);
+    await executionHandler
+      .killExecution(data.executionId, data.projectId)
+      .catch((err) => console.error(`Kill failed:`, err.message));
+  });
+
+  await pubsub.subscribe("preview:start", async (data) => {
+    console.log(`[container-service] preview:start ${data.projectId}`);
+
+    previewHandler.startPreview(data).catch(async (err) => {
+      console.error(`[container-service] Preview failed:`, err.message);
+      await pubsub.publish("preview:error", {
+        projectId: data.projectId,
+        userId: data.userId,
+        message: err.message,
+      });
+    });
+  });
+
+  await pubsub.subscribe("preview:stop", async (data) => {
+    console.log(`[container-service] preview:stop ${data.projectId}`);
+    await previewHandler
+      .stopPreview(data.projectId)
+      .catch((err) => console.error(`Preview stop failed:`, err.message));
   });
 };
 
