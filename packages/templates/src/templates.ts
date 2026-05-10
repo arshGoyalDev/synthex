@@ -70,7 +70,7 @@ const TEMPLATES: Record<string, Template> = {
     color: "#61DAFB",
     icon: "react",
     defaultPort: 5173,
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [`npm create vite@latest . -- --template react`],
       postSetup: [`npm install`],
@@ -87,7 +87,7 @@ const TEMPLATES: Record<string, Template> = {
     color: "#61DAFB",
     icon: "react",
     defaultPort: 5173,
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [`npm create vite@latest . -- --template react-ts`],
       postSetup: [`npm install`],
@@ -135,7 +135,7 @@ EOF`,
     color: "#000000",
     icon: "nextjs",
     defaultPort: 3000,
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
         `npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --yes`,
@@ -154,7 +154,7 @@ EOF`,
     color: "#FF3E00",
     icon: "svelte",
     defaultPort: 5173,
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [`npm create vite@latest . -- --template svelte-ts`],
       postSetup: [`npm install`],
@@ -171,7 +171,7 @@ EOF`,
     color: "#FF3E00",
     icon: "svelte",
     defaultPort: 5173,
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
         // npx sv create needs --no-install to avoid interactive prompts
@@ -191,7 +191,7 @@ EOF`,
     color: "#E0234E",
     icon: "nestjs",
     defaultPort: 3000,
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: ["apk add --no-cache nodejs npm"],
       setup: [
         `npm install -g @nestjs/cli`,
@@ -352,7 +352,7 @@ EOF`,
     language: "rust",
     color: "#CE422B",
     icon: "rust",
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: [
         "apk add --no-cache curl gcc musl-dev",
         "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal",
@@ -734,7 +734,7 @@ EOF`,
     language: "zig",
     color: "#F7A41D",
     icon: "zig",
-    getCommands: (projectName: string) => ({
+    getCommands: () => ({
       install: [
         "apk add --no-cache curl xz tar",
         "curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz -o /tmp/zig.tar.xz",
