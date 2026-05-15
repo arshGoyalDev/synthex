@@ -11,11 +11,19 @@ import {
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
 import { useAuthStore } from "../../stores/auth.store";
-import { Loader2, Play, Square, AlertCircle, ChevronLeft } from "lucide-react";
+import {
+  Loader2,
+  Play,
+  Square,
+  AlertCircle,
+  ChevronLeft,
+  Globe,
+} from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
 
 import { FilePalette } from "../../components/editor/FilePalette";
 import { useEditorStore } from "../../stores/editor.store";
+import { TEMPLATES } from "@synthex/templates";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -41,6 +49,15 @@ function ProjectPage() {
   const startRequestedRef = useRef(false);
   const restartAfterStoppedRef = useRef(false);
   const setProjectContext = useEditorStore((s) => s.setProjectContext);
+  const setBottomPanelTab = useEditorStore((s) => s.setBottomPanelTab);
+
+  // ─── Derive run/preview commands from template ──────────────────────────
+  const templateId = project?.template ?? null;
+  const template = templateId ? TEMPLATES[templateId] : null;
+  const runCommand = template?.runCommand ?? null;
+  const previewPort = template?.defaultPort ?? null;
+  // For dev server templates (with a defaultPort), runCommand is the preview command
+  const previewCommand = previewPort ? runCommand : null;
 
   const requestStart = async () => {
     startRequestedRef.current = true;
@@ -255,6 +272,28 @@ function ProjectPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Run button — only for non-dev-server templates */}
+          {containerStatus === "ready" && runCommand && !previewPort && (
+            <button
+              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
+              onClick={() => setBottomPanelTab("output")}
+              title={`Run: ${runCommand}`}
+            >
+              <Play size={13} /> Run
+            </button>
+          )}
+
+          {/* Preview button — for templates with a dev server port */}
+          {containerStatus === "ready" && previewCommand && previewPort && (
+            <button
+              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-indigo-600 hover:bg-indigo-500"
+              onClick={() => setBottomPanelTab("preview")}
+              title={`Preview: ${previewCommand}`}
+            >
+              <Globe size={13} /> Preview
+            </button>
+          )}
+
           <span className="text-xs text-text-tertiary mr-2 hidden sm:inline">
             {isConnected ? "● Connected" : "○ Disconnected"}
           </span>
@@ -286,8 +325,13 @@ function ProjectPage() {
           <>
             <EditorLayout
               projectId={projectId}
+              projectName={project.folderName || project.name}
               userId={user?.id ?? ""}
               containerStatus={containerStatus}
+              runCommand={runCommand}
+              previewCommand={previewCommand}
+              previewPort={previewPort}
+              templateId={templateId}
             />
             <FilePalette />
           </>
