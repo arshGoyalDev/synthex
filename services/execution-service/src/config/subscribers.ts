@@ -1,6 +1,6 @@
 import { pubsub } from "./database";
 
-import { ExecutionService } from "../module/execution/execution.service";
+import { ExecutionService } from "../modules/execution/execution.service";
 
 const executionService = new ExecutionService();
 
