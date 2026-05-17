@@ -12,9 +12,6 @@ import {
   Files,
   Search,
   TerminalSquare,
-  Play,
-  Globe,
-  X,
   ChevronUp,
 } from "lucide-react";
 import {
@@ -93,10 +90,11 @@ export function EditorLayout({
 }: EditorLayoutProps) {
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
+  const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const sidebarTab = useEditorStore((s) => s.sidebarTab);
   const setSidebarTab = useEditorStore((s) => s.setSidebarTab);
-  const bottomPanelTab = useEditorStore((s) => s.bottomPanelTab);
-  const setBottomPanelTab = useEditorStore((s) => s.setBottomPanelTab);
+  // const bottomPanelTab = useEditorStore((s) => s.bottomPanelTab);
+  // const setBottomPanelTab = useEditorStore((s) => s.setBottomPanelTab);
   const grid = useEditorStore((s) => s.grid);
   const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
   const openNewTerminal = useEditorStore((s) => s.openNewTerminal);
@@ -156,41 +154,18 @@ export function EditorLayout({
   };
 
   // ─── Bottom panel tab buttons ─────────────────────────────────────────
-  const bottomTabs: {
-    id: "terminal" | "output" | "preview";
-    label: string;
-    icon: React.ReactNode;
-    badge?: React.ReactNode;
-  }[] = [
-    {
-      id: "terminal",
-      label: "Terminal",
-      icon: <TerminalSquare size={13} />,
-    },
-    {
-      id: "output",
-      label: "Output",
-      icon: <Play size={13} />,
-      badge: execution.isRunning ? (
-        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-      ) : execution.status === "failed" || execution.status === "error" ? (
-        <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-      ) : execution.status === "completed" ? (
-        <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-      ) : null,
-    },
-    {
-      id: "preview",
-      label: "Preview",
-      icon: <Globe size={13} />,
-      badge:
-        preview.previewStatus === "ready" ? (
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-        ) : preview.previewStatus === "starting" ? (
-          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-        ) : null,
-    },
-  ];
+  // const bottomTabs: {
+  //   id: "terminal";
+  //   label: string;
+  //   icon: React.ReactNode;
+  //   badge?: React.ReactNode;
+  // }[] = [
+  //   {
+  //     id: "terminal",
+  //     label: "Terminal",
+  //     icon: <TerminalSquare size={13} />,
+  //   },
+  // ];
 
   return (
     <FileSyncContext.Provider value={fileSyncActions}>
@@ -246,11 +221,7 @@ export function EditorLayout({
                   maxSize={480}
                   className="flex flex-col bg-bg-secondary z-10 border-r border-border-subtle"
                 >
-                  {sidebarTab === "files" ? (
-                    <FileExplorer />
-                  ) : (
-                    <GlobalSearch />
-                  )}
+                  {sidebarTab === "files" ? <FileExplorer /> : <GlobalSearch />}
                 </Panel>
                 <PanelResizeHandle className="w-1 shrink-0 bg-transparent hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-col-resize z-10 relative" />
               </>
@@ -262,122 +233,90 @@ export function EditorLayout({
               className="flex flex-col min-w-0 bg-bg-primary overflow-visible"
             >
               <PanelGroup orientation="vertical">
-                {/* Top — Editor Grid */}
-                <Panel
-                  id="editors"
-                  className="flex flex-col min-h-0 bg-bg-dark-secondary"
-                >
-                  <PanelGroup orientation="vertical">
-                    {grid.map((row, rIdx) => (
-                      <React.Fragment key={rIdx}>
-                        {rIdx > 0 && (
-                          <PanelResizeHandle className="h-[2px] bg-border-subtle hover:bg-accent-primary transition-colors cursor-row-resize relative z-10" />
-                        )}
+                <Panel minSize={10} className="flex flex-col min-h-0 min-w-0">
+                  <PanelGroup orientation="horizontal">
+                    {/* Top — Editor Grid */}
+                    <Panel
+                      id="editors"
+                      className="flex flex-col min-h-0 bg-bg-dark-secondary"
+                    >
+                      <PanelGroup orientation="vertical">
+                        {grid.map((row, rIdx) => (
+                          <React.Fragment key={rIdx}>
+                            {rIdx > 0 && (
+                              <PanelResizeHandle className="h-[2px] bg-border-subtle hover:bg-accent-primary transition-colors cursor-row-resize relative z-10" />
+                            )}
+                            <Panel
+                              minSize={5}
+                              className="flex flex-col min-h-0 min-w-0"
+                            >
+                              <PanelGroup orientation="horizontal">
+                                {row.map((groupId, cIdx) => (
+                                  <React.Fragment key={groupId}>
+                                    {cIdx > 0 && (
+                                      <PanelResizeHandle className="w-[2px] bg-border-subtle hover:bg-accent-primary transition-colors cursor-col-resize relative z-10" />
+                                    )}
+                                    <Panel
+                                      minSize={5}
+                                      className="flex flex-col min-h-0 min-w-0 bg-bg-primary"
+                                    >
+                                      <Pane groupId={groupId} />
+                                    </Panel>
+                                  </React.Fragment>
+                                ))}
+                              </PanelGroup>
+                            </Panel>
+                          </React.Fragment>
+                        ))}
+                      </PanelGroup>
+                    </Panel>
+
+                    {isRightPanelOpen && (!!previewPort || !!runCommand) && (
+                      <>
+                        <PanelResizeHandle className="w-1 shrink-0 bg-transparent hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-col-resize z-10 relative" />
                         <Panel
-                          minSize={5}
-                          className="flex flex-col min-h-0 min-w-0"
+                          id="right-pane"
+                          defaultSize={35}
+                          minSize={700}
+                          maxSize={1000}
+                          className="flex flex-col bg-bg-secondary border-l border-border-subtle z-10"
                         >
-                          <PanelGroup orientation="horizontal">
-                            {row.map((groupId, cIdx) => (
-                              <React.Fragment key={groupId}>
-                                {cIdx > 0 && (
-                                  <PanelResizeHandle className="w-[2px] bg-border-subtle hover:bg-accent-primary transition-colors cursor-col-resize relative z-10" />
-                                )}
-                                <Panel
-                                  minSize={5}
-                                  className="flex flex-col min-h-0 min-w-0 bg-bg-primary"
-                                >
-                                  <Pane groupId={groupId} />
-                                </Panel>
-                              </React.Fragment>
-                            ))}
-                          </PanelGroup>
+                          {previewPort ? (
+                            <PreviewPanel
+                              preview={preview}
+                              projectId={projectId}
+                              previewCommand={previewCommand}
+                              previewPort={previewPort}
+                              templateId={templateId}
+                            />
+                          ) : (
+                            <OutputPanel
+                              execution={execution}
+                              runCommand={runCommand}
+                            />
+                          )}
                         </Panel>
-                      </React.Fragment>
-                    ))}
+                      </>
+                    )}
                   </PanelGroup>
                 </Panel>
 
-                {/* Bottom — Terminal / Output / Preview */}
+                {/* Bottom — Terminal */}
                 {isTerminalOpen && (
                   <>
                     <PanelResizeHandle className="h-1 shrink-0 bg-border-subtle hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-row-resize z-10 relative" />
                     <Panel
                       id="bottom-panel"
-                      defaultSize={320}
-                      minSize={100}
-                      maxSize={720}
+                      defaultSize={30}
+                      minSize={300}
+                      maxSize={500}
                       className="flex flex-col"
                     >
-                      {/* Bottom panel tab bar */}
-                      <div className="flex h-[30px] shrink-0 items-center border-b border-border-subtle bg-bg-dark-secondary">
-                        <div className="flex flex-1 items-center">
-                          {bottomTabs.map((tab) => (
-                            <button
-                              key={tab.id}
-                              className={`flex items-center gap-1.5 h-full px-3 text-[11px] font-medium border-b-2 transition-colors ${
-                                bottomPanelTab === tab.id
-                                  ? "border-accent-primary text-text-primary bg-bg-primary/40"
-                                  : "border-transparent text-text-tertiary hover:text-text-secondary hover:bg-white/[0.02]"
-                              }`}
-                              onClick={() => setBottomPanelTab(tab.id)}
-                            >
-                              {tab.icon}
-                              <span>{tab.label}</span>
-                              {tab.badge}
-                            </button>
-                          ))}
-                        </div>
-
-                        <button
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary mr-1"
-                          title="Collapse panel (Ctrl+J)"
-                          onClick={toggleTerminal}
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-
-                      {/* Panel content */}
-                      <div className="flex-1 min-h-0 overflow-hidden">
-                        <div
-                          className={
-                            bottomPanelTab === "terminal"
-                              ? "h-full"
-                              : "hidden"
-                          }
-                        >
-                          <Terminal
-                            projectId={projectId}
-                            userId={userId}
-                            containerStatus={containerStatus}
-                          />
-                        </div>
-                        <div
-                          className={
-                            bottomPanelTab === "output"
-                              ? "h-full"
-                              : "hidden"
-                          }
-                        >
-                          <OutputPanel
-                            execution={execution}
-                            runCommand={runCommand}
-                          />
-                        </div>
-                        <div
-                          className={
-                            bottomPanelTab === "preview"
-                              ? "h-full"
-                              : "hidden"
-                          }
-                        >
-                          <PreviewPanel
-                            preview={preview}
-                            projectId={projectId}
-                          />
-                        </div>
-                      </div>
+                      <Terminal
+                        projectId={projectId}
+                        userId={userId}
+                        containerStatus={containerStatus}
+                      />
                     </Panel>
                   </>
                 )}
@@ -386,21 +325,17 @@ export function EditorLayout({
               {!isTerminalOpen && (
                 <div className="shrink-0 h-8 border-t border-border-subtle flex items-center justify-between bg-bg-dark-secondary px-3">
                   <div className="flex items-center gap-3">
-                    {bottomTabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary transition-colors"
-                        onClick={() => setBottomPanelTab(tab.id)}
-                      >
-                        {tab.icon}
-                        <span>{tab.label}</span>
-                        {tab.badge}
-                      </button>
-                    ))}
+                    <button
+                      className="flex items-center gap-1 text-[11px] text-text-tertiary hover:text-text-primary transition-colors"
+                      onClick={toggleTerminal}
+                    >
+                      <TerminalSquare size={13} />
+                      <span>Terminal</span>
+                    </button>
                   </div>
                   <button
                     className="flex h-6 items-center justify-center gap-1 rounded-md border border-border-subtle bg-bg-secondary px-2 text-[11px] text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
-                    title="Open panel (Ctrl+J)"
+                    title="Open terminal (Ctrl+J)"
                     onClick={toggleTerminal}
                   >
                     <ChevronUp size={12} />
@@ -409,6 +344,8 @@ export function EditorLayout({
                 </div>
               )}
             </Panel>
+
+            {/* Right Pane — Output OR Preview */}
           </PanelGroup>
         </div>
       </ExecutionContext.Provider>

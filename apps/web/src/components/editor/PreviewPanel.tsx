@@ -7,6 +7,7 @@ import {
   Globe,
   ChevronDown,
   ChevronUp,
+  Play,
 } from "lucide-react";
 import { useState } from "react";
 import type { UsePreviewReturn } from "../../hooks/usePreview";
@@ -14,14 +15,24 @@ import type { UsePreviewReturn } from "../../hooks/usePreview";
 interface PreviewPanelProps {
   preview: UsePreviewReturn;
   projectId: string;
+  previewCommand: string | null;
+  previewPort: number | null;
+  templateId: string | null;
 }
 
-export function PreviewPanel({ preview, projectId }: PreviewPanelProps) {
+export function PreviewPanel({
+  preview,
+  projectId,
+  previewCommand,
+  previewPort,
+  templateId,
+}: PreviewPanelProps) {
   const {
     previewUrl,
     previewStatus,
     previewOutput,
     errorMessage,
+    start,
     stop,
     refresh,
     refreshKey,
@@ -30,8 +41,15 @@ export function PreviewPanel({ preview, projectId }: PreviewPanelProps) {
   const [showConsole, setShowConsole] = useState(false);
 
   const fullUrl = previewUrl
-    ? `${window.location.origin}${previewUrl}`
+    ? `${import.meta.env.VITE_SERVER_URL}${previewUrl}`
     : null;
+
+  const canStart = !!previewCommand && !!previewPort;
+
+  const handleStart = () => {
+    if (!previewCommand || !previewPort) return;
+    start(previewCommand, previewPort, templateId ?? undefined);
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-dark-secondary">
@@ -64,6 +82,21 @@ export function PreviewPanel({ preview, projectId }: PreviewPanelProps) {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Start button in toolbar for idle/stopped/error states */}
+          {(previewStatus === "idle" ||
+            previewStatus === "stopped" ||
+            previewStatus === "error") &&
+            canStart && (
+              <button
+                className="flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-accent-primary transition-colors hover:bg-accent-primary/10"
+                onClick={handleStart}
+                title={`Start: ${previewCommand}`}
+              >
+                <Play size={12} />
+                <span>Start</span>
+              </button>
+            )}
+
           {previewStatus === "ready" && (
             <>
               <button
@@ -115,11 +148,29 @@ export function PreviewPanel({ preview, projectId }: PreviewPanelProps) {
         {/* Preview iframe */}
         <div className="flex-1 min-h-0 overflow-hidden bg-white relative">
           {previewStatus === "idle" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-primary text-text-tertiary gap-2">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-primary text-text-tertiary gap-3">
               <Globe size={32} className="opacity-30" />
-              <span className="text-sm">
-                Click "Preview" to start the dev server
-              </span>
+              {canStart ? (
+                <>
+                  <span className="text-sm text-text-secondary">
+                    Start the dev server to see a live preview
+                  </span>
+                  <button
+                    className="flex items-center gap-2 mt-1 py-2 px-4 text-sm font-medium border-none rounded-lg cursor-pointer transition-all duration-150 text-white bg-indigo-600 hover:bg-indigo-500"
+                    onClick={handleStart}
+                  >
+                    <Play size={14} />
+                    Start Preview
+                  </button>
+                  <span className="text-xs text-text-tertiary mt-1 font-mono">
+                    {previewCommand}
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm">
+                  No preview available for this project type
+                </span>
+              )}
             </div>
           )}
 
@@ -144,13 +195,31 @@ export function PreviewPanel({ preview, projectId }: PreviewPanelProps) {
               <span className="text-sm text-red-400">
                 {errorMessage ?? "Preview failed to start"}
               </span>
+              {canStart && (
+                <button
+                  className="flex items-center gap-2 mt-2 py-1.5 px-3 text-xs font-medium border border-border-subtle rounded-md cursor-pointer transition-all duration-150 text-text-secondary bg-bg-secondary hover:bg-bg-tertiary hover:text-text-primary"
+                  onClick={handleStart}
+                >
+                  <RefreshCw size={12} />
+                  Retry
+                </button>
+              )}
             </div>
           )}
 
           {previewStatus === "stopped" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-primary text-text-tertiary gap-2">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-primary text-text-tertiary gap-3">
               <Globe size={32} className="opacity-30" />
               <span className="text-sm">Preview stopped</span>
+              {canStart && (
+                <button
+                  className="flex items-center gap-2 mt-1 py-1.5 px-3 text-xs font-medium border border-border-subtle rounded-md cursor-pointer transition-all duration-150 text-text-secondary bg-bg-secondary hover:bg-bg-tertiary hover:text-text-primary"
+                  onClick={handleStart}
+                >
+                  <Play size={12} />
+                  Restart
+                </button>
+              )}
             </div>
           )}
 
@@ -176,7 +245,7 @@ export function PreviewPanel({ preview, projectId }: PreviewPanelProps) {
 
         {/* Server console (collapsible) */}
         {showConsole && previewOutput.length > 0 && (
-          <div className="shrink-0 h-32 border-t border-border-subtle bg-bg-primary overflow-y-auto">
+          <div className="shrink-0 h-64 border-t border-border-subtle bg-bg-primary overflow-y-auto">
             <div className="p-2 font-mono text-xs text-text-secondary">
               {previewOutput.map((line, i) => (
                 <div key={i} className="whitespace-pre-wrap break-all">

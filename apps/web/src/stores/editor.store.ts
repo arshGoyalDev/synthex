@@ -47,6 +47,7 @@ interface EditorState {
   isExplorerOpen: boolean;
   sidebarTab: "files" | "search";
   isTerminalOpen: boolean;
+  isRightPanelOpen: boolean;
   bottomPanelTab: "terminal" | "output" | "preview";
   terminalTabs: Record<string, TerminalTab>;
   terminalGroups: Record<string, TerminalGroup>;
@@ -58,6 +59,7 @@ interface EditorState {
   toggleExplorer: () => void;
   setSidebarTab: (tab: "files" | "search") => void;
   toggleTerminal: () => void;
+  toggleRightPanel: () => void;
   setBottomPanelTab: (tab: "terminal" | "output" | "preview") => void;
   openNewTerminal: (groupId?: string) => void;
   closeTerminal: (terminalId: string, groupId?: string) => void;
@@ -145,6 +147,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   isExplorerOpen: true,
   sidebarTab: "files",
   isTerminalOpen: true,
+  isRightPanelOpen: true,
   bottomPanelTab: "terminal",
   terminalTabs: {
     "term-1": { id: "term-1", title: "Terminal 1" },
@@ -284,6 +287,8 @@ export const useEditorStore = create<EditorState>((set) => ({
       isExplorerOpen: true,
       activeSearchMatch: tab === "search" ? state.activeSearchMatch : null, // clear if tab changes
     })),
+  toggleRightPanel: () =>
+    set((state) => ({ isRightPanelOpen: !state.isRightPanelOpen })),
   setBottomPanelTab: (tab) =>
     set({ bottomPanelTab: tab, isTerminalOpen: true }),
   toggleTerminal: () =>

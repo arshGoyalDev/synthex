@@ -18,6 +18,8 @@ import {
   AlertCircle,
   ChevronLeft,
   Globe,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
 
@@ -50,6 +52,8 @@ function ProjectPage() {
   const restartAfterStoppedRef = useRef(false);
   const setProjectContext = useEditorStore((s) => s.setProjectContext);
   const setBottomPanelTab = useEditorStore((s) => s.setBottomPanelTab);
+  const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
+  const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel);
 
   // ─── Derive run/preview commands from template ──────────────────────────
   const templateId = project?.template ?? null;
@@ -272,27 +276,22 @@ function ProjectPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Run button — only for non-dev-server templates */}
-          {containerStatus === "ready" && runCommand && !previewPort && (
+          {/* Output / Preview Right Pane Toggle */}
+          {containerStatus === "ready" && (!!runCommand || !!previewCommand) && (
             <button
-              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
-              onClick={() => setBottomPanelTab("output")}
-              title={`Run: ${runCommand}`}
+              className="flex items-center justify-center w-7 h-7 rounded-md border-none cursor-pointer transition-all duration-150 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary mr-2"
+              onClick={toggleRightPanel}
+              title={isRightPanelOpen ? "Close Side Panel" : "Open Side Panel"}
             >
-              <Play size={13} /> Run
+              {isRightPanelOpen ? (
+                <PanelRightClose size={16} />
+              ) : (
+                <PanelRightOpen size={16} />
+              )}
             </button>
           )}
 
-          {/* Preview button — for templates with a dev server port */}
-          {containerStatus === "ready" && previewCommand && previewPort && (
-            <button
-              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-indigo-600 hover:bg-indigo-500"
-              onClick={() => setBottomPanelTab("preview")}
-              title={`Preview: ${previewCommand}`}
-            >
-              <Globe size={13} /> Preview
-            </button>
-          )}
+          {/* The Output and Preview sidebars now handle their own execution lifecycle */ }
 
           <span className="text-xs text-text-tertiary mr-2 hidden sm:inline">
             {isConnected ? "● Connected" : "○ Disconnected"}
