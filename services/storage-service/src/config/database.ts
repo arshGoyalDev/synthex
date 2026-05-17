@@ -1,21 +1,21 @@
 import {
   CacheManager,
   createRedisClient,
-  getContainerDbClient,
-  getContainerRepository,
   PubSubManager,
   type RedisClient,
   createMinioClient,
   MinioManager,
   getStorageDbClient,
   getStorageRepository,
+  createRedisSubscriber,
 } from "@synthex/database";
 
 export const prisma = getStorageDbClient();
 export const db = getStorageRepository(prisma);
 
 export const redis: RedisClient = createRedisClient();
-export const redisSubscriber: RedisClient = createRedisClient();
+export const redisSubscriber: RedisClient = createRedisSubscriber();
+
 
 redis.on("connect", () => console.log("Redis connected"));
 redis.on("ready", () => console.log("Redis ready"));

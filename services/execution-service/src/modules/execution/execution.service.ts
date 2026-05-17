@@ -220,7 +220,7 @@ class ExecutionService {
 
     if (viteTemplates.includes(templateId)) {
       return {
-        VITE_BASE: `${basePath}/`,
+        BASE_PATH: `${basePath}/`,
       };
     }
 

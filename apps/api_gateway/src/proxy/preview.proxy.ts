@@ -1,5 +1,5 @@
 import { createProxyMiddleware, RequestHandler } from "http-proxy-middleware";
-import { Application } from "express";
+import { Application, Request, Response, NextFunction } from "express";
 import { Server as HttpServer } from "http";
 
 const previewProxies = new Map<string, RequestHandler>();
@@ -9,6 +9,20 @@ let httpServer: HttpServer;
 export function initPreviewProxy(app: Application, server: HttpServer) {
   expressApp = app;
   httpServer = server;
+
+  // Mount catch-all route handler for /preview/:projectId/*
+  // This delegates to the dynamically registered proxy for each project.
+  app.use("/preview/:projectId", (req: Request, res: Response, next: NextFunction) => {
+    const { projectId } = req.params;
+    const proxy = previewProxies.get(projectId);
+
+    if (!proxy) {
+      return res.status(404).json({ error: "Preview not found" });
+    }
+
+    // Delegate to the project's proxy middleware
+    proxy(req, res, next);
+  });
 }
 
 export function registerPreviewProxy(projectId: string, target: string) {

@@ -4,15 +4,16 @@ import {
   getExecutionRepository,
   getExecutionDbClient,
   PubSubManager,
+  createRedisSubscriber,
   type RedisClient,
 } from "@synthex/database";
-
+``
 const prisma = getExecutionDbClient();
 export const db = getExecutionRepository(prisma);
 
 
 export const redis: RedisClient = createRedisClient();
-export const redisSubscriber: RedisClient = createRedisClient();
+export const redisSubscriber: RedisClient = createRedisSubscriber();
 
 redis.on("connect", () => console.log("Redis connected"));
 redis.on("ready", () => console.log("Redis ready"));

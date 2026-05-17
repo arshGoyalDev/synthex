@@ -8,6 +8,7 @@ import {
   createMinioClient,
   FILES_BUCKET,
   SNAPSHOT_BUCKET,
+  createRedisSubscriber,
 } from "@synthex/database";
 
 const prisma = getContainerDbClient();
@@ -28,7 +29,7 @@ export const ensureBuckets = async () => {
 };
 
 export const redis: RedisClient = createRedisClient();
-export const redisSubscriber: RedisClient = createRedisClient();
+export const redisSubscriber: RedisClient = createRedisSubscriber();
 
 redis.on("connect", () => console.log("Redis connected"));
 redis.on("ready", () => console.log("Redis ready"));

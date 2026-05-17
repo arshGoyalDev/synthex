@@ -28,13 +28,9 @@ class PreviewHandler {
       await redis.set(`preview:${projectId}:port`, hostPort.toString());
       await redis.set(`preview:${projectId}:status`, "starting");
 
-      const envString = Object.entries(envVars)
-        .map(([k, v]) => `${k}="${v}"`)
-        .join(" ");
-      const fullCommand = `${envString} ${command}`;
-
       const exec = await container.exec({
-        Cmd: ["bash", "-c", fullCommand],
+        Cmd: ["bash", "-c", command],
+        Env: Object.entries(envVars).map(([k, v]) => `${k}=${v}`),
         AttachStdout: true,
         AttachStderr: true,
         WorkingDir: workDir,
@@ -165,14 +161,37 @@ class PreviewHandler {
     return new Promise((resolve, reject) => {
       const check = async () => {
         try {
+          // Use bash built-in /dev/tcp — works without nc/netcat
           const exec = await container.exec({
-            Cmd: ["bash", "-c", `nc -z localhost ${port}`],
-            AttachStdout: false,
-            AttachStderr: false,
+            Cmd: [
+              "bash",
+              "-c",
+              `(echo > /dev/tcp/localhost/${port}) 2>/dev/null`,
+            ],
+            AttachStdout: true,
+            AttachStderr: true,
           });
 
-          await exec.start({ hijack: false, stdin: false }, () => {});
-          const info = await exec.inspect();
+          const info: { ExitCode: number | null } = await new Promise(
+            (res, rej) => {
+              exec.start(
+                { hijack: true, stdin: false },
+                async (err, stream) => {
+                  if (err) return rej(err);
+                  // drain the stream so exec can finish
+                  stream!.resume();
+                  stream!.on("end", async () => {
+                    try {
+                      const result = await exec.inspect();
+                      res({ ExitCode: result.ExitCode });
+                    } catch (e) {
+                      rej(e);
+                    }
+                  });
+                },
+              );
+            },
+          );
 
           if (info.ExitCode === 0) {
             resolve();
