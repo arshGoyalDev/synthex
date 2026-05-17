@@ -76,7 +76,7 @@ const TEMPLATES: Record<string, Template> = {
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.jsx`,
-    runCommand: "npm run dev -- --host",
+    runCommand: "npm run dev -- --host --base=./",
   },
 
   react_ts: {
@@ -93,7 +93,7 @@ const TEMPLATES: Record<string, Template> = {
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.tsx`,
-    runCommand: "npm run dev -- --host",
+    runCommand: "npm run dev -- --host --base=./",
   },
 
   react_tailwind: {
@@ -124,7 +124,7 @@ EOF`,
       ],
     }),
     entryFile: (projectName) => `${projectName}/src/App.tsx`,
-    runCommand: "npm run dev -- --host",
+    runCommand: "npm run dev -- --host --base=./",
   },
 
   nextjs: {
@@ -160,7 +160,7 @@ EOF`,
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.svelte`,
-    runCommand: "npm run dev -- --host",
+    runCommand: "npm run dev -- --host --base=./",
   },
 
   sveltekit: {
@@ -180,7 +180,7 @@ EOF`,
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/routes/+page.svelte`,
-    runCommand: "npm run dev -- --host",
+    runCommand: "npm run dev -- --host --base=./",
   },
 
   nestjs: {

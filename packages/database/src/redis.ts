@@ -12,6 +12,17 @@ export function createRedisClient() {
   });
 }
 
+export function createRedisSubscriber() {
+  return new Redis({
+    host: process.env.REDIS_HOST || "localhost",
+    port: parseInt(process.env.REDIS_PORT || "6379"),
+    password: process.env.REDIS_PASSWORD,
+    retryStrategy: (times) => Math.min(times * 50, 2000),
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+}
+
 export class PubSubManager {
   constructor(
     private publisher: Redis,

@@ -17,7 +17,7 @@ export {
   getStorageRepository,
 } from "./clients/storage.client";
 
-export { createRedisClient, CacheManager, PubSubManager } from "./redis";
+export { createRedisClient, CacheManager, PubSubManager, createRedisSubscriber } from "./redis";
 export type { RedisClient } from "./redis";
 export {
   createMinioClient,
