@@ -34,4 +34,15 @@ export async function registerSubscribers() {
       console.error(`[storage-service] fs:change handler failed:`, err.message);
     }
   });
+
+  await pubsub.subscribe("storage:project:delete", async (data) => {
+    try {
+      await filesService.deleteProjectData(data.projectId, data.userId);
+    } catch (err: any) {
+      console.error(
+        `[storage-service] Project cleanup failed for ${data.projectId}:`,
+        err.message,
+      );
+    }
+  });
 }

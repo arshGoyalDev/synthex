@@ -40,6 +40,10 @@ class SnapshotRepository {
 
     return toDelete;
   }
+
+  async deleteAllForProject(projectId: string) {
+    return db.projectSnapshot.deleteMany({ where: { projectId } });
+  }
 }
 
 export { SnapshotRepository };

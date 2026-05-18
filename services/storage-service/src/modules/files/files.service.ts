@@ -61,11 +61,7 @@ class FilesService {
       fileCount: data.fileCount,
     });
 
-    await this.reconcileFileIndex(
-      data.projectId,
-      data.userId,
-      data.manifest,
-    );
+    await this.reconcileFileIndex(data.projectId, data.userId, data.manifest);
 
     await redis.setex(
       `files:snapshot:indexed:${data.projectId}:${data.minioKey}`,
@@ -99,7 +95,9 @@ class FilesService {
       return existing;
     }
 
-    const manifest = await this.extractManifestFromSnapshot(latestSnapshot.minioKey);
+    const manifest = await this.extractManifestFromSnapshot(
+      latestSnapshot.minioKey,
+    );
     if (manifest.length === 0) {
       return existing;
     }
@@ -119,14 +117,8 @@ class FilesService {
       checksum: string;
     }>,
   ) {
-    const deletedPaths = await this.listMarkedDeletedPaths(
-      userId,
-      projectId,
-    );
-    const savedObjectPaths = await this.listSavedObjectPaths(
-      userId,
-      projectId,
-    );
+    const deletedPaths = await this.listMarkedDeletedPaths(userId, projectId);
+    const savedObjectPaths = await this.listSavedObjectPaths(userId, projectId);
     const manifest = manifestInput.filter((f) => !deletedPaths.has(f.filePath));
     const manifestPaths = new Set(manifest.map((f) => f.filePath));
     const savedOnlyPaths = [...savedObjectPaths].filter(
@@ -134,37 +126,33 @@ class FilesService {
     );
 
     // 2. update file metadata from manifest
-    await this.filesRepo.upsertMany(
-      [
-        ...manifest.map((f) => ({
-          projectId,
-          filePath: f.filePath,
-          fileName: f.filePath.split("/").pop()!,
-          minioPath: `${this.filesPrefix(userId, projectId)}${
-            f.filePath
-          }`,
-          sizeBytes: f.sizeBytes,
-          mimeType: f.mimeType,
-          content: null,
-        })),
-        ...(await Promise.all(
-          savedOnlyPaths.map(async (filePath) => {
-            const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
-            const stat = await minioClient.statObject(FILES_BUCKET, minioPath);
+    await this.filesRepo.upsertMany([
+      ...manifest.map((f) => ({
+        projectId,
+        filePath: f.filePath,
+        fileName: f.filePath.split("/").pop()!,
+        minioPath: `${this.filesPrefix(userId, projectId)}${f.filePath}`,
+        sizeBytes: f.sizeBytes,
+        mimeType: f.mimeType,
+        content: null,
+      })),
+      ...(await Promise.all(
+        savedOnlyPaths.map(async (filePath) => {
+          const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
+          const stat = await minioClient.statObject(FILES_BUCKET, minioPath);
 
-            return {
-              projectId,
-              filePath,
-              fileName: filePath.split("/").pop() ?? filePath,
-              minioPath,
-              sizeBytes: stat.size,
-              mimeType: getMimeType(filePath),
-              content: null,
-            };
-          }),
-        )),
-      ],
-    );
+          return {
+            projectId,
+            filePath,
+            fileName: filePath.split("/").pop() ?? filePath,
+            minioPath,
+            sizeBytes: stat.size,
+            mimeType: getMimeType(filePath),
+            content: null,
+          };
+        }),
+      )),
+    ]);
 
     const keepFilePaths = new Set<string>([
       ...manifest.map((f) => f.filePath),
@@ -331,6 +319,26 @@ class FilesService {
     });
   }
 
+  async deleteProjectData(projectId: string, userId: string) {
+    const fileObjects = await this.listObjectNames(
+      FILES_BUCKET,
+      `${userId}/${projectId}/`,
+    );
+    const snapshotObjects = await this.listObjectNames(
+      SNAPSHOT_BUCKET,
+      `${userId}/${projectId}/`,
+    );
+
+    await this.removeObjects(FILES_BUCKET, fileObjects);
+    await this.removeObjects(SNAPSHOT_BUCKET, snapshotObjects);
+    await this.filesRepo.deleteAllForProject(projectId);
+    await this.snapshotRepo.deleteAllForProject(projectId);
+
+    console.log(
+      `[storage-service] Deleted ${fileObjects.length} file objects and ${snapshotObjects.length} snapshot objects for ${projectId}`,
+    );
+  }
+
   // ─── Extract single file from tar.gz snapshot ────────────────────────────
 
   private async extractFileFromSnapshot(
@@ -409,9 +417,7 @@ class FilesService {
       checksum: string;
     };
 
-    const tryExtract = async (
-      useGzip: boolean,
-    ): Promise<ManifestEntry[]> => {
+    const tryExtract = async (useGzip: boolean): Promise<ManifestEntry[]> => {
       const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
       const extract = tarStream.extract();
       const manifest: ManifestEntry[] = [];
@@ -543,6 +549,25 @@ class FilesService {
       stream.on("end", () => resolve(paths));
       stream.on("error", reject);
     });
+  }
+
+  private async listObjectNames(bucket: string, prefix: string) {
+    return new Promise<string[]>((resolve, reject) => {
+      const names: string[] = [];
+      const stream = minioClient.listObjects(bucket, prefix, true);
+
+      stream.on("data", (obj) => {
+        if (obj.name) names.push(obj.name);
+      });
+      stream.on("end", () => resolve(names));
+      stream.on("error", reject);
+    });
+  }
+
+  private async removeObjects(bucket: string, objectNames: string[]) {
+    if (objectNames.length === 0) return;
+
+    await minioClient.removeObjects(bucket, objectNames);
   }
 }
 
