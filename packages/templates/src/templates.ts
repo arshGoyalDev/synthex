@@ -16,6 +16,8 @@ interface Template {
   runCommand: string;
 }
 
+const PREVIEW_TEMPLATE_IDS = new Set(["react", "react_ts", "nextjs"]);
+
 const TEMPLATES: Record<string, Template> = {
   // ─── JavaScript / TypeScript ─────────────────────────────────────────────
 
@@ -76,7 +78,7 @@ const TEMPLATES: Record<string, Template> = {
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.jsx`,
-    runCommand: "npm run dev -- --host --base=./",
+    runCommand: "npm run dev -- --host 0.0.0.0 --base=${BASE_PATH:-./}",
   },
 
   react_ts: {
@@ -93,7 +95,7 @@ const TEMPLATES: Record<string, Template> = {
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.tsx`,
-    runCommand: "npm run dev -- --host --base=./",
+    runCommand: "npm run dev -- --host 0.0.0.0 --base=${BASE_PATH:-./}",
   },
 
   react_tailwind: {
@@ -124,7 +126,7 @@ EOF`,
       ],
     }),
     entryFile: (projectName) => `${projectName}/src/App.tsx`,
-    runCommand: "npm run dev -- --host --base=./",
+    runCommand: "npm run dev -- --host 0.0.0.0 --base=${BASE_PATH:-./}",
   },
 
   nextjs: {
@@ -160,7 +162,7 @@ EOF`,
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/App.svelte`,
-    runCommand: "npm run dev -- --host --base=./",
+    runCommand: "npm run dev -- --host 0.0.0.0 --base=${BASE_PATH:-./}",
   },
 
   sveltekit: {
@@ -180,7 +182,7 @@ EOF`,
       postSetup: [`npm install`],
     }),
     entryFile: (projectName) => `${projectName}/src/routes/+page.svelte`,
-    runCommand: "npm run dev -- --host --base=./",
+    runCommand: "npm run dev -- --host 0.0.0.0 --base=${BASE_PATH:-./}",
   },
 
   nestjs: {
@@ -873,4 +875,4 @@ EOF`,
 
 type TemplateId = keyof typeof TEMPLATES;
 
-export { type Template, TEMPLATES, type TemplateId };
+export { type Template, TEMPLATES, type TemplateId, PREVIEW_TEMPLATE_IDS };

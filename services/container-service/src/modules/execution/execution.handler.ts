@@ -1,6 +1,7 @@
 import Dockerode from "dockerode";
 import { pubsub, redis } from "../../config/database";
 import { pushToBuffer, newSeq } from "@synthex/database";
+import { createDockerFrameParser } from "../../utils/dockerStream";
 
 interface ExecutionStartData {
   executionId: string;
@@ -79,7 +80,11 @@ class ExecutionHandler {
       },
     );
 
-    this.activeExecs.set(executionId, { containerId: `synthex-${projectId}` });
+    const startedInfo = await exec.inspect();
+    this.activeExecs.set(executionId, {
+      containerId: `synthex-${projectId}`,
+      pid: startedInfo.Pid,
+    });
 
     const startTime = Date.now();
     let timedOut = false;
@@ -93,27 +98,20 @@ class ExecutionHandler {
       }, timeoutMs);
     }
 
-    await new Promise<void>((resolve) => {
-      stream.on("data", async (chunk: Buffer) => {
-        // docker multiplexed stream — first byte is stream type
-        // 1 = stdout, 2 = stderr
-        const streamType = chunk[0];
-        const payload = chunk.slice(8); // skip 8-byte header
-        const type = streamType === 2 ? "stderr" : "stdout";
+    let outputQueue = Promise.resolve();
+    const parseFrame = createDockerFrameParser(({ type, payload }) => {
+      outputQueue = outputQueue.then(async () => {
+        if (payload.length === 0) return;
 
         const seq = await newSeq(executionId);
-
         const outputChunk = {
           seq,
           data: payload.toString("base64"),
-          type: type as "stdout" | "stderr",
+          type,
           timestamp: Date.now(),
         };
 
-        // push to buffer (capped at 1000 chunks, 4KB each)
         await pushToBuffer(executionId, outputChunk);
-
-        // publish to gateway for real-time streaming
         await pubsub.publish("execution:output", {
           executionId,
           projectId,
@@ -121,10 +119,15 @@ class ExecutionHandler {
           ...outputChunk,
         });
       });
+    });
 
+    await new Promise<void>((resolve) => {
+      stream.on("data", parseFrame);
       stream.on("end", resolve);
       stream.on("error", resolve); // resolve on error too — exec.inspect gets exit code
     });
+
+    await outputQueue;
 
     if (timeoutHandle) clearTimeout(timeoutHandle);
 
@@ -147,11 +150,19 @@ class ExecutionHandler {
   async killExecution(executionId: string, projectId: string) {
     try {
       const container = this.docker.getContainer(`synthex-${projectId}`);
+      const active = this.activeExecs.get(executionId);
 
-      // kill all processes running the execution command
-      // by sending SIGTERM to the container exec
+      if (!active?.pid) {
+        console.log(`[execution-handler] No active pid for ${executionId}`);
+        return;
+      }
+
       const exec = await container.exec({
-        Cmd: ["bash", "-c", `kill -TERM -1 2>/dev/null || true`],
+        Cmd: [
+          "bash",
+          "-lc",
+          `kill -TERM -${active.pid} 2>/dev/null || kill -TERM ${active.pid} 2>/dev/null || true`,
+        ],
         AttachStdout: false,
         AttachStderr: false,
       });

@@ -44,15 +44,21 @@ const registerSubscribers = async () => {
   await pubsub.subscribe("preview:error", async (data) => {
     console.log(`[execution-service] preview:error ${data.projectId}`);
 
-    const { pubsub: pub } = await import("./database.js");
-    
-    await pub.publish("preview:status", {
-      projectId: data.projectId,
-      userId: data.userId,
-      status: "error",
-      previewUrl: "",
-      message: data.message,
-    });
+    await executionService.handlePreviewError(data);
+  });
+
+  await pubsub.subscribe("execution:project:delete", async (data) => {
+    try {
+      await executionService.deleteProjectExecutions(data.projectId);
+      console.log(
+        `[execution-service] Deleted execution logs for ${data.projectId}`,
+      );
+    } catch (err: any) {
+      console.error(
+        `[execution-service] Project execution cleanup failed for ${data.projectId}:`,
+        err.message,
+      );
+    }
   });
 };
 

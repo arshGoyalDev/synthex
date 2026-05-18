@@ -54,6 +54,17 @@ class ExecutionRepository {
       },
     });
   }
+
+  async findExecutionIdsByProject(projectId: string) {
+    return db.executionLog.findMany({
+      where: { projectId },
+      select: { executionId: true },
+    });
+  }
+
+  async deleteByProject(projectId: string) {
+    return db.executionLog.deleteMany({ where: { projectId } });
+  }
 }
 
 export { ExecutionRepository };

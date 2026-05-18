@@ -66,11 +66,16 @@ class ExecutionController {
 
   async getExecution(req: Request, res: Response, next: NextFunction) {
     try {
+      const userId = req.headers["x-user-id"] as string;
+
       if (!req.params.executionId) {
         throw new AppError("No executionId provided", 400);
       }
 
-      const exec = await executionService.getExecution(req.params.executionId);
+      const exec = await executionService.getExecution(
+        req.params.executionId,
+        userId,
+      );
       res.json({ data: exec });
     } catch (err) {
       next(err);
@@ -79,12 +84,15 @@ class ExecutionController {
 
   async getHistory(req: Request, res: Response, next: NextFunction) {
     try {
+      const userId = req.headers["x-user-id"] as string;
+
       if (!req.params.projectId) {
         throw new AppError("No executionId provided", 400);
       }
 
       const history = await executionService.getExecutionHistory(
         req.params.projectId,
+        userId,
       );
       res.json({ data: history });
     } catch (err) {
@@ -94,6 +102,7 @@ class ExecutionController {
 
   async getBuffer(req: Request, res: Response, next: NextFunction) {
     try {
+      const userId = req.headers["x-user-id"] as string;
       const fromSeq = parseInt((req.query.fromSeq as string) ?? "0");
 
       if (!req.params.executionId) {
@@ -102,6 +111,7 @@ class ExecutionController {
 
       const chunks = await executionService.getBufferedOutput(
         req.params.executionId,
+        userId,
         fromSeq,
       );
       res.json({ data: chunks });

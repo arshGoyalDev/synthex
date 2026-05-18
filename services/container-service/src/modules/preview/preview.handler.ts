@@ -1,6 +1,7 @@
 import Dockerode from "dockerode";
 import { pubsub, redis } from "../../config/database";
-import { findFreePort, waitForPort } from "../../utils/ports";
+import { findFreePort } from "../../utils/ports";
+import { createDockerFrameParser } from "../../utils/dockerStream";
 
 interface PreviewStartData {
   projectId: string;
@@ -28,12 +29,13 @@ class PreviewHandler {
       await redis.set(`preview:${projectId}:port`, hostPort.toString());
       await redis.set(`preview:${projectId}:status`, "starting");
 
+      const wrappedCommand = `cd ${this.shellQuote(workDir)} && exec ${command}`;
+
       const exec = await container.exec({
-        Cmd: ["bash", "-c", command],
+        Cmd: ["bash", "-lc", wrappedCommand],
         Env: Object.entries(envVars).map(([k, v]) => `${k}=${v}`),
         AttachStdout: true,
         AttachStderr: true,
-        WorkingDir: workDir,
         Tty: false,
       });
 
@@ -47,20 +49,25 @@ class PreviewHandler {
       );
 
       const execInfo = await exec.inspect();
-      await redis.set(
-        `preview:${projectId}:pid`,
-        execInfo.Pid?.toString() ?? "",
-      );
+      const pid = execInfo.Pid?.toString();
+      if (!pid) {
+        throw new Error("Preview process did not start");
+      }
+      await redis.set(`preview:${projectId}:pid`, pid);
 
-      stream.on("data", async (chunk: Buffer) => {
-        const text = chunk.slice(8).toString();
+      const parseFrame = createDockerFrameParser(({ payload }) => {
+        const text = payload.toString();
         if (text.trim()) {
-          await pubsub.publish("preview:output", {
+          void pubsub.publish("preview:output", {
             projectId,
             userId,
             data: text,
           });
         }
+      });
+      stream.on("data", parseFrame);
+      stream.on("end", async () => {
+        await this.cleanupPreview(projectId, userId);
       });
 
       console.log(`[preview-handler] Waiting for port ${port} in container...`);
@@ -73,17 +80,22 @@ class PreviewHandler {
 
       const containerInfo = await container.inspect();
 
-      const containerIp =
-        containerInfo.NetworkSettings.Networks[
-          Object.keys(containerInfo.NetworkSettings.Networks)[0]
-        ]?.IPAddress;
+      const [networkName] = Object.keys(containerInfo.NetworkSettings.Networks);
+      const containerIp = networkName
+        ? containerInfo.NetworkSettings.Networks[networkName]?.IPAddress
+        : undefined;
 
-      await redis.set(
-        `preview:${projectId}:target`,
-        `http://${containerIp}:${port}`,
-      );
+      if (!containerIp) {
+        throw new Error("Container network address not found");
+      }
 
-      await redis.set(`preview:${projectId}:status`, "running");
+      await redis
+        .pipeline()
+        .set(`preview:${projectId}:target`, `http://${containerIp}:${port}`)
+        .set(`preview:${projectId}:containerPort`, port.toString())
+        .set(`preview:${projectId}:ownerUserId`, userId)
+        .set(`preview:${projectId}:status`, "running")
+        .exec();
 
       await pubsub.publish("preview:ready", {
         projectId,
@@ -91,10 +103,6 @@ class PreviewHandler {
         hostPort,
         containerIp,
         containerPort: port,
-      });
-
-      stream.on("end", async () => {
-        await this.cleanupPreview(projectId, userId);
       });
     } catch (err: any) {
       console.error(`[preview-handler] Failed for ${projectId}:`, err.message);
@@ -116,7 +124,11 @@ class PreviewHandler {
 
       if (pid) {
         const exec = await container.exec({
-          Cmd: ["bash", "-c", `kill -TERM ${pid} 2>/dev/null || true`],
+          Cmd: [
+            "bash",
+            "-lc",
+            `kill -TERM -${this.shellQuote(pid)} 2>/dev/null || kill -TERM ${this.shellQuote(pid)} 2>/dev/null || true`,
+          ],
           AttachStdout: false,
           AttachStderr: false,
         });
@@ -138,6 +150,12 @@ class PreviewHandler {
       .del(`preview:${projectId}:pid`)
       .del(`preview:${projectId}:target`)
       .del(`preview:${projectId}:proxyUrl`)
+      .del(`preview:${projectId}:containerPort`)
+      .del(`preview:${projectId}:ownerUserId`)
+      .del(`preview:${projectId}:startedAt`)
+      .del(`preview:${projectId}:token`)
+      .del(`preview:${projectId}:lock`)
+      .del(`preview:${projectId}:error`)
       .exec();
 
     if (userId) {
@@ -148,6 +166,10 @@ class PreviewHandler {
         previewUrl: "",
       });
     }
+  }
+
+  private shellQuote(value: string) {
+    return `'${value.replace(/'/g, "'\\''")}'`;
   }
 
   private async waitForContainerPort(

@@ -3,6 +3,7 @@ import { ExecutionHandler } from "../modules/execution/execution.handler";
 import { PreviewHandler } from "../modules/preview/preview.handler";
 
 import { pubsub, redis } from "./database";
+import { LANGUAGES, TEMPLATES, PREVIEW_TEMPLATE_IDS } from "@synthex/templates";
 
 const containerService = new ContainerService();
 const executionHandler = new ExecutionHandler();
@@ -77,6 +78,26 @@ const registerSubscribers = async () => {
         status: "error",
         message: err.message,
       });
+    }
+  });
+
+  await pubsub.subscribe("project:delete", async (data) => {
+    try {
+      await containerService.cleanupContainer(
+        data.projectId,
+        data.userId,
+        data.projectName,
+        { snapshot: false },
+      );
+      await redis.del(`container:timeout:${data.projectId}`);
+      console.log(
+        `[container-service] Deleted container for project ${data.projectId}`,
+      );
+    } catch (err: any) {
+      console.error(
+        `[container-service] Failed to delete container for ${data.projectId}:`,
+        err.message,
+      );
     }
   });
 
@@ -199,6 +220,8 @@ const startContainerSetup = async (projectData: ProjectData) => {
       template ?? undefined,
     );
 
+    const runtimeConfig = getRuntimeConfig(template, languages);
+
     await redis.del(`container:timeout:${projectId}`);
 
     await pubsub.publish("container:status", {
@@ -206,6 +229,7 @@ const startContainerSetup = async (projectData: ProjectData) => {
       userId,
       status: "ready",
       message: "Environment is ready",
+      ...runtimeConfig,
     });
   } catch (err: any) {
     console.error(`[container-service] Failed for ${projectId}:`, err);
@@ -223,6 +247,38 @@ const startContainerSetup = async (projectData: ProjectData) => {
       message: err.message || "Failed to set up environment",
     });
   }
+};
+
+const getRuntimeConfig = (
+  templateId: string | null,
+  languages: string[] | null,
+) => {
+  if (!templateId) {
+    const primaryLanguage = languages?.[0];
+    const language = primaryLanguage ? LANGUAGES[primaryLanguage] : null;
+
+    return {
+      runCommand: language?.runCommand ?? null,
+      previewCommand: null,
+      previewPort: null,
+    };
+  }
+
+  const template = TEMPLATES[templateId];
+  if (!template) {
+    return {
+      runCommand: null,
+      previewCommand: null,
+      previewPort: null,
+    };
+  }
+
+  const isPreviewTemplate = PREVIEW_TEMPLATE_IDS.has(templateId);
+  return {
+    runCommand: isPreviewTemplate ? null : template.runCommand,
+    previewCommand: isPreviewTemplate ? template.runCommand : null,
+    previewPort: isPreviewTemplate ? (template.defaultPort ?? null) : null,
+  };
 };
 
 export { registerSubscribers };

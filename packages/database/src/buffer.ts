@@ -14,11 +14,15 @@ interface OutputChunk {
 }
 
 const sanitizeChunk = (data: string) => {
-  const buf = Buffer.from(data, "utf-8");
-  if (buf.length <= MAX_CHUNKS_BYTES) return data;
+  const decoded = Buffer.from(data, "base64");
+  if (decoded.length <= MAX_CHUNKS_BYTES) return data;
 
-  const truncated = buf.slice(0, MAX_CHUNKS_BYTES);
   const notice = Buffer.from("\n[chunk truncated]\n");
+  const truncated = decoded.subarray(
+    0,
+    Math.max(0, MAX_CHUNKS_BYTES - notice.length),
+  );
+
   return Buffer.concat([truncated, notice]).toString("base64");
 };
 

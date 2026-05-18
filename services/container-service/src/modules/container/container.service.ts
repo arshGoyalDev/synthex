@@ -3,7 +3,12 @@ import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import { AppError } from "../../utils/AppError";
 import { createSnapshot, getLatestSnapshotKey } from "../../utils/snapshots";
 import { restoreSnapshot } from "../../utils/restore";
-import { FILES_BUCKET, minioClient, pubsub, redis } from "../../config/database";
+import {
+  FILES_BUCKET,
+  minioClient,
+  pubsub,
+  redis,
+} from "../../config/database";
 
 class ContainerService {
   docker = new Dockerode();
@@ -107,7 +112,7 @@ class ContainerService {
       const snapshotKey = await getLatestSnapshotKey(projectId, userId);
 
       if (snapshotKey) {
-        await restoreSnapshot(container, snapshotKey);
+        await restoreSnapshot(container, snapshotKey, projectName);
         await this.applyStoredFileState(
           container,
           projectId,
@@ -202,6 +207,7 @@ class ContainerService {
     projectId: string,
     userId?: string,
     projectName?: string,
+    options: { snapshot?: boolean } = {},
   ) {
     try {
       const container = this.docker.getContainer(`synthex-${projectId}`);
@@ -210,14 +216,18 @@ class ContainerService {
       const resolvedUserId = userId ?? labels.userId;
       const resolvedProjectName = projectName ?? labels.projectName;
 
+      const shouldSnapshot = options.snapshot !== false;
+
       if (info.State.Running) {
         if (resolvedUserId && resolvedProjectName) {
-          await this.takeSnapshot(
-            container,
-            projectId,
-            resolvedUserId,
-            resolvedProjectName,
-          );
+          if (shouldSnapshot) {
+            await this.takeSnapshot(
+              container,
+              projectId,
+              resolvedUserId,
+              resolvedProjectName,
+            );
+          }
         }
         await container.stop({ t: 5 });
       }
@@ -488,7 +498,12 @@ class ContainerService {
         filePath = filePath.substring(projectName.length + 1);
       }
       const content = await this.readStoredFile(userId, projectId, rawPath);
-      await this.writeFileToContainer(container, projectName, filePath, content);
+      await this.writeFileToContainer(
+        container,
+        projectName,
+        filePath,
+        content,
+      );
     }
   }
 
