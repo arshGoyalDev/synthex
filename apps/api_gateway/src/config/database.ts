@@ -1,9 +1,18 @@
 import {
   CacheManager,
   createRedisClient,
+  getExecutionDbClient,
+  getExecutionRepository,
+  getProjectDbClient,
+  getProjectRepository,
   PubSubManager,
   type RedisClient,
 } from "@synthex/database";
+
+const prisma = getProjectDbClient();
+export const db = getProjectRepository(prisma);
+const executionPrisma = getExecutionDbClient();
+export const executionDb = getExecutionRepository(executionPrisma);
 
 export const redis: RedisClient = createRedisClient();
 export const redisSubscriber: RedisClient = createRedisClient();

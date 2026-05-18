@@ -1,6 +1,9 @@
 import { pubsub, redis } from "./database";
 import { Server as SocketServer } from "socket.io";
-import { registerPreviewProxy, removePreviewProxy } from "../proxy/preview.proxy";
+import {
+  registerPreviewProxy,
+  removePreviewProxy,
+} from "../proxy/preview.proxy";
 
 const registerSubscribers = async (io: SocketServer) => {
   pubsub.subscribe("container:status", (data) => {
@@ -13,6 +16,8 @@ const registerSubscribers = async (io: SocketServer) => {
       workDir: data.workDir,
       entryFile: data.entryFile,
       runCommand: data.runCommand,
+      previewCommand: data.previewCommand,
+      previewPort: data.previewPort,
       message: data.message,
     });
   });

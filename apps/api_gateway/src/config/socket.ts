@@ -1,7 +1,7 @@
 import { type Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { env } from ".";
-import { pubsub, redis } from "./database";
+import { db, executionDb, pubsub, redis } from "./database";
 
 const USER_CLEANUP_DELAY_MS = 10 * 60 * 1000;
 
@@ -95,6 +95,15 @@ class SocketService {
       socket.join(`user:${userId}`);
 
       socket.on("execution:join", async ({ executionId, fromSeq = 0 }) => {
+        const canJoin = await canJoinExecution(userId, executionId);
+        if (!canJoin) {
+          socket.emit("execution:error", {
+            executionId,
+            message: "Execution access denied",
+          });
+          return;
+        }
+
         socket.join(`execution:${executionId}`);
         console.log(`[gateway] ${userId} joined execution:${executionId}`);
 
@@ -124,7 +133,17 @@ class SocketService {
         socket.leave(`execution:${executionId}`);
       });
 
-      socket.on("preview:join", ({ projectId }) => {
+      socket.on("preview:join", async ({ projectId }) => {
+        const canJoin = await canJoinProject(userId, projectId);
+        if (!canJoin) {
+          socket.emit("preview:status", {
+            projectId,
+            status: "error",
+            message: "Preview access denied",
+          });
+          return;
+        }
+
         socket.join(`preview:${projectId}`);
         console.log(`[gateway] ${userId} joined preview:${projectId}`);
       });
@@ -156,3 +175,30 @@ class SocketService {
 
 const socketService = new SocketService();
 export { socketService };
+
+async function canJoinProject(userId: string, projectId: string) {
+  const project = await db.project.findFirst({
+    where: { id: projectId, userId },
+    select: { id: true },
+  });
+
+  return !!project;
+}
+
+async function canJoinExecution(userId: string, executionId: string) {
+  const meta = await redis.get(`execution:meta:${executionId}`);
+  if (meta) {
+    try {
+      return JSON.parse(meta).userId === userId;
+    } catch {
+      return false;
+    }
+  }
+
+  const execution = await executionDb.executionLog.findFirst({
+    where: { executionId, userId },
+    select: { executionId: true },
+  });
+
+  return !!execution;
+}
