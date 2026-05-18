@@ -8,4 +8,8 @@ const createProjectSchema = z.object({
   type: z.enum(["template", "blank", "raw"]).default("template"),
 });
 
-export { createProjectSchema };
+const renameProjectSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+});
+
+export { createProjectSchema, renameProjectSchema };

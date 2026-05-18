@@ -1,6 +1,8 @@
 import { db, pubsub, redis } from "../../config/database";
 import { AppError } from "../../utils/AppError";
 import { safeName } from "../../utils/project";
+import { LANGUAGES, TEMPLATES, PREVIEW_TEMPLATE_IDS } from "@synthex/templates";
+
 
 class ProjectService {
   async getProjectsMe(userId: string) {
@@ -8,7 +10,7 @@ class ProjectService {
       where: { userId },
       orderBy: { updatedAt: "desc" },
     });
-    return projects;
+    return projects.map((project) => this.withRuntimeConfig(project));
   }
 
   async getProjectById(id: string) {
@@ -20,7 +22,62 @@ class ProjectService {
 
     if (!project) throw new AppError("Project not found", 404);
 
-    return project;
+    return this.withRuntimeConfig(project);
+  }
+
+  async renameProject(id: string, userId: string, name: string) {
+    if (!id) throw new AppError("Project ID is required", 400);
+    if (!name) throw new AppError("Project name is required", 400);
+
+    const project = await db.project.findFirst({
+      where: { id, userId },
+    });
+
+    if (!project) throw new AppError("Project not found", 404);
+
+    const updated = await db.project.update({
+      where: { id },
+      data: {
+        name,
+        folderName: safeName(name),
+      },
+    });
+
+    return this.withRuntimeConfig(updated);
+  }
+
+  async deleteProject(id: string, userId: string) {
+    if (!id) throw new AppError("Project ID is required", 400);
+
+    const project = await db.project.findFirst({
+      where: { id, userId },
+    });
+
+    if (!project) throw new AppError("Project not found", 404);
+
+    await pubsub.publish("project:delete", {
+      projectId: project.id,
+      projectName: project.folderName,
+      userId: project.userId,
+    });
+
+    await pubsub.publish("storage:project:delete", {
+      projectId: project.id,
+      userId: project.userId,
+    });
+
+    await pubsub.publish("execution:project:delete", {
+      projectId: project.id,
+      userId: project.userId,
+    });
+
+    await redis.del(`container:timeout:${project.id}`);
+
+    await db.project.delete({
+      where: { id },
+    });
+
+    return;
   }
 
   async createProject(
@@ -63,7 +120,7 @@ class ProjectService {
       5 * 60,
     );
 
-    return project;
+    return this.withRuntimeConfig(project);
   }
 
   async startProject(id: string) {
@@ -72,14 +129,18 @@ class ProjectService {
     if (!project) throw new AppError("Project not found", 404);
 
     if (project.containerStatus === "ready") {
-      return { alreadyRunning: true, project };
+      return { alreadyRunning: true, project: this.withRuntimeConfig(project) };
     }
 
     if (
       project.containerStatus === "pending" ||
       project.containerStatus === "starting"
     ) {
-      return { alreadyRunning: false, alreadyStarting: true, project };
+      return {
+        alreadyRunning: false,
+        alreadyStarting: true,
+        project: this.withRuntimeConfig(project),
+      };
     }
 
     const startStates = ["stopped", "error", "timeout"];
@@ -111,7 +172,7 @@ class ProjectService {
       5 * 60,
     );
 
-    return { alreadyRunning: false, project };
+    return { alreadyRunning: false, project: this.withRuntimeConfig(project) };
   }
 
   async stopProject(id: string) {
@@ -138,6 +199,45 @@ class ProjectService {
     }
 
     return { wasRunning: false };
+  }
+
+  private withRuntimeConfig(project: any) {
+    const runtimeConfig = this.getRuntimeConfig(project);
+    return {
+      ...project,
+      runCommand: runtimeConfig.runCommand,
+      previewCommand: runtimeConfig.previewCommand,
+      previewPort: runtimeConfig.previewPort,
+    };
+  }
+
+  private getRuntimeConfig(project: {
+    type: "template" | "blank" | "raw";
+    template: string | null;
+    languages: string[];
+  }) {
+    if (project.type === "template" && project.template) {
+      const template = TEMPLATES[project.template];
+      if (!template) {
+        return { runCommand: null, previewCommand: null, previewPort: null };
+      }
+
+      const isPreviewTemplate = PREVIEW_TEMPLATE_IDS.has(project.template);
+      return {
+        runCommand: isPreviewTemplate ? null : template.runCommand,
+        previewCommand: isPreviewTemplate ? template.runCommand : null,
+        previewPort: isPreviewTemplate ? (template.defaultPort ?? null) : null,
+      };
+    }
+
+    const primaryLanguage = project.languages?.[0];
+    const language = primaryLanguage ? LANGUAGES[primaryLanguage] : null;
+
+    return {
+      runCommand: language?.runCommand ?? null,
+      previewCommand: null,
+      previewPort: null,
+    };
   }
 }
 

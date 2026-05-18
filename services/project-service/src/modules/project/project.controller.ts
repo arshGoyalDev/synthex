@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { createProjectSchema } from "./project.schema";
+import { createProjectSchema, renameProjectSchema } from "./project.schema";
 import { ProjectService } from "./project.service";
 import { AppError } from "../../utils/AppError";
 
@@ -29,6 +29,44 @@ class ProjectController {
       const project = await projectService.getProjectById(projectId);
 
       res.json({ data: project });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async renameProject(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const projectId = req.params.id;
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+
+      const { name } = renameProjectSchema.parse(req.body);
+      const project = await projectService.renameProject(
+        projectId,
+        userId,
+        name,
+      );
+
+      res.json({ data: project });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async deleteProject(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const projectId = req.params.id;
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+
+      await projectService.deleteProject(projectId, userId);
+      res.status(204).send();
     } catch (err) {
       next(err);
     }
@@ -68,6 +106,9 @@ class ProjectController {
         return res.json({
           status: "ready",
           message: "Container already running",
+          runCommand: result.project.runCommand,
+          previewCommand: result.project.previewCommand,
+          previewPort: result.project.previewPort,
         });
       }
 
@@ -75,10 +116,19 @@ class ProjectController {
         return res.json({
           status: "starting",
           message: "Project already starting",
+          runCommand: result.project.runCommand,
+          previewCommand: result.project.previewCommand,
+          previewPort: result.project.previewPort,
         });
       }
 
-      res.json({ message: "Project starting", status: "starting" });
+      res.json({
+        message: "Project starting",
+        status: "starting",
+        runCommand: result.project.runCommand,
+        previewCommand: result.project.previewCommand,
+        previewPort: result.project.previewPort,
+      });
     } catch (err) {
       next(err);
     }
