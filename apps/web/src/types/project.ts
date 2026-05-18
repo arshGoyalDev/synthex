@@ -16,6 +16,9 @@ export interface Project {
     | "timeout";
   folderName: string;
   isPinned?: boolean;
+  runCommand?: string | null;
+  previewCommand?: string | null;
+  previewPort?: number | null;
   createdAt: string;
   updatedAt: string;
 }

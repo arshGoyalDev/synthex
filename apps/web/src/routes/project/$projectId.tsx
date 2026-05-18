@@ -17,7 +17,6 @@ import {
   Square,
   AlertCircle,
   ChevronLeft,
-  Globe,
   PanelRightClose,
   PanelRightOpen,
 } from "lucide-react";
@@ -25,7 +24,6 @@ import { EditorLayout } from "../../components/editor/EditorLayout";
 
 import { FilePalette } from "../../components/editor/FilePalette";
 import { useEditorStore } from "../../stores/editor.store";
-import { TEMPLATES } from "@synthex/templates";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -51,23 +49,33 @@ function ProjectPage() {
   const startRequestedRef = useRef(false);
   const restartAfterStoppedRef = useRef(false);
   const setProjectContext = useEditorStore((s) => s.setProjectContext);
-  const setBottomPanelTab = useEditorStore((s) => s.setBottomPanelTab);
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel);
+  const [runtimeConfig, setRuntimeConfig] = useState<{
+    runCommand: string | null;
+    previewCommand: string | null;
+    previewPort: number | null;
+  }>(() => ({
+    runCommand: project?.runCommand ?? null,
+    previewCommand: project?.previewCommand ?? null,
+    previewPort: project?.previewPort ?? null,
+  }));
 
-  // ─── Derive run/preview commands from template ──────────────────────────
   const templateId = project?.template ?? null;
-  const template = templateId ? TEMPLATES[templateId] : null;
-  const runCommand = template?.runCommand ?? null;
-  const previewPort = template?.defaultPort ?? null;
-  // For dev server templates (with a defaultPort), runCommand is the preview command
-  const previewCommand = previewPort ? runCommand : null;
+  const runCommand = runtimeConfig.runCommand;
+  const previewCommand = runtimeConfig.previewCommand;
+  const previewPort = runtimeConfig.previewPort;
 
   const requestStart = async () => {
     startRequestedRef.current = true;
     const startData = await startProject(projectId);
     setContainerStatus(startData.status);
     currentStatusRef.current = startData.status;
+    setRuntimeConfig((current) => ({
+      runCommand: startData.runCommand ?? current.runCommand,
+      previewCommand: startData.previewCommand ?? current.previewCommand,
+      previewPort: startData.previewPort ?? current.previewPort,
+    }));
     if (startData.message) {
       setContainerMsg(startData.message);
     }
@@ -91,6 +99,11 @@ function ProjectPage() {
 
         if (p) {
           setProject(p);
+          setRuntimeConfig({
+            runCommand: p.runCommand ?? null,
+            previewCommand: p.previewCommand ?? null,
+            previewPort: p.previewPort ?? null,
+          });
           const initialStatus = p.containerStatus || "unknown";
           setContainerStatus(initialStatus);
           currentStatusRef.current = initialStatus;
@@ -141,13 +154,18 @@ function ProjectPage() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onContainerStatus = (data: any) => {
-        if (data.projectId === projectId) {
-          currentStatusRef.current = data.status;
-          setContainerStatus(data.status);
-          setProjectContext(projectId, data.status);
-          if (data.message) {
-            setContainerMsg(data.message);
-          }
+      if (data.projectId === projectId) {
+        currentStatusRef.current = data.status;
+        setContainerStatus(data.status);
+        setProjectContext(projectId, data.status);
+        if (data.message) {
+          setContainerMsg(data.message);
+        }
+        setRuntimeConfig((current) => ({
+          runCommand: data.runCommand ?? current.runCommand,
+          previewCommand: data.previewCommand ?? current.previewCommand,
+          previewPort: data.previewPort ?? current.previewPort,
+        }));
 
         if (data.status === "stopped" && !restartAfterStoppedRef.current) {
           restartAfterStoppedRef.current = true;
@@ -277,21 +295,24 @@ function ProjectPage() {
 
         <div className="flex items-center gap-2">
           {/* Output / Preview Right Pane Toggle */}
-          {containerStatus === "ready" && (!!runCommand || !!previewCommand) && (
-            <button
-              className="flex items-center justify-center w-7 h-7 rounded-md border-none cursor-pointer transition-all duration-150 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary mr-2"
-              onClick={toggleRightPanel}
-              title={isRightPanelOpen ? "Close Side Panel" : "Open Side Panel"}
-            >
-              {isRightPanelOpen ? (
-                <PanelRightClose size={16} />
-              ) : (
-                <PanelRightOpen size={16} />
-              )}
-            </button>
-          )}
+          {containerStatus === "ready" &&
+            (!!runCommand || !!previewCommand) && (
+              <button
+                className="flex items-center justify-center w-7 h-7 rounded-md border-none cursor-pointer transition-all duration-150 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary mr-2"
+                onClick={toggleRightPanel}
+                title={
+                  isRightPanelOpen ? "Close Side Panel" : "Open Side Panel"
+                }
+              >
+                {isRightPanelOpen ? (
+                  <PanelRightClose size={16} />
+                ) : (
+                  <PanelRightOpen size={16} />
+                )}
+              </button>
+            )}
 
-          {/* The Output and Preview sidebars now handle their own execution lifecycle */ }
+          {/* The Output and Preview sidebars now handle their own execution lifecycle */}
 
           <span className="text-xs text-text-tertiary mr-2 hidden sm:inline">
             {isConnected ? "● Connected" : "○ Disconnected"}

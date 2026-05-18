@@ -23,7 +23,10 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className={className || "bg-bg-secondary border border-border-default rounded-2xl p-6 w-full max-w-md shadow-2xl shadow-black/40 animate-slide-up"}
+        className={
+          className ||
+          "bg-bg-secondary border border-border-default rounded-2xl p-6 w-full max-w-md shadow-2xl shadow-black/40 animate-slide-up"
+        }
         style={{ animationDuration: "0.2s" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -45,16 +48,36 @@ export function RenameDialog({
 }) {
   const renameProject = useProjectStore((s) => s.renameProject);
   const [name, setName] = useState(project?.name ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Update name when project or dialog open state changes
   useEffect(() => {
     if (project && open) {
       // eslint-disable-next-line
       setName(project.name);
+      setErrorMessage(null);
     }
   }, [project, open]);
 
   if (!project) return null;
+
+  const handleRename = async () => {
+    const nextName = name.trim();
+    if (!nextName || isSaving) return;
+
+    setIsSaving(true);
+    setErrorMessage(null);
+    try {
+      await renameProject(project.id, nextName);
+      onClose();
+    } catch (err) {
+      console.error("[RenameDialog] Rename failed:", err);
+      setErrorMessage("Failed to rename project");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <Modal open={open} onClose={onClose}>
@@ -68,11 +91,13 @@ export function RenameDialog({
         className="w-full px-4 py-2.5 rounded-lg bg-bg-primary border border-border-default text-text-primary text-sm focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-glow transition-all mb-5"
         onKeyDown={(e) => {
           if (e.key === "Enter" && name.trim()) {
-            renameProject(project.id, name.trim());
-            onClose();
+            void handleRename();
           }
         }}
       />
+      {errorMessage && (
+        <p className="mb-4 text-xs text-red-400">{errorMessage}</p>
+      )}
       <div className="flex justify-end gap-2">
         <button
           onClick={onClose}
@@ -81,15 +106,11 @@ export function RenameDialog({
           Cancel
         </button>
         <button
-          onClick={() => {
-            if (name.trim()) {
-              renameProject(project.id, name.trim());
-              onClose();
-            }
-          }}
+          onClick={() => void handleRename()}
+          disabled={isSaving || !name.trim()}
           className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-accent-primary hover:bg-accent-dark transition-colors cursor-pointer border-none"
         >
-          Rename
+          {isSaving ? "Renaming..." : "Rename"}
         </button>
       </div>
     </Modal>
@@ -107,41 +128,62 @@ export function DeleteDialog({
   onClose: () => void;
 }) {
   const deleteProject = useProjectStore((s) => s.deleteProject);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!project) return null;
 
+  const handleDelete = async () => {
+    if (isDeleting) return;
+
+    setIsDeleting(true);
+    setErrorMessage(null);
+    try {
+      await deleteProject(project.id);
+      onClose();
+    } catch (err) {
+      console.error("[DeleteDialog] Delete failed:", err);
+      setErrorMessage("Failed to delete project");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
-    <Modal 
-      open={open} 
+    <Modal
+      open={open}
       onClose={onClose}
       className="bg-bg-secondary w-[360px] rounded-xl overflow-hidden shadow-2xl border border-border-default transform transition-all animate-slide-up"
     >
-       <div className="p-5 flex flex-col gap-3">
-          <h3 className="text-[14px] font-semibold text-text-primary m-0 flex items-center gap-2">
-            <Trash2 size={16} className="text-[#f87171]" />
-            Confirm Deletion
-          </h3>
-          <p className="text-[13px] text-text-secondary leading-relaxed m-0">
-            Are you sure you want to delete <strong>'{project.name}'</strong>? All its contents will be permanently lost.
-          </p>
-       </div>
-       <div className="flex items-center justify-end gap-2 p-3 bg-bg-tertiary border-t border-border-subtle">
-          <button 
-             className="px-4 py-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary bg-transparent rounded border border-transparent hover:border-border-default transition-colors cursor-pointer" 
-             onClick={onClose}
-          >
-             Cancel
-          </button>
-          <button 
-             className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#dc2626] hover:bg-[#b91c1c] active:bg-[#991b1b] rounded transition-colors border-none cursor-pointer shadow-sm" 
-             onClick={() => {
-               deleteProject(project.id);
-               onClose();
-             }}
-          >
-             Delete
-          </button>
-       </div>
+      <div className="p-5 flex flex-col gap-3">
+        <h3 className="text-[14px] font-semibold text-text-primary m-0 flex items-center gap-2">
+          <Trash2 size={16} className="text-[#f87171]" />
+          Confirm Deletion
+        </h3>
+        <p className="text-[13px] text-text-secondary leading-relaxed m-0">
+          Are you sure you want to delete <strong>'{project.name}'</strong>? All
+          its contents will be permanently lost.
+        </p>
+        {errorMessage && (
+          <p className="m-0 text-xs text-red-400">{errorMessage}</p>
+        )}
+      </div>
+      <div className="flex items-center justify-end gap-2 p-3 bg-bg-tertiary border-t border-border-subtle">
+        <button
+          className="px-4 py-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary bg-transparent rounded border border-transparent hover:border-border-default transition-colors cursor-pointer"
+          onClick={onClose}
+          disabled={isDeleting}
+        >
+          Cancel
+        </button>
+        <button
+          className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#dc2626] hover:bg-[#b91c1c] active:bg-[#991b1b] rounded transition-colors border-none cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={() => void handleDelete()}
+          disabled={isDeleting}
+        >
+          {isDeleting ? "Deleting..." : "Delete"}
+        </button>
+      </div>
     </Modal>
   );
 }

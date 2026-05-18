@@ -65,6 +65,7 @@ export function useExecution(
 
   // Track the highest seq seen for reconnection replay
   const maxSeqRef = useRef(0);
+  const seenSeqRef = useRef<Set<number>>(new Set());
   // Prevent double-clicks
   const runningRef = useRef(false);
 
@@ -74,7 +75,9 @@ export function useExecution(
   const decodeChunk = useCallback((chunk: OutputChunk): DecodedChunk => {
     let decoded: string;
     try {
-      decoded = atob(chunk.data);
+      const binary = atob(chunk.data);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      decoded = new TextDecoder().decode(bytes);
     } catch {
       decoded = chunk.data;
     }
@@ -93,11 +96,14 @@ export function useExecution(
     // Join the execution room
     socket.emit("execution:join", {
       executionId,
-      fromSeq: maxSeqRef.current,
+      fromSeq: maxSeqRef.current + 1,
     });
 
     const onOutput = (data: OutputChunk & { executionId: string }) => {
       if (data.executionId !== executionId) return;
+      if (seenSeqRef.current.has(data.seq)) return;
+
+      seenSeqRef.current.add(data.seq);
 
       if (data.seq > maxSeqRef.current) {
         maxSeqRef.current = data.seq;
@@ -110,6 +116,13 @@ export function useExecution(
     const onStatus = (data: { executionId: string; status: string }) => {
       if (data.executionId !== executionId) return;
       setStatus(data.status as ExecutionStatus);
+    };
+
+    const onError = (data: { executionId: string; message: string }) => {
+      if (data.executionId !== executionId) return;
+      setStatus("error");
+      setErrorMessage(data.message);
+      runningRef.current = false;
     };
 
     const onDone = (data: {
@@ -134,11 +147,13 @@ export function useExecution(
 
     socket.on("execution:output", onOutput);
     socket.on("execution:status", onStatus);
+    socket.on("execution:error", onError);
     socket.on("execution:done", onDone);
 
     return () => {
       socket.off("execution:output", onOutput);
       socket.off("execution:status", onStatus);
+      socket.off("execution:error", onError);
       socket.off("execution:done", onDone);
       socket.emit("execution:leave", { executionId });
     };
@@ -156,6 +171,7 @@ export function useExecution(
       setErrorMessage(null);
       setStatus("queued");
       maxSeqRef.current = 0;
+      seenSeqRef.current = new Set();
       runningRef.current = true;
 
       try {
@@ -214,6 +230,7 @@ export function useExecution(
     setStatus("idle");
     setExecutionId(null);
     maxSeqRef.current = 0;
+    seenSeqRef.current = new Set();
     runningRef.current = false;
   }, []);
 

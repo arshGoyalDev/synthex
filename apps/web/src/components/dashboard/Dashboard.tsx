@@ -4,16 +4,12 @@ import { useAuthStore } from "../../stores/auth.store";
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
 // import { CreateProjectModal } from ";
-import {CreateProjectModal} from "./CreateProjectModal";
+import { CreateProjectModal } from "./CreateProjectModal";
 import { IconPlus, IconCode } from "../icons";
 import { Sidebar } from "./Sidebar";
 import { ActivityGraph } from "./ActivityGraph";
 import { ProjectCard } from "./ProjectCard";
-import {
-  DeleteDialog,
-  EditDetailsDialog,
-  RenameDialog,
-} from "./ProjectDialogs";
+import { DeleteDialog, RenameDialog } from "./ProjectDialogs";
 
 /* ——— Projects Grid ——— */
 function ProjectsGrid() {
@@ -152,14 +148,11 @@ function ProjectsGrid() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
       />
-      <EditDetailsDialog
-        projectId={editTarget?.id ?? null}
-        isOpen={!!editTarget}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setEditTarget(null);
-        }}
+      <RenameDialog
+        project={editTarget}
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
       />
-      <RenameDialog project={editTarget} open={false} onClose={() => {}} />
 
       <CreateProjectModal
         isOpen={isNewProjectModalOpen}

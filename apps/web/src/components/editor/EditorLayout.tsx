@@ -8,12 +8,7 @@ import { useEditorStore } from "../../stores/editor.store";
 import { useFileSync } from "../../hooks/useFileSync";
 import { useExecution } from "../../hooks/useExecution";
 import { usePreview } from "../../hooks/usePreview";
-import {
-  Files,
-  Search,
-  TerminalSquare,
-  ChevronUp,
-} from "lucide-react";
+import { Files, Search, TerminalSquare, ChevronUp } from "lucide-react";
 import {
   Panel,
   Group as PanelGroup,
@@ -271,7 +266,7 @@ export function EditorLayout({
                       </PanelGroup>
                     </Panel>
 
-                    {isRightPanelOpen && (!!previewPort || !!runCommand) && (
+                    {isRightPanelOpen && (!!previewCommand || !!runCommand) && (
                       <>
                         <PanelResizeHandle className="w-1 shrink-0 bg-transparent hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-col-resize z-10 relative" />
                         <Panel
@@ -281,7 +276,7 @@ export function EditorLayout({
                           maxSize={1000}
                           className="flex flex-col bg-bg-secondary border-l border-border-subtle z-10"
                         >
-                          {previewPort ? (
+                          {previewCommand && previewPort ? (
                             <PreviewPanel
                               preview={preview}
                               projectId={projectId}

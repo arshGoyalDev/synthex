@@ -117,7 +117,7 @@ function ProjectMenu({
         >
           <MenuBtn
             icon={<IconEdit size={14} />}
-            label="Edit Details"
+            label="Rename Project"
             onClick={() => {
               onEdit();
               setIsOpen(false);
@@ -230,7 +230,9 @@ export function ProjectCard({
           <h3 className="text-sm font-medium text-text-primary truncate m-0 group-hover:text-white transition-colors">
             {project.name}
           </h3>
-          <div className={`transition-opacity flex-shrink-0 -mt-1 -mr-1 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <div
+            className={`transition-opacity flex-shrink-0 -mt-1 -mr-1 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          >
             <ProjectMenu
               project={project}
               onDelete={onDelete}

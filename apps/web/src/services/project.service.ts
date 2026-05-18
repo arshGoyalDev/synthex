@@ -3,7 +3,13 @@ import type { Project } from "../types/project";
 
 const startProjectRequests = new Map<
   string,
-  Promise<{ status: string; message: string }>
+  Promise<{
+    status: string;
+    message: string;
+    runCommand?: string | null;
+    previewCommand?: string | null;
+    previewPort?: number | null;
+  }>
 >();
 
 export const getProjectsMe = async (): Promise<Project[]> => {
@@ -33,7 +39,13 @@ export const createProject = async (
 
 export const startProject = async (
   id: string,
-): Promise<{ status: string; message: string }> => {
+): Promise<{
+  status: string;
+  message: string;
+  runCommand?: string | null;
+  previewCommand?: string | null;
+  previewPort?: number | null;
+}> => {
   const inFlightRequest = startProjectRequests.get(id);
   if (inFlightRequest) {
     return inFlightRequest;
@@ -53,4 +65,16 @@ export const startProject = async (
 
 export const stopProject = async (id: string): Promise<void> => {
   await api.post(`/api/projects/${id}/stop`);
+};
+
+export const renameProject = async (
+  id: string,
+  name: string,
+): Promise<Project> => {
+  const { data } = await api.patch(`/api/projects/${id}`, { name });
+  return data.data;
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+  await api.delete(`/api/projects/${id}`);
 };

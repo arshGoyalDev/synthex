@@ -147,7 +147,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   isExplorerOpen: true,
   sidebarTab: "files",
   isTerminalOpen: true,
-  isRightPanelOpen: true,
+  isRightPanelOpen: false,
   bottomPanelTab: "terminal",
   terminalTabs: {
     "term-1": { id: "term-1", title: "Terminal 1" },

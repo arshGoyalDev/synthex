@@ -113,9 +113,7 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
   useEffect(() => {
     if (!xtermRef.current) return;
 
-    const newChunks = outputChunks.filter(
-      (c) => c.seq > writtenSeqRef.current,
-    );
+    const newChunks = outputChunks.filter((c) => c.seq > writtenSeqRef.current);
 
     for (const chunk of newChunks) {
       xtermRef.current.write(chunk.data);
@@ -189,7 +187,6 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
       return (
         <span className="flex items-center gap-1 text-xs text-red-400">
           <AlertCircle size={12} />
-          {errorMessage ?? "Error"}
         </span>
       );
     return null;
@@ -227,9 +224,7 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
               onClick={handleRun}
               disabled={!runCommand}
               title={
-                runCommand
-                  ? `Run: ${runCommand}`
-                  : "No run command configured"
+                runCommand ? `Run: ${runCommand}` : "No run command configured"
               }
             >
               <Play size={12} />
@@ -247,8 +242,17 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
         </div>
       </div>
 
+      {errorMessage ? (
+        <div className="flex-1 flex bg-bg-primary text-red-400 overflow-hidden justify-center items-center px-10">
+          <p>{errorMessage}</p>
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-hidden bg-bg-primary"
+        />
+      )}
       {/* xterm Output */}
-      <div ref={containerRef} className="flex-1 overflow-hidden bg-bg-primary" />
     </div>
   );
 }

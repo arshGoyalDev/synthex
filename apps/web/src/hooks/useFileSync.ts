@@ -35,6 +35,7 @@ export function useFileSync({
   userId,
   containerStatus,
 }: UseFileSyncOptions) {
+  void userId;
   const { socket } = useSocket();
 
   // Store actions – grabbed once, stable references
@@ -163,11 +164,7 @@ export function useFileSync({
     const unsubscribe = useEditorStore.subscribe((state, prevState) => {
       for (const [path, file] of state.files) {
         const prev = prevState.files.get(path);
-        if (
-          file.isDirty &&
-          !file.isSaving &&
-          file.content !== prev?.content
-        ) {
+        if (file.isDirty && !file.isSaving && file.content !== prev?.content) {
           scheduleSave(path);
         }
       }
