@@ -152,6 +152,7 @@ model ExecutionLog {
   cpuUsed     Float?   @map("cpu_used")
   createdAt   DateTime @default(now()) @map("created_at")
   completedAt DateTime? @map("completed_at")
+  command     String?  @db.Text
   isDevServer Boolean @default(false) @map("is_dev_server")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
