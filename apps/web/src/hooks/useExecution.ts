@@ -39,6 +39,8 @@ export interface UseExecutionReturn {
   kill: () => Promise<void>;
   /** Clear all output */
   clear: () => void;
+  /** Send stdin input to the running execution */
+  sendInput: (input: string) => void;
 }
 
 export interface DecodedChunk {
@@ -208,6 +210,15 @@ export function useExecution(
     [projectId, projectName],
   );
 
+  // ─── Send stdin input ────────────────────────────────────────────────
+  const sendInput = useCallback(
+    (input: string) => {
+      if (!socket || !executionId) return;
+      socket.emit("execution:input", { executionId, input });
+    },
+    [socket, executionId],
+  );
+
   // ─── Kill ───────────────────────────────────────────────────────────────
   const kill = useCallback(async () => {
     if (!executionId) return;
@@ -245,5 +256,6 @@ export function useExecution(
     run,
     kill,
     clear,
+    sendInput,
   };
 }

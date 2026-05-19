@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -31,16 +31,33 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
     run,
     kill,
     clear,
+    sendInput,
   } = execution;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const writtenSeqRef = useRef(0);
+  const onDataDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  // Live refs so the permanent onData listener always has current values
+  const isRunningRef = useRef(isRunning);
+  const sendInputRef = useRef(sendInput);
+  // chunks that arrived before xterm was ready to accept them
+  const pendingChunksRef = useRef(outputChunks);
 
-  // ─── Initialize xterm ─────────────────────────────────────────────────
+  // Keep live refs in sync
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+  useEffect(() => { sendInputRef.current = sendInput; }, [sendInput]);
+
+  // keep pendingChunksRef current so initXterm can flush them
   useEffect(() => {
-    if (!containerRef.current) return;
+    pendingChunksRef.current = outputChunks;
+  });
+
+  // ─── Initialize xterm (deferred until container has real dimensions) ───
+  const initXterm = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || xtermRef.current) return;
 
     const rootStyles = getComputedStyle(document.documentElement);
     const css = (variable: string, fallback: string) =>
@@ -53,7 +70,8 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
       theme: {
         background: bgPrimary,
         foreground: textPrimary,
-        cursor: bgPrimary, // invisible cursor
+        cursor: "#4ade80",          // visible green cursor
+        cursorAccent: bgPrimary,
         selectionBackground: "rgba(22, 163, 74, 0.24)",
         black: "#18181b",
         red: "#ef4444",
@@ -77,13 +95,13 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
       lineHeight: 1.57,
       cursorBlink: false,
       cursorStyle: "underline",
-      disableStdin: true,
+      convertEol: true,
       scrollback: 10000,
     });
 
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
-    terminal.open(containerRef.current);
+    terminal.open(el);
     try {
       terminal.loadAddon(new WebglAddon());
     } catch {
@@ -96,27 +114,107 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
 
     requestAnimationFrame(() => fitAddon.fit());
 
-    const observer = new ResizeObserver(() => {
-      requestAnimationFrame(() => fitAddon.fit());
+    // Single permanent onData listener with local echo.
+    // Docker exec runs without a TTY so the program never echoes stdin back —
+    // we echo keystrokes directly into xterm so the user sees what they type.
+    onDataDisposableRef.current = terminal.onData((data) => {
+      if (!isRunningRef.current) return;
+
+      if (data === '\r') {
+        // Enter: echo a newline, send \n to program
+        terminal.write('\r\n');
+        sendInputRef.current('\n');
+      } else if (data === '\x7f') {
+        // Backspace: erase the previous character visually
+        terminal.write('\b \b');
+        sendInputRef.current(data);
+      } else if (data.charCodeAt(0) >= 32) {
+        // Printable character: echo it, send it
+        terminal.write(data);
+        sendInputRef.current(data);
+      } else {
+        // Control chars (Ctrl+C, Ctrl+D, etc.) — send without echo
+        sendInputRef.current(data);
+      }
     });
-    observer.observe(containerRef.current);
+
+    // Flush any chunks that arrived before the terminal was ready
+    for (const chunk of pendingChunksRef.current) {
+      const normalized = chunk.data.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+      terminal.write(normalized);
+      writtenSeqRef.current = chunk.seq;
+    }
+
+    // If execution is already running when xterm finally inits, focus immediately
+    if (isRunningRef.current) {
+      terminal.options.cursorBlink = true;
+      terminal.options.cursorStyle = "block";
+      requestAnimationFrame(() => terminal.focus());
+    }
+  }, []);
+
+  // Wait for the container div to get real dimensions, then init xterm
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    if (el.clientWidth > 0 && el.clientHeight > 0) {
+      initXterm();
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+          observer.disconnect();
+          initXterm();
+          return;
+        }
+      }
+    });
+    observer.observe(el);
 
     return () => {
       observer.disconnect();
-      terminal.dispose();
+      xtermRef.current?.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Focus terminal and update cursor when execution starts/stops
+  useEffect(() => {
+    const terminal = xtermRef.current;
+    if (!terminal) return;
+    if (isRunning) {
+      terminal.options.cursorBlink = true;
+      terminal.options.cursorStyle = "block";
+      terminal.focus();
+    } else {
+      terminal.options.cursorBlink = false;
+      terminal.options.cursorStyle = "underline";
+    }
+  }, [isRunning]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(() => fitAddonRef.current?.fit());
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   // ─── Write new output chunks to xterm ─────────────────────────────────
   useEffect(() => {
     if (!xtermRef.current) return;
-
     const newChunks = outputChunks.filter((c) => c.seq > writtenSeqRef.current);
-
     for (const chunk of newChunks) {
-      xtermRef.current.write(chunk.data);
+      // Normalize line endings: replace any \r\n or bare \n with \r\n
+      const normalized = chunk.data.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+      xtermRef.current.write(normalized);
       writtenSeqRef.current = chunk.seq;
     }
   }, [outputChunks]);
@@ -187,6 +285,7 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
       return (
         <span className="flex items-center gap-1 text-xs text-red-400">
           <AlertCircle size={12} />
+          {errorMessage ?? "Error"}
         </span>
       );
     return null;
@@ -242,17 +341,12 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
         </div>
       </div>
 
-      {errorMessage ? (
-        <div className="flex-1 flex bg-bg-primary text-red-400 overflow-hidden justify-center items-center px-10">
-          <p>{errorMessage}</p>
-        </div>
-      ) : (
-        <div
-          ref={containerRef}
-          className="flex-1 overflow-hidden bg-bg-primary"
-        />
-      )}
       {/* xterm Output */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-hidden bg-bg-primary"
+        onClick={() => xtermRef.current?.focus()}
+      />
     </div>
   );
 }
