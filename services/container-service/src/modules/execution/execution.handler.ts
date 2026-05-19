@@ -2,6 +2,7 @@ import Dockerode from "dockerode";
 import { pubsub, redis } from "../../config/database";
 import { pushToBuffer, newSeq } from "@synthex/database";
 import { createDockerFrameParser } from "../../utils/dockerStream";
+import type { Duplex } from "stream";
 
 interface ExecutionStartData {
   executionId: string;
@@ -17,7 +18,7 @@ class ExecutionHandler {
   private docker = new Dockerode();
   private activeExecs = new Map<
     string,
-    { pid?: number; containerId: string }
+    { pid?: number; containerId: string; stdin?: Duplex }
   >();
 
   async startExecution(data: ExecutionStartData) {
@@ -65,17 +66,18 @@ class ExecutionHandler {
 
     const exec = await container.exec({
       Cmd: ["bash", "-c", command],
+      AttachStdin: true,
       AttachStdout: true,
       AttachStderr: true,
       WorkingDir: workDir,
       Tty: false,
     });
 
-    const stream = await new Promise<NodeJS.ReadableStream>(
+    const stream = await new Promise<Duplex>(
       (resolve, reject) => {
-        exec.start({ hijack: true, stdin: false }, (err, s) => {
+        exec.start({ hijack: true, stdin: true }, (err, s) => {
           if (err) return reject(err);
-          resolve(s!);
+          resolve(s! as Duplex);
         });
       },
     );
@@ -84,7 +86,15 @@ class ExecutionHandler {
     this.activeExecs.set(executionId, {
       containerId: `synthex-${projectId}`,
       pid: startedInfo.Pid,
+      stdin: stream,
     });
+
+    // Forward user input from Redis pubsub into the exec stdin
+    const inputHandler = async (data: { executionId: string; input: string }) => {
+      if (data.executionId !== executionId) return;
+      stream.write(data.input);
+    };
+    await pubsub.subscribe("execution:input", inputHandler);
 
     const startTime = Date.now();
     let timedOut = false;
@@ -98,38 +108,79 @@ class ExecutionHandler {
       }, timeoutMs);
     }
 
-    let outputQueue = Promise.resolve();
+    // ─── Backpressure-safe output processing ─────────────────────────────
+    // Instead of chaining .then() indefinitely (which causes unbounded memory
+    // growth when output is produced faster than Redis can process it), we
+    // pause the raw stream, process one batch, then resume.
+    const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g; // eslint-disable-line no-control-regex
+
+    let processing = false;
+    const pendingFrames: Array<{ type: "stdout" | "stderr"; payload: Buffer }> = [];
+
+    const drainFrames = async () => {
+      if (processing || pendingFrames.length === 0) return;
+      processing = true;
+      (stream as NodeJS.ReadableStream).pause?.();
+
+      while (pendingFrames.length > 0) {
+        // Batch up to 20 frames per Redis round-trip to avoid individual
+        // publish overhead while still streaming output to the frontend promptly.
+        const batch = pendingFrames.splice(0, 20);
+
+        for (const { type, payload } of batch) {
+          const clean = payload.toString("utf8")
+            .replace(ANSI_RE, "")         // strip ANSI escape sequences
+            .replace(/\r\n/g, "\n")        // normalize to \n first
+            .replace(/\n/g, "\r\n");       // then to \r\n for xterm
+
+          if (!clean.trim()) continue;
+
+          const cleanBuf = Buffer.from(clean, "utf8");
+          const seq = await newSeq(executionId);
+          const outputChunk = {
+            seq,
+            data: cleanBuf.toString("base64"),
+            type,
+            timestamp: Date.now(),
+          };
+
+          await pushToBuffer(executionId, outputChunk);
+          await pubsub.publish("execution:output", {
+            executionId,
+            projectId,
+            userId,
+            ...outputChunk,
+          });
+        }
+      }
+
+      processing = false;
+      (stream as NodeJS.ReadableStream).resume?.();
+    };
+
     const parseFrame = createDockerFrameParser(({ type, payload }) => {
-      outputQueue = outputQueue.then(async () => {
-        if (payload.length === 0) return;
-
-        const seq = await newSeq(executionId);
-        const outputChunk = {
-          seq,
-          data: payload.toString("base64"),
-          type,
-          timestamp: Date.now(),
-        };
-
-        await pushToBuffer(executionId, outputChunk);
-        await pubsub.publish("execution:output", {
-          executionId,
-          projectId,
-          userId,
-          ...outputChunk,
-        });
-      });
+      if (payload.length === 0) return;
+      pendingFrames.push({ type, payload });
+      drainFrames().catch(console.error);
     });
 
     await new Promise<void>((resolve) => {
       stream.on("data", parseFrame);
-      stream.on("end", resolve);
-      stream.on("error", resolve); // resolve on error too — exec.inspect gets exit code
+      stream.on("end", async () => {
+        // Drain any remaining frames before resolving
+        while (pendingFrames.length > 0 || processing) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        resolve();
+      });
+      stream.on("error", resolve);
     });
 
-    await outputQueue;
-
     if (timeoutHandle) clearTimeout(timeoutHandle);
+
+    // Unsubscribe stdin input handler and close the stdin pipe
+    await pubsub.unsubscribe("execution:input", inputHandler);
+    stream.end();
 
     const execInfo = await exec.inspect();
     const exitCode = execInfo.ExitCode ?? -1;

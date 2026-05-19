@@ -133,6 +133,13 @@ class SocketService {
         socket.leave(`execution:${executionId}`);
       });
 
+      socket.on("execution:input", async ({ executionId, input }) => {
+        if (!executionId || typeof input !== "string") return;
+        const canSend = await canJoinExecution(userId, executionId);
+        if (!canSend) return;
+        await pubsub.publish("execution:input", { executionId, input });
+      });
+
       socket.on("preview:join", async ({ projectId }) => {
         const canJoin = await canJoinProject(userId, projectId);
         if (!canJoin) {
