@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { getMonacoLanguage } from "../utils/monacoLanguage";
+
 
 export interface FileEntry {
   path: string;
@@ -840,12 +842,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   createNode: (path, name, isFolder) =>
     set((state) => {
       const newFiles = new Map(state.files);
-      const ext = name.split(".").pop()?.toLowerCase() || "plaintext";
       newFiles.set(path, {
         path,
         name,
         isFolder,
-        language: isFolder ? undefined : ext,
+        language: isFolder ? undefined : getMonacoLanguage(name),
         content: isFolder ? undefined : "",
       });
       return { files: newFiles };

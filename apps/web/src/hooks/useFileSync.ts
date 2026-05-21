@@ -4,6 +4,7 @@ import { useSocket } from "../contexts/SocketContext";
 import { useEditorStore } from "../stores/editor.store";
 import type { FileEntry } from "../stores/editor.store";
 import * as storageService from "../services/storage.service";
+import { getMonacoLanguage } from "../utils/monacoLanguage";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -12,11 +13,10 @@ const AUTO_SAVE_DELAY_MS = 1500;
 // ─── Helper: map storage file to editor FileEntry ───────────────────────────
 
 function toFileEntry(sf: storageService.StorageFileEntry): FileEntry {
-  const ext = sf.fileName.split(".").pop()?.toLowerCase() || "plaintext";
   return {
     path: `/${sf.filePath}`,
     name: sf.fileName,
-    language: ext,
+    language: getMonacoLanguage(sf.fileName),
     content: sf.content ?? undefined,
     isFolder: false,
   };

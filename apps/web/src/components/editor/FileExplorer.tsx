@@ -18,6 +18,7 @@ import {
 import { useEditorStore } from "../../stores/editor.store";
 import type { FileEntry } from "../../stores/editor.store";
 import { useFileSyncActions } from "./EditorLayout";
+import { getMonacoLanguage } from "../../utils/monacoLanguage";
 
 /* ——— Tree data types ——— */
 interface TreeNode {
@@ -419,6 +420,19 @@ export function FileExplorer() {
     } else {
       useEditorStore.getState().createNode(newPath, name, isFolder);
     }
+
+    // Open the new file immediately in the active editor group
+    if (!isFolder) {
+      useEditorStore.getState().openFile({
+        path: newPath,
+        name,
+        language: getMonacoLanguage(name),
+        content: "",
+        isFolder: false,
+        isDirty: false,
+      });
+    }
+
     setCreatingNode(null);
   };
 

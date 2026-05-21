@@ -54,6 +54,30 @@ export function CodeEditor({ groupId }: { groupId: string }) {
   };
 
   const handleEditorBeforeMount = (monaco: any) => {
+    // ─── Enable JSX/TSX syntax highlighting ─────────────────────────────
+    const tsCompilerOptions = {
+      jsx: monaco.languages.typescript.JsxEmit.ReactJSX, // parse <JSX> in .tsx/.jsx
+      jsxImportSource: "react",
+      allowJs: true,
+      allowSyntheticDefaultImports: true,
+      esModuleInterop: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      target: monaco.languages.typescript.ScriptTarget.ESNext,
+      lib: ["ESNext", "DOM", "DOM.Iterable"],
+    };
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsCompilerOptions);
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions(tsCompilerOptions);
+
+    // Suppress "Cannot find module" errors for third-party imports
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: false,
+    });
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: false,
+    });
+
     monaco.editor.defineTheme("synthex-dark", {
       base: "vs-dark",
       inherit: true,
