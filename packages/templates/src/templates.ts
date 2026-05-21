@@ -698,7 +698,7 @@ EOF`,
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/main.cpp`,
-    runCommand: "g++ main.cpp -o build/app && ./build/app",
+    runCommand: "mkdir -p build && g++ main.cpp -o build/app && ./build/app",
   },
 
   c: {
@@ -724,7 +724,7 @@ EOF`,
       postSetup: [],
     }),
     entryFile: (projectName) => `${projectName}/main.c`,
-    runCommand: "gcc main.c -o build/app && ./build/app",
+    runCommand: "mkdir -p build && gcc main.c -o build/app && ./build/app",
   },
 
   // ─── Zig ─────────────────────────────────────────────────────────────────
