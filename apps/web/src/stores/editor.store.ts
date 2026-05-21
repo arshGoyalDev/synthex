@@ -118,6 +118,9 @@ interface EditorState {
     replaceQuery: string,
     excludedFiles?: Set<string>,
   ) => void;
+
+  /** Reset all editor state when leaving a project (prevents cross-project file bleed) */
+  resetEditorState: () => void;
 }
 
 const initialFiles = new Map<string, FileEntry>();
@@ -1053,5 +1056,22 @@ export const useEditorStore = create<EditorState>((set) => ({
         }
       }
       return { files: newFiles };
+    }),
+
+  resetEditorState: () =>
+    set({
+      files: new Map(),
+      projectId: null,
+      containerStatus: null,
+      isFilesLoading: false,
+      filesError: null,
+      groups: {
+        main: { id: "main", openTabs: [], activeFile: null, isPreviewMode: false },
+      },
+      grid: [["main"]],
+      activeGroupId: "main",
+      globalSearchQuery: "",
+      activeSearchMatch: null,
+      clipboard: null,
     }),
 }));

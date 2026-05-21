@@ -49,6 +49,7 @@ function ProjectPage() {
   const startRequestedRef = useRef(false);
   const restartAfterStoppedRef = useRef(false);
   const setProjectContext = useEditorStore((s) => s.setProjectContext);
+  const resetEditorState = useEditorStore((s) => s.resetEditorState);
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel);
   const [runtimeConfig, setRuntimeConfig] = useState<{
@@ -82,6 +83,12 @@ function ProjectPage() {
 
     return startData;
   };
+
+  // Reset all editor state when leaving the project so stale file data
+  // from this project's paths can't appear in another project's editor.
+  useEffect(() => {
+    return () => { resetEditorState(); };
+  }, [resetEditorState]);
 
   useEffect(() => {
     let isCancelled = false;
