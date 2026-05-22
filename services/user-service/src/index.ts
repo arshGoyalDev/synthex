@@ -7,6 +7,8 @@ import { env } from "./config";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { userRoutes } from "./modules/user/user.routes";
 
+import passport from "passport";
+
 const app = express();
 const PORT = process.env.USER_SERVICE_PORT || 3001;
 
@@ -18,6 +20,7 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+app.use(passport.initialize());
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

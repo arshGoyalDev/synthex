@@ -24,8 +24,8 @@ passport.use(
       scope: ["user:email"],
     },
     async (
-      accessToken: string,
-      refreshToken: string,
+      _accessToken: string,
+      _refreshToken: string,
       profile: any,
       done: any,
     ) => {
@@ -56,7 +56,10 @@ authRoutes.get(
   "/github/callback",
   passport.authenticate("github", { session: false, failureRedirect: "/" }),
   (req, res) => {
-    const tokens = req.user as any;
+    const tokens = req.user as {
+      accessToken: string;
+      refreshToken: string;
+    };
 
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
