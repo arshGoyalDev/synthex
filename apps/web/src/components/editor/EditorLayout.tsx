@@ -6,8 +6,6 @@ import { PreviewPanel } from "./PreviewPanel";
 import { Pane } from "./Pane";
 import { useEditorStore } from "../../stores/editor.store";
 import { useFileSync } from "../../hooks/useFileSync";
-import { useExecution } from "../../hooks/useExecution";
-import { usePreview } from "../../hooks/usePreview";
 import { Files, Search, TerminalSquare, ChevronUp } from "lucide-react";
 import {
   Panel,
@@ -71,6 +69,8 @@ interface EditorLayoutProps {
   previewCommand: string | null;
   previewPort: number | null;
   templateId: string | null;
+  execution: UseExecutionReturn;
+  preview: UsePreviewReturn;
 }
 
 export function EditorLayout({
@@ -82,14 +82,14 @@ export function EditorLayout({
   previewCommand,
   previewPort,
   templateId,
+  execution,
+  preview,
 }: EditorLayoutProps) {
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const sidebarTab = useEditorStore((s) => s.sidebarTab);
   const setSidebarTab = useEditorStore((s) => s.setSidebarTab);
-  // const bottomPanelTab = useEditorStore((s) => s.bottomPanelTab);
-  // const setBottomPanelTab = useEditorStore((s) => s.setBottomPanelTab);
   const grid = useEditorStore((s) => s.grid);
   const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
   const openNewTerminal = useEditorStore((s) => s.openNewTerminal);
@@ -100,8 +100,6 @@ export function EditorLayout({
 
   // ─── Hooks ────────────────────────────────────────────────────────────
   const fileSyncActions = useFileSync({ projectId, userId, containerStatus });
-  const execution = useExecution(projectId, projectName);
-  const preview = usePreview(projectId, projectName);
 
   // ─── Keyboard shortcuts ─────────────────────────────────────────────────
 

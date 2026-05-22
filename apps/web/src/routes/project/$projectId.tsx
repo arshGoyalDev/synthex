@@ -14,16 +14,15 @@ import { useAuthStore } from "../../stores/auth.store";
 import {
   Loader2,
   Play,
-  Square,
   AlertCircle,
   ChevronLeft,
-  PanelRightClose,
-  PanelRightOpen,
+  Monitor,
 } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
-
 import { FilePalette } from "../../components/editor/FilePalette";
 import { useEditorStore } from "../../stores/editor.store";
+import { useExecution } from "../../hooks/useExecution";
+import { usePreview } from "../../hooks/usePreview";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -52,6 +51,7 @@ function ProjectPage() {
   const resetEditorState = useEditorStore((s) => s.resetEditorState);
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel);
+
   const [runtimeConfig, setRuntimeConfig] = useState<{
     runCommand: string | null;
     previewCommand: string | null;
@@ -66,6 +66,39 @@ function ProjectPage() {
   const runCommand = runtimeConfig.runCommand;
   const previewCommand = runtimeConfig.previewCommand;
   const previewPort = runtimeConfig.previewPort;
+
+  // ─── Execution & Preview hooks (hoisted so navbar button can access state) ──
+  const projectName = project?.folderName || project?.name || "";
+  const execution = useExecution(projectId, projectName);
+  const preview = usePreview(projectId, projectName);
+
+  // Derived state for the Run/Preview button
+  const isPreviewProject = !!previewCommand && !!previewPort;
+  const isExecutionActive =
+    execution.status === "running" || execution.status === "queued";
+  const isPreviewActive =
+    preview.previewStatus === "ready" || preview.previewStatus === "starting";
+  const isPanelActive = isPreviewProject ? isPreviewActive : isExecutionActive;
+
+  /** Open the panel (and start execution/preview if not already running) */
+  const handlePanelButton = async () => {
+    if (isRightPanelOpen) {
+      // Panel is open → just toggle it closed
+      toggleRightPanel();
+      return;
+    }
+    // Panel is closed → open it
+    toggleRightPanel();
+    // Start if not already active
+    if (!isPanelActive) {
+      if (isPreviewProject) {
+        await preview.start(previewCommand!, previewPort!);
+      } else if (runCommand) {
+        execution.clear();
+        await execution.run(runCommand);
+      }
+    }
+  };
 
   const requestStart = async () => {
     startRequestedRef.current = true;
@@ -301,29 +334,45 @@ function ProjectPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Output / Preview Right Pane Toggle */}
+          {/* Smart Run / Preview button */}
           {containerStatus === "ready" &&
             (!!runCommand || !!previewCommand) && (
               <button
-                className="flex items-center justify-center w-7 h-7 rounded-md border-none cursor-pointer transition-all duration-150 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary mr-2"
-                onClick={toggleRightPanel}
+                onClick={handlePanelButton}
                 title={
-                  isRightPanelOpen ? "Close Side Panel" : "Open Side Panel"
+                  isRightPanelOpen
+                    ? `Hide ${isPreviewProject ? "Preview" : "Output"}`
+                    : isPanelActive
+                      ? `Show ${isPreviewProject ? "Preview" : "Output"}`
+                      : `${isPreviewProject ? "Start Preview" : "Run"}`
                 }
+                className={`flex items-center gap-1.5 h-[26px] px-3 rounded-md text-xs font-semibold transition-all duration-150 border ${
+                  isRightPanelOpen
+                    ? "bg-accent-primary text-white border-accent-primary shadow-[0_0_10px_rgba(22,163,74,0.3)]"
+                    : isPanelActive
+                      ? "bg-accent-primary/15 text-accent-primary border-accent-primary/30 hover:bg-accent-primary/25"
+                      : "bg-accent-primary/10 text-accent-primary border-accent-primary/20 hover:bg-accent-primary/20"
+                }`}
               >
-                {isRightPanelOpen ? (
-                  <PanelRightClose size={16} />
-                ) : (
-                  <PanelRightOpen size={16} />
+                {/* Running indicator dot */}
+                {isPanelActive && !isRightPanelOpen && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse shrink-0" />
                 )}
+                {/* Icon */}
+                {isPreviewProject ? (
+                  <Monitor size={12} />
+                ) : (
+                  <Play size={11} />
+                )}
+                <span>{isPreviewProject ? "Preview" : "Run"}</span>
               </button>
             )}
 
-          {/* The Output and Preview sidebars now handle their own execution lifecycle */}
-
-          <span className="text-xs text-text-tertiary mr-2 hidden sm:inline">
+          <span className="text-xs text-text-tertiary hidden sm:inline">
             {isConnected ? "● Connected" : "○ Disconnected"}
           </span>
+
+          {/* Container Start button (when not ready) */}
           {(containerStatus === "stopped" ||
             containerStatus === "timeout" ||
             containerStatus === "error" ||
@@ -333,14 +382,6 @@ function ProjectPage() {
               className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
             >
               <Play size={13} /> Start
-            </button>
-          )}
-          {containerStatus === "ready" && (
-            <button
-              onClick={handleStop}
-              className="flex items-center gap-1.5 py-1 px-3 text-xs font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-status-error hover:bg-red-600"
-            >
-              <Square size={13} /> Stop
             </button>
           )}
         </div>
@@ -359,6 +400,8 @@ function ProjectPage() {
               previewCommand={previewCommand}
               previewPort={previewPort}
               templateId={templateId}
+              execution={execution}
+              preview={preview}
             />
             <FilePalette />
           </>
