@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 function Navbar() {
   return (
-    <nav className="sticky top-0 z-50 bg-bg-primary/80 backdrop-blur-lg border-b border-border-subtle">
+    <nav className="sticky top-0 z-50 bg-bg-primary pt-2">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5 no-underline">
           <div className="w-8 h-8 rounded-lg bg-accent-primary flex items-center justify-center">
@@ -44,15 +44,15 @@ function Navbar() {
         <div className="flex items-center gap-3">
           <Link
             to="/auth/login"
-            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors no-underline px-4 py-2"
+            className="text-sm font-medium text-text-primary hover:text-text-primary transition-colors no-underline px-4 py-2"
           >
             Sign In
           </Link>
           <Link
             to="/auth/signup"
-            className="text-sm font-semibold text-white no-underline px-5 py-2.5 rounded-lg bg-accent-primary hover:bg-accent-dark transition-colors"
+            className="text-sm font-semibold text-text-primary no-underline px-5 py-2.5"
           >
-            Get Started
+            Start Building
           </Link>
         </div>
       </div>
@@ -66,55 +66,46 @@ function HeroSection() {
       <div className="absolute top-20 right-0 w-[500px] h-[500px] rounded-full bg-accent-light/50 blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full bg-accent-light/30 blur-[80px] pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 grid lg:grid-cols-2 gap-16 items-center relative">
-        <div className="animate-slide-up">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent-light text-accent-dark text-xs font-semibold mb-8 tracking-wide uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-primary" />
-            Now in Public Beta
-          </div>
+      <div className="flex flex-col text-center items-center justify-center w-full">
+        <h1 className="text-5xl sm:text-6xl font-extrabold leading-[1.08] tracking-tight text-text-primary mb-6">
+          Code. <span className="text-accent-primary">Build.</span> Test.
+        </h1>
 
-          <h1 className="text-5xl sm:text-6xl font-extrabold leading-[1.08] tracking-tight text-text-primary mb-6">
-            Code. Build.
-            <br />
-            <span className="gradient-text">Deploy.</span>
-          </h1>
+        <p className="text-lg text-text-secondary leading-relaxed max-w-lg mb-10">
+          A lightning-fast cloud IDE that lets you write, run, and ship code
+          from anywhere. No setup required — just open and start building.
+        </p>
 
-          <p className="text-lg text-text-secondary leading-relaxed max-w-lg mb-10">
-            A lightning-fast cloud IDE that lets you write, run, and ship code
-            from anywhere. No setup required — just open and start building.
-          </p>
-
-          <div className="flex flex-wrap gap-4">
-            <Link
-              to="/auth/signup"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-accent-primary text-white font-semibold text-sm no-underline hover:bg-accent-dark transition-colors shadow-sm"
+        <div className="flex flex-wrap gap-4 pb-10">
+          <Link
+            to="/auth/signup"
+            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-accent-primary text-white font-semibold text-sm no-underline hover:bg-accent-dark transition-colors shadow-sm"
+          >
+            Start Building
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              Start Coding — Free
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </Link>
-            <a
-              href="#features"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg border border-border-default text-text-secondary font-medium text-sm no-underline hover:bg-bg-secondary hover:text-text-primary transition-all"
-            >
-              Learn More
-            </a>
-          </div>
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </Link>
+          <a
+            href="#features"
+            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg border border-border-default text-text-secondary font-medium text-sm no-underline hover:bg-bg-secondary hover:text-text-primary transition-all"
+          >
+            Learn More
+          </a>
         </div>
 
         <div
-          className="animate-fade-in hidden lg:block"
+          className="animate-fade-in hidden lg:block w-full max-w-[800px] mx-10"
           style={{ animationDelay: "0.2s" }}
         >
           <EditorMockup />
@@ -156,11 +147,12 @@ function EditorMockup() {
           </CodeLine>
           <CodeLine n={4}>{""}</CodeLine>
           <CodeLine n={5}>
-            <Var>app</Var>.<Fn>get</Fn>(<Str>"/"</Str>, (<Var>req</Var>,{" "}
-            <Var>res</Var>) {"=> {"})
+            <Var>app</Var>.<Fn>get</Fn>
+            {"("}
+            <Str>"/"</Str>, (<Var>req</Var>, <Var>res</Var>) {"=> {"}
           </CodeLine>
           <CodeLine n={6}>
-            {"  "}
+            <span className="opacity-0">{"djkd"}</span>
             <Var>res</Var>.<Fn>json</Fn>({"{"} <Var>status</Var>:{" "}
             <Str>"running"</Str> {"}"});
           </CodeLine>
@@ -170,7 +162,7 @@ function EditorMockup() {
             <Var>app</Var>.<Fn>listen</Fn>(<Num>3000</Num>);
           </CodeLine>
           <CodeLine n={10}>
-            <Cmt>{"// ✨ Live at my-app.synthex.dev"}</Cmt>
+            <Cmt>{"// ✨ Live at syntex.com/project/${projectId}/preview"}</Cmt>
           </CodeLine>
         </div>
 
@@ -248,14 +240,12 @@ const FEATURES = [
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        <rect x="2" y="7" width="20" height="14" rx="2" />
+        <path d="M17 2v4M12 2v4M7 2v4M2 11h20" />
       </svg>
     ),
-    title: "Live Collaboration",
-    desc: "Code together in real time with multiplayer cursors, shared terminals, and inline comments.",
+    title: "Execute, Preview",
+    desc: "Run code with one click and get a live preview URL to share instantly. No more local setup headaches.",
   },
   {
     icon: (
@@ -299,7 +289,7 @@ const FEATURES = [
 
 function FeaturesSection() {
   return (
-    <section id="features" className="py-24 lg:py-32 bg-bg-secondary">
+    <section id="features" className="py-24 lg:py-32">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="text-center mb-16">
           <p className="text-sm font-semibold text-accent-primary uppercase tracking-widest mb-3">
@@ -318,7 +308,7 @@ function FeaturesSection() {
           {FEATURES.map((f, i) => (
             <div
               key={i}
-              className="group bg-bg-card rounded-xl p-7 border border-border-subtle hover:border-accent-primary/30 hover:shadow-lg hover:shadow-accent-glow transition-all duration-300"
+              className="group bg-bg-card rounded-xl p-7 border border-border-subtle hover:border-accent-primary/30 transition-all duration-300"
             >
               <div className="w-10 h-10 rounded-lg bg-accent-light text-accent-primary flex items-center justify-center mb-5 group-hover:bg-accent-primary group-hover:text-white transition-colors duration-300">
                 {f.icon}
@@ -350,8 +340,8 @@ const STEPS = [
   },
   {
     step: "03",
-    title: "Deploy Instantly",
-    desc: "Hit deploy to get a live URL — automatic builds, containers, and CDN included.",
+    title: "Test & Preview",
+    desc: "Run your app with one click and get a live preview URL to share with anyone.",
   },
 ];
 
@@ -390,12 +380,11 @@ function HowItWorksSection() {
 
 function CtaSection() {
   return (
-    <section className="py-24 lg:py-32">
+    <section className="relative py-24 lg:py-32 overflow-hidden">
+      <div className="absolute top-0 right-0 w-200 h-200 rounded-full bg-accent-primary/10 blur-[80px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-72 h-72 rounded-full bg-accent-secondary/10 blur-[60px] pointer-events-none" />
       <div className="max-w-4xl mx-auto px-6 lg:px-8">
         <div className="bg-bg-dark rounded-2xl p-12 sm:p-16 text-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-accent-primary/10 blur-[80px] pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-60 h-60 rounded-full bg-accent-secondary/10 blur-[60px] pointer-events-none" />
-
           <div className="relative">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-4">
               Ready to start building?
@@ -432,7 +421,7 @@ function CtaSection() {
 
 function Footer() {
   return (
-    <footer className="border-t border-border-subtle py-8">
+    <footer className="py-8">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md bg-accent-primary flex items-center justify-center">
@@ -486,16 +475,20 @@ export function LandingPage() {
   return (
     <div className="min-h-screen bg-bg-primary">
       <Navbar />
-      <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <CtaSection />
+      <div className="mx-10 xl:mx-20 border-border-subtle border-2 rounded-2xl my-2 mb-8">
+        <HeroSection />
+      </div>
+      <div className="mx-10 xl:mx-20 border-transparent border-2 bg-accent-glow/60 rounded-2xl my-2 mb-8">
+        <FeaturesSection />
+      </div>
+      <div className="mx-10 xl:mx-20 border-transparent border-2 bg-bg-card-hover/60 rounded-2xl my-2 mb-8">
+        <HowItWorksSection />
+      </div>
+      <div className="mx-10 xl:mx-20 border-border-subtle border-2 rounded-2xl my-2 mb-10">
+        <CtaSection />
+      </div>
+
       <Footer />
     </div>
   );
 }
-
-/* ══════════════════════════════════════════════
-   ██  DASHBOARD (authenticated)
-   ══════════════════════════════════════════════ */
-

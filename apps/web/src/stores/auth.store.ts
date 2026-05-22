@@ -20,6 +20,8 @@ interface AuthState {
   fetchMe: () => Promise<void>;
   checkAuth: () => Promise<void>;
   clearError: () => void;
+  /** Called after an OAuth redirect — stores the access token and fetches the profile */
+  loginWithOAuthToken: (accessToken: string) => Promise<void>;
 }
 
 /** Sync Zustand state and the shared tokenRef in one place */
@@ -129,4 +131,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  loginWithOAuthToken: async (accessToken) => {
+    set({ isLoading: true, error: null });
+    try {
+      applyToken(set, accessToken);
+      await get().fetchMe();
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error ??
+        err.response?.data?.message ??
+        err.message ??
+        "OAuth login failed";
+      set({ isLoading: false, error: message });
+      throw err;
+    } finally {
+      set({ isLoading: false, isAuthChecking: false });
+    }
+  },
 }));
