@@ -34,6 +34,23 @@ class ProjectController {
     }
   }
 
+  async getProjectEnvVars(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const projectId = req.params.id;
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+      if (!userId) throw new AppError("Unauthorized", 401);
+
+      const result = await projectService.getProjectEnvVars(projectId, userId);
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async renameProject(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.headers["x-user-id"] as string;

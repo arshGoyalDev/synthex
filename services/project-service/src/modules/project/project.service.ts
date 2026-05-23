@@ -25,6 +25,18 @@ class ProjectService {
     return this.withRuntimeConfig(project);
   }
 
+  async getProjectEnvVars(projectId: string, userId: string) {
+    if (!projectId) throw new AppError("Project ID is required", 400);
+    if (!userId) throw new AppError("User ID is required", 400);
+
+    const project = await db.project.findFirst({ where: { id: projectId, userId } });
+    if (!project) throw new AppError("Project not found", 404);
+
+    return {
+      envVars: (project.envVars as Record<string, string> | null) ?? null,
+    };
+  }
+
   async renameProject(id: string, userId: string, name: string) {
     if (!id) throw new AppError("Project ID is required", 400);
     if (!name) throw new AppError("Project name is required", 400);
@@ -202,6 +214,16 @@ class ProjectService {
   }
 
   private withRuntimeConfig(project: any) {
+    // Imported projects use their stored runtime config directly
+    if (project.importSource) {
+      return {
+        ...project,
+        runCommand: project.runCommand ?? null,
+        previewCommand: project.previewCommand ?? null,
+        previewPort: project.previewPort ?? null,
+      };
+    }
+
     const runtimeConfig = this.getRuntimeConfig(project);
     return {
       ...project,
