@@ -8,6 +8,7 @@ const startExecutionSchema = z.object({
   isDevServer: z.boolean().default(false),
   port: z.number().optional(), // required if isDevServer
   templateId: z.string().optional(), // for base path injection
+  envVars: z.record(z.string()).optional(),
 });
 
 const startPreviewSchema = z.object({
@@ -16,6 +17,7 @@ const startPreviewSchema = z.object({
   command: z.string().min(1),
   port: z.number(),
   templateId: z.string().optional(),
+  envVars: z.record(z.string()).optional(),
 });
 
 type StartExecutionDto = z.infer<typeof startExecutionSchema>;

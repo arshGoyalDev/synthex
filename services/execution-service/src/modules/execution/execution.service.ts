@@ -60,6 +60,7 @@ class ExecutionService {
       workDir,
       timeoutMs: 30_000,
       isDevServer: false,
+      envVars: dto.envVars ?? null,
     });
 
     return { executionId, status: "queued" };
@@ -98,7 +99,12 @@ class ExecutionService {
 
     // build base path and env vars for template
     const basePath = `/preview/${dto.projectId}`;
-    const envVars = this.buildEnvVars(dto.templateId, dto.projectId, dto.port);
+    const templateEnvVars = this.buildEnvVars(
+      dto.templateId,
+      dto.projectId,
+      dto.port,
+    );
+    const envVars = { ...templateEnvVars, ...(dto.envVars ?? {}) };
     const previewToken = randomBytes(32).toString("hex");
 
     await redis
