@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthService } from "./auth.service";
+import { env } from "../../config";
 import { loginSchema, signupSchema } from "./auth.schema";
 
 const authService = new AuthService();
@@ -63,6 +64,34 @@ class AuthController {
 
       res.clearCookie("refreshToken");
       res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getGithubToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const internalToken = req.headers["x-internal-token"] as string | undefined;
+      if (!internalToken || internalToken !== env.INTERNAL_API_KEY) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const token = await authService.getGithubToken(userId);
+      if (!token) {
+        return res.status(404).json({ message: "GitHub token not found" });
+      }
+
+      res.json({
+        data: {
+          accessToken: token.accessToken,
+          tokenScope: token.tokenScope ?? null,
+        },
+      });
     } catch (error) {
       next(error);
     }

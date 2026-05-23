@@ -7,13 +7,17 @@ import { AuthService } from "./auth.service";
 
 const authRoutes: Router = Router();
 
-const authService = new AuthService();
 const controller = new AuthController();
+const authService = new AuthService();
 
 authRoutes.post("/signup", controller.signup.bind(controller));
 authRoutes.post("/login", controller.login.bind(controller));
 authRoutes.post("/refresh", controller.refresh.bind(controller));
 authRoutes.post("/logout", controller.logout.bind(controller));
+authRoutes.get(
+  "/internal/github/token",
+  controller.getGithubToken.bind(controller),
+);
 
 passport.use(
   new GithubStrategy(
@@ -21,10 +25,10 @@ passport.use(
       clientID: env.GITHUB_CLIENT_ID!,
       clientSecret: env.GITHUB_CLIENT_SECRET!,
       callbackURL: env.GITHUB_CALLBACK_URL,
-      scope: ["user:email"],
+      scope: ["user:email", "repo"],
     },
     async (
-      _accessToken: string,
+      accessToken: string,
       _refreshToken: string,
       profile: any,
       done: any,
@@ -40,6 +44,8 @@ passport.use(
             email,
             avatarUrl: profile.photos?.[0].value,
           },
+          accessToken,
+          (profile._json?.scope as string | undefined) ?? "user:email,repo",
         );
 
         done(null, tokens);

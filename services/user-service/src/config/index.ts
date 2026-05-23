@@ -11,6 +11,9 @@ const envSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string(),
   GITHUB_CALLBACK_URL: z.string(),
 
+  GITHUB_TOKEN_SECRET: z.string(),
+  INTERNAL_API_KEY: z.string(),
+
   ORIGIN: z.string().default("http://localhost:5173"),
 });
 

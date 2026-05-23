@@ -51,10 +51,19 @@ class AuthService {
     provider: string,
     providerId: string,
     profile: { username: string; email: string; avatarUrl?: string },
+    accessToken?: string,
+    tokenScope?: string,
   ) {
     let oauthAccount = await this.repo.findOAuthAccount(provider, providerId);
 
     if (oauthAccount) {
+      if (accessToken) {
+        await this.repo.updateOAuthAccountToken(
+          oauthAccount.id,
+          accessToken,
+          tokenScope,
+        );
+      }
       return this.generateTokenPair(oauthAccount.user);
     }
 
@@ -69,9 +78,19 @@ class AuthService {
       });
     }
 
-    await this.repo.createOAuthAccount(user.id, provider, providerId);
+    await this.repo.createOAuthAccount(
+      user.id,
+      provider,
+      providerId,
+      accessToken,
+      tokenScope,
+    );
 
     return this.generateTokenPair(user);
+  }
+
+  async getGithubToken(userId: string) {
+    return this.repo.getOAuthTokenForUser(userId, "github");
   }
 
   async refresh(refreshToken: string) {
