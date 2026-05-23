@@ -181,6 +181,161 @@ class ContainerService {
     };
   }
 
+  // ── GitHub import ──────────────────────────────────────────────────────────
+
+  async setupGithubImport(
+    projectId: string,
+    projectName: string,
+    userId: string,
+    opts: {
+      repoUrl: string;
+      repoBranch: string;
+      installCommand: string | null;
+      languages: string[];
+    },
+  ) {
+    const { repoUrl, repoBranch, installCommand, languages } = opts;
+
+    // Pick language image (default to base)
+    const primaryLang = languages[0];
+    const langConfig = primaryLang ? LANGUAGES[primaryLang] : null;
+    const image = langConfig?.baseImage ?? this.DEFAULT_IMAGE;
+
+    // Create the container
+    let container: Dockerode.Container;
+    try {
+      container = this.docker.getContainer(`synthex-${projectId}`);
+      const info = await container.inspect();
+      if (!info.State.Running) await container.start();
+    } catch (err: any) {
+      if (err.statusCode !== 404) throw err;
+
+      container = await this.docker.createContainer({
+        Image: image,
+        name: `synthex-${projectId}`,
+        WorkingDir: `/workspace/${projectName}`,
+        Tty: true,
+        OpenStdin: true,
+        Labels: { projectId, userId, projectName },
+        HostConfig: {
+          Memory: 512 * 1024 * 1024,
+          CpuPeriod: 100000,
+          CpuQuota: 50000,
+        },
+      });
+      await container.start();
+    }
+
+    // git clone
+    console.log(`[container-service] Cloning ${repoUrl} into ${projectName}`);
+    const cloneCommands = [
+      `mkdir -p /workspace`,
+      `git clone --depth 1 --branch ${repoBranch} ${repoUrl} /workspace/${projectName}`,
+    ];
+    await this.runSetupCommands(container, cloneCommands, projectId);
+
+    // install dependencies
+    if (installCommand) {
+      console.log(`[container-service] Running install: ${installCommand}`);
+      await this.runSetupCommands(
+        container,
+        [`cd /workspace/${projectName} && ${installCommand}`],
+        projectId,
+      );
+    }
+
+    await this.takeSnapshot(container, projectId, userId, projectName);
+
+    return { containerId: container.id };
+  }
+
+  // ── ZIP import ─────────────────────────────────────────────────────────────
+
+  async setupZipImport(
+    projectId: string,
+    projectName: string,
+    userId: string,
+    opts: {
+      zipStream: NodeJS.ReadableStream;
+      installCommand: string | null;
+      languages: string[];
+    },
+  ) {
+    const { zipStream, installCommand, languages } = opts;
+
+    const primaryLang = languages[0];
+    const langConfig = primaryLang ? LANGUAGES[primaryLang] : null;
+    const image = langConfig?.baseImage ?? this.DEFAULT_IMAGE;
+
+    // Create the container
+    let container: Dockerode.Container;
+    try {
+      container = this.docker.getContainer(`synthex-${projectId}`);
+      const info = await container.inspect();
+      if (!info.State.Running) await container.start();
+    } catch (err: any) {
+      if (err.statusCode !== 404) throw err;
+
+      container = await this.docker.createContainer({
+        Image: image,
+        name: `synthex-${projectId}`,
+        WorkingDir: `/workspace/${projectName}`,
+        Tty: true,
+        OpenStdin: true,
+        Labels: { projectId, userId, projectName },
+        HostConfig: {
+          Memory: 512 * 1024 * 1024,
+          CpuPeriod: 100000,
+          CpuQuota: 50000,
+        },
+      });
+      await container.start();
+    }
+
+    // Create workspace directory
+    await this.runSetupCommands(container, [`mkdir -p /workspace/${projectName}`], projectId);
+
+    // Extract zip into /workspace (Docker's putArchive expects a tar stream,
+    // but for .zip we use unzip inside the container via stdin piping)
+    // Strategy: stream the zip to MinIO temp, then exec unzip inside container
+    console.log(`[container-service] Extracting ZIP for ${projectName}`);
+
+    // Write zip to a temp path inside container via exec + base64
+    // This is reliable cross-platform without needing tar conversion
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      zipStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      zipStream.on("end", resolve);
+      zipStream.on("error", reject);
+    });
+    const zipBuffer = Buffer.concat(chunks);
+    const b64 = zipBuffer.toString("base64");
+
+    // Write zip to container then unzip
+    const extractCmds = [
+      `mkdir -p /workspace/${projectName}`,
+      `echo '${b64}' | base64 -d > /tmp/import.zip`,
+      `unzip -q -o /tmp/import.zip -d /workspace/${projectName} && rm /tmp/import.zip`,
+      // Strip single top-level folder if present (common zip convention)
+      `cd /workspace/${projectName} && if [ $(ls -1 | wc -l) -eq 1 ] && [ -d "$(ls -1)" ]; then mv "$(ls -1)"/* . 2>/dev/null; mv "$(ls -1)"/.[!.]* . 2>/dev/null; rmdir "$(ls -d */)" 2>/dev/null; fi`,
+    ];
+    await this.runSetupCommands(container, extractCmds, projectId);
+
+    // Run install
+    if (installCommand) {
+      console.log(`[container-service] Running install: ${installCommand}`);
+      await this.runSetupCommands(
+        container,
+        [`cd /workspace/${projectName} && ${installCommand}`],
+        projectId,
+      );
+    }
+
+    await this.takeSnapshot(container, projectId, userId, projectName);
+
+    return { containerId: container.id };
+  }
+
   async stopContainer(projectId: string, userId: string, projectName: string) {
     try {
       const container = this.docker.getContainer(`synthex-${projectId}`);

@@ -2,12 +2,14 @@ import { ContainerService } from "../modules/container/container.service";
 import { ExecutionHandler } from "../modules/execution/execution.handler";
 import { PreviewHandler } from "../modules/preview/preview.handler";
 
-import { pubsub, redis } from "./database";
+import { pubsub, redis, minioClient, FILES_BUCKET } from "./database";
 import { LANGUAGES, TEMPLATES, PREVIEW_TEMPLATE_IDS } from "@synthex/templates";
 
 const containerService = new ContainerService();
 const executionHandler = new ExecutionHandler();
 const previewHandler = new PreviewHandler();
+
+const ZIP_BUCKET = "project-zips";
 
 interface ProjectData {
   projectId: string;
@@ -16,6 +18,16 @@ interface ProjectData {
   type: "raw" | "blank" | "template";
   template: null | string;
   languages: null | string[];
+  // import fields
+  importSource?: "github" | "zip" | null;
+  repoUrl?: string | null;
+  repoBranch?: string | null;
+  zipKey?: string | null;
+  installCommand?: string | null;
+  runCommand?: string | null;
+  previewCommand?: string | null;
+  previewPort?: number | null;
+  envVars?: Record<string, string> | null;
 }
 
 const registerSubscribers = async () => {
@@ -203,7 +215,7 @@ const registerSubscribers = async () => {
 };
 
 const startContainerSetup = async (projectData: ProjectData) => {
-  const { projectId, userId, projectName, languages, template } = projectData;
+  const { projectId, userId, projectName, languages, template, importSource } = projectData;
   try {
     await pubsub.publish("container:status", {
       projectId,
@@ -212,15 +224,51 @@ const startContainerSetup = async (projectData: ProjectData) => {
       message: "Setting up your environment...",
     });
 
-    await containerService.startProjectContainer(
-      projectId,
-      projectName,
-      userId,
-      languages ?? undefined,
-      template ?? undefined,
-    );
+    if (importSource === "github") {
+      // ── GitHub import ────────────────────────────────────────────────────
+      await containerService.setupGithubImport(
+        projectId,
+        projectName,
+        userId,
+        {
+          repoUrl: projectData.repoUrl!,
+          repoBranch: projectData.repoBranch ?? "main",
+          installCommand: projectData.installCommand ?? null,
+          languages: projectData.languages ?? [],
+        },
+      );
+    } else if (importSource === "zip") {
+      // ── ZIP import ───────────────────────────────────────────────────────
+      const zipStream = await minioClient.getObject(ZIP_BUCKET, projectData.zipKey!);
+      await containerService.setupZipImport(
+        projectId,
+        projectName,
+        userId,
+        {
+          zipStream,
+          installCommand: projectData.installCommand ?? null,
+          languages: projectData.languages ?? [],
+        },
+      );
+    } else {
+      // ── Normal template / blank / raw ────────────────────────────────────
+      await containerService.startProjectContainer(
+        projectId,
+        projectName,
+        userId,
+        languages ?? undefined,
+        template ?? undefined,
+      );
+    }
 
-    const runtimeConfig = getRuntimeConfig(template, languages);
+    // Runtime config: stored values take priority for imports, template-derived for normal
+    const runtimeConfig = importSource
+      ? {
+          runCommand: projectData.runCommand ?? null,
+          previewCommand: projectData.previewCommand ?? null,
+          previewPort: projectData.previewPort ?? null,
+        }
+      : getRuntimeConfig(template, languages);
 
     await redis.del(`container:timeout:${projectId}`);
 

@@ -12,6 +12,7 @@ interface ExecutionStartData {
   workDir: string;
   timeoutMs: number;
   isDevServer: boolean;
+  envVars?: Record<string, string> | null;
 }
 
 class ExecutionHandler {
@@ -30,6 +31,7 @@ class ExecutionHandler {
       workDir,
       timeoutMs,
       isDevServer,
+      envVars,
     } = data;
 
     await redis.set(
@@ -66,6 +68,9 @@ class ExecutionHandler {
 
     const exec = await container.exec({
       Cmd: ["bash", "-c", command],
+      Env: envVars
+        ? Object.entries(envVars).map(([key, value]) => `${key}=${value}`)
+        : undefined,
       AttachStdin: true,
       AttachStdout: true,
       AttachStderr: true,
