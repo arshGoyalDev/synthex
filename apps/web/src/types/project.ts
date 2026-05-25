@@ -19,6 +19,7 @@ export interface Project {
   runCommand?: string | null;
   previewCommand?: string | null;
   previewPort?: number | null;
+  envVars?: Record<string, string> | null;
   createdAt: string;
   updatedAt: string;
 }

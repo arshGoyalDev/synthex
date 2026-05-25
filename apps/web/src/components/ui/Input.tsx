@@ -11,7 +11,7 @@ export function Input({ label, icon, type = "text", className = "", ...props }: 
   const isPassword = type === "password";
 
   return (
-    <div className={className}>
+    <div className={className} >
       <label
         htmlFor={props.id}
         className="block text-sm font-medium text-text-primary mb-1.5"
@@ -26,7 +26,7 @@ export function Input({ label, icon, type = "text", className = "", ...props }: 
         )}
         <input
           type={isPassword ? (showPassword ? "text" : "password") : type}
-          className={`w-full py-3 rounded-lg bg-bg-primary border border-border-default text-text-primary placeholder-text-tertiary text-sm focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-glow transition-all ${
+          className={`w-full pt-2 pb-2.5 rounded-lg bg-bg-primary border border-border-default text-text-primary placeholder-text-tertiary text-sm focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-glow transition-all ${
             icon ? "pl-10 pr-4" : "px-4"
           } ${isPassword ? "pr-11" : ""}`}
           {...props}

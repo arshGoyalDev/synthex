@@ -47,7 +47,7 @@ export async function startExecution(
   projectId: string,
   projectName: string,
   command: string,
-  opts?: { workDir?: string },
+  opts?: { workDir?: string; envVars?: Record<string, string> },
 ): Promise<ExecutionResult> {
   const { data } = await api.post(EXEC_BASE, {
     projectId,
@@ -55,6 +55,7 @@ export async function startExecution(
     command,
     workDir: opts?.workDir,
     isDevServer: false,
+    envVars: opts?.envVars,
   });
   return data.data;
 }
@@ -69,6 +70,7 @@ export async function startPreview(
   command: string,
   port: number,
   templateId?: string,
+  envVars?: Record<string, string>,
 ): Promise<PreviewResult> {
   const { data } = await api.post(`${EXEC_BASE}/preview`, {
     projectId,
@@ -76,6 +78,7 @@ export async function startPreview(
     command,
     port,
     templateId,
+    envVars,
   });
   return data.data;
 }

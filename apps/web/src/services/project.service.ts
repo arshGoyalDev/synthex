@@ -22,6 +22,13 @@ export const getProjectById = async (id: string): Promise<Project> => {
   return data.data;
 };
 
+export const getProjectEnvVars = async (
+  id: string,
+): Promise<{ envVars: Record<string, string> | null }> => {
+  const { data } = await api.get(`/api/projects/${id}/env`);
+  return data.data;
+};
+
 export interface CreateProjectPayload {
   name: string;
   description?: string;

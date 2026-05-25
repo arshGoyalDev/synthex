@@ -5,6 +5,7 @@ import axios from "axios";
 import { useSocket } from "../../contexts/SocketContext";
 import {
   getProjectById,
+  getProjectEnvVars,
   startProject,
   stopProject,
 } from "../../services/project.service";
@@ -62,6 +63,10 @@ function ProjectPage() {
     previewPort: project?.previewPort ?? null,
   }));
 
+  const [envVars, setEnvVars] = useState<Record<string, string> | null>(
+    project?.envVars ?? null,
+  );
+
   const templateId = project?.template ?? null;
   const runCommand = runtimeConfig.runCommand;
   const previewCommand = runtimeConfig.previewCommand;
@@ -92,10 +97,15 @@ function ProjectPage() {
     // Start if not already active
     if (!isPanelActive) {
       if (isPreviewProject) {
-        await preview.start(previewCommand!, previewPort!);
+        await preview.start(
+          previewCommand!,
+          previewPort!,
+          templateId ?? undefined,
+          envVars ?? undefined,
+        );
       } else if (runCommand) {
         execution.clear();
-        await execution.run(runCommand);
+        await execution.run(runCommand, { envVars: envVars ?? undefined });
       }
     }
   };
@@ -144,6 +154,18 @@ function ProjectPage() {
             previewCommand: p.previewCommand ?? null,
             previewPort: p.previewPort ?? null,
           });
+          if (p.envVars !== undefined) {
+            setEnvVars(p.envVars ?? null);
+          } else {
+            try {
+              const envResult = await getProjectEnvVars(projectId);
+              if (!isCancelled) {
+                setEnvVars(envResult.envVars ?? null);
+              }
+            } catch (err) {
+              console.error("Failed to fetch project env vars", err);
+            }
+          }
           const initialStatus = p.containerStatus || "unknown";
           setContainerStatus(initialStatus);
           currentStatusRef.current = initialStatus;

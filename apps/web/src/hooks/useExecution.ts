@@ -34,7 +34,10 @@ export interface UseExecutionReturn {
   /** Error message if something went wrong */
   errorMessage: string | null;
   /** Start a new execution */
-  run: (command: string, opts?: { workDir?: string }) => Promise<void>;
+  run: (
+    command: string,
+    opts?: { workDir?: string; envVars?: Record<string, string> },
+  ) => Promise<void>;
   /** Kill the current execution */
   kill: () => Promise<void>;
   /** Clear all output */
@@ -163,7 +166,7 @@ export function useExecution(
 
   // ─── Run ────────────────────────────────────────────────────────────────
   const run = useCallback(
-    async (command: string, opts?: { workDir?: string }) => {
+    async (command: string, opts?: { workDir?: string; envVars?: Record<string, string> }) => {
       if (runningRef.current) return;
 
       // Reset state

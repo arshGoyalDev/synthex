@@ -28,6 +28,7 @@ export interface UsePreviewReturn {
     command: string,
     port: number,
     templateId?: string,
+    envVars?: Record<string, string>,
   ) => Promise<void>;
   /** Stop the dev server preview */
   stop: () => Promise<void>;
@@ -105,7 +106,12 @@ export function usePreview(
 
   // ─── Start ──────────────────────────────────────────────────────────────
   const start = useCallback(
-    async (command: string, port: number, templateId?: string) => {
+    async (
+      command: string,
+      port: number,
+      templateId?: string,
+      envVars?: Record<string, string>,
+    ) => {
       if (startingRef.current || previewStatus === "ready") return;
 
       startingRef.current = true;
@@ -120,6 +126,7 @@ export function usePreview(
           command,
           port,
           templateId,
+          envVars,
         );
 
         if (result.status === "already_running" && result.previewUrl) {

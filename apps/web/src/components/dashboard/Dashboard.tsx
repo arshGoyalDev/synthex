@@ -3,8 +3,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "../../stores/auth.store";
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
-// import { CreateProjectModal } from ";
-import { CreateProjectModal } from "./CreateProjectModal";
 import { IconPlus, IconCode } from "../icons";
 import { Sidebar } from "./Sidebar";
 import { ActivityGraph } from "./ActivityGraph";
@@ -17,7 +15,6 @@ function ProjectsGrid() {
   const { projects, isLoading, fetchProjects, togglePin } = useProjectStore();
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editTarget, setEditTarget] = useState<Project | null>(null);
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -91,7 +88,7 @@ function ProjectsGrid() {
             </div>
 
             <button
-              onClick={() => setIsNewProjectModalOpen(true)}
+              onClick={() => navigate({ to: "/project" })}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-text-primary text-bg-primary font-medium text-sm hover:bg-white transition-colors cursor-pointer border-none shadow-sm"
             >
               <IconPlus size={16} />
@@ -118,7 +115,7 @@ function ProjectsGrid() {
               Create your first project to start coding in the cloud.
             </p>
             <button
-              onClick={() => setIsNewProjectModalOpen(true)}
+              onClick={() => navigate({ to: "/project" })}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-text-primary text-bg-primary font-medium text-sm hover:bg-white transition-colors cursor-pointer border-none shadow-sm"
             >
               <IconPlus size={16} />
@@ -154,10 +151,6 @@ function ProjectsGrid() {
         onClose={() => setEditTarget(null)}
       />
 
-      <CreateProjectModal
-        isOpen={isNewProjectModalOpen}
-        onOpenChange={setIsNewProjectModalOpen}
-      />
     </main>
   );
 }
