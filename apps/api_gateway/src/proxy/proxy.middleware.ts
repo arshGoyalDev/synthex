@@ -17,7 +17,7 @@ const registerProxies = (app: Application) => {
       createProxyMiddleware(route.path, {
         target: route.target,
         changeOrigin: true,
-        pathRewrite: { [`^${route.path}`]: "" },
+        pathRewrite: route.pathRewrite ?? { [`^${route.path}`]: "" },
         selfHandleResponse: false,
         onError: (err: any, req: any, res: any) => {
           console.error(`Proxy error for ${route.path}:`, err.message);
