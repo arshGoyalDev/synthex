@@ -317,7 +317,7 @@ class ContainerService {
       `echo '${b64}' | base64 -d > /tmp/import.zip`,
       `unzip -q -o /tmp/import.zip -d /workspace/${projectName} && rm /tmp/import.zip`,
       // Strip single top-level folder if present (common zip convention)
-      `cd /workspace/${projectName} && if [ $(ls -1 | wc -l) -eq 1 ] && [ -d "$(ls -1)" ]; then mv "$(ls -1)"/* . 2>/dev/null; mv "$(ls -1)"/.[!.]* . 2>/dev/null; rmdir "$(ls -d */)" 2>/dev/null; fi`,
+      `cd /workspace/${projectName} && count=$(ls -1A 2>/dev/null | wc -l) && if [ "$count" -eq 1 ]; then dir=$(ls -1A 2>/dev/null); if [ -d "$dir" ]; then mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.[!.]* . 2>/dev/null || true; rmdir "$dir" 2>/dev/null || true; fi; fi`,
     ];
     await this.runSetupCommands(container, extractCmds, projectId);
 
