@@ -14,7 +14,7 @@ projectRoutes.get("/me", controller.getProjectsMe.bind(controller));
 projectRoutes.get("/:id/env", controller.getProjectEnvVars.bind(controller));
 projectRoutes.get("/:id", controller.getProjectById.bind(controller));
 projectRoutes.post("/", controller.createProject.bind(controller));
-projectRoutes.patch("/:id", controller.renameProject.bind(controller));
+projectRoutes.patch("/:id", controller.updateProject.bind(controller));
 projectRoutes.delete("/:id", controller.deleteProject.bind(controller));
 projectRoutes.post("/:id/start", controller.startProject.bind(controller));
 projectRoutes.post("/:id/stop", controller.stopProject.bind(controller));

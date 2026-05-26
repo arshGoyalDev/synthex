@@ -8,8 +8,10 @@ const createProjectSchema = z.object({
   type: z.enum(["template", "blank", "raw"]).default("template"),
 });
 
-const renameProjectSchema = z.object({
+const updateProjectSchema = z.object({
   name: z.string().trim().min(2).max(100),
+  description: z.string().trim().max(500).nullable().optional(),
+  autoSaveEnabled: z.boolean().optional(),
 });
 
-export { createProjectSchema, renameProjectSchema };
+export { createProjectSchema, updateProjectSchema };

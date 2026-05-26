@@ -37,9 +37,17 @@ class ProjectService {
     };
   }
 
-  async renameProject(id: string, userId: string, name: string) {
+  async updateProject(
+    id: string,
+    userId: string,
+    data: {
+      name: string;
+      description?: string | null;
+      autoSaveEnabled?: boolean;
+    },
+  ) {
     if (!id) throw new AppError("Project ID is required", 400);
-    if (!name) throw new AppError("Project name is required", 400);
+    if (!data.name) throw new AppError("Project name is required", 400);
 
     const project = await db.project.findFirst({
       where: { id, userId },
@@ -50,8 +58,12 @@ class ProjectService {
     const updated = await db.project.update({
       where: { id },
       data: {
-        name,
-        folderName: safeName(name),
+        name: data.name,
+        folderName: safeName(data.name),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.autoSaveEnabled !== undefined && {
+          autoSaveEnabled: data.autoSaveEnabled,
+        }),
       },
     });
 

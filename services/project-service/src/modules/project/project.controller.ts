@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { createProjectSchema, renameProjectSchema } from "./project.schema";
+import { createProjectSchema, updateProjectSchema } from "./project.schema";
 import { ProjectService } from "./project.service";
 import { AppError } from "../../utils/AppError";
 
@@ -51,7 +51,7 @@ class ProjectController {
     }
   }
 
-  async renameProject(req: Request, res: Response, next: NextFunction) {
+  async updateProject(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.headers["x-user-id"] as string;
       const projectId = req.params.id;
@@ -60,12 +60,14 @@ class ProjectController {
         throw new AppError("Project ID is required", 400);
       }
 
-      const { name } = renameProjectSchema.parse(req.body);
-      const project = await projectService.renameProject(
-        projectId,
-        userId,
-        name,
+      const { name, description, autoSaveEnabled } = updateProjectSchema.parse(
+        req.body,
       );
+      const project = await projectService.updateProject(projectId, userId, {
+        name,
+        description,
+        autoSaveEnabled,
+      });
 
       res.json({ data: project });
     } catch (err) {
