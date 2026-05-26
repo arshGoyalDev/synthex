@@ -369,17 +369,17 @@ function ProjectPage() {
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
       {/* Top Navbar */}
-      <header className="h-[42px] flex items-center justify-between px-3 bg-bg-secondary border-b border-border-subtle shrink-0 gap-2">
+      <header className="h-[42px] flex items-center justify-between pl-2 pr-3 bg-bg-secondary border-b border-border-subtle shrink-0 gap-2">
         <div className="flex items-center gap-1">
           <button
-            className="flex items-center justify-center w-7 h-7 rounded-md border-none bg-transparent text-text-secondary cursor-pointer transition-all duration-150 hover:bg-bg-tertiary hover:text-text-primary"
+            className="flex items-center justify-center w-8 h-8 rounded-md border-none bg-transparent text-text-secondary cursor-pointer transition-all duration-150 hover:bg-bg-tertiary hover:text-text-primary"
             onClick={closeProject}
             title="Back to Dashboard"
           >
             <ChevronLeft size={18} />
           </button>
 
-          <div className="w-px h-[18px] bg-border-subtle ml-1 mr-3" />
+          <div className="w-px h-[18px] bg-border-subtle ml-0.75 mr-3" />
           <h1 className="font-semibold text-sm truncate max-w-50">
             {project.name}
           </h1>
