@@ -196,12 +196,15 @@ class ExecutionService {
     exitCode: number;
     durationMs: number;
     timedOut: boolean;
+    killed?: boolean;
   }) {
-    const status = data.timedOut
-      ? "timeout"
-      : data.exitCode === 0
-        ? "completed"
-        : "failed";
+    const status = data.killed
+      ? "killed"
+      : data.timedOut
+        ? "timeout"
+        : data.exitCode === 0
+          ? "completed"
+          : "failed";
 
     // flush buffer to DB
     const output = await flushBuffer(data.executionId);
