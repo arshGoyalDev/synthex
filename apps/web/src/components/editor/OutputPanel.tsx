@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -12,8 +12,11 @@ import {
   Clock,
   Loader2,
   AlertCircle,
+  ArrowLeft,
 } from "lucide-react";
 import type { UseExecutionReturn } from "../../hooks/useExecution";
+import { useEditorStore } from "../../stores/editor.store";
+import type { ExecutionRecord } from "../../services/execution.service";
 
 interface OutputPanelProps {
   execution: UseExecutionReturn;
@@ -34,6 +37,9 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
     sendInput,
   } = execution;
 
+  const selectedExecutionLog = useEditorStore((s) => s.selectedExecutionLog);
+  const setSelectedExecutionLog = useEditorStore((s) => s.setSelectedExecutionLog);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -44,6 +50,18 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
   const sendInputRef = useRef(sendInput);
   // chunks that arrived before xterm was ready to accept them
   const pendingChunksRef = useRef(outputChunks);
+
+  const historyLog = useMemo<ExecutionRecord | null>(() => {
+    return selectedExecutionLog ?? null;
+  }, [selectedExecutionLog]);
+
+  const historyOutput = useMemo(() => {
+    if (!historyLog) return "";
+    const output = historyLog.output ?? "";
+    const error = historyLog.error ?? "";
+    if (!output && !error) return "";
+    return [output, error].filter(Boolean).join("\n");
+  }, [historyLog]);
 
   // Keep live refs in sync
   useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
@@ -155,6 +173,7 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
 
   // Wait for the container div to get real dimensions, then init xterm
   useEffect(() => {
+    if (historyLog) return;
     const el = containerRef.current;
     if (!el) return;
 
@@ -176,15 +195,22 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
 
     return () => {
       observer.disconnect();
-      xtermRef.current?.dispose();
-      xtermRef.current = null;
-      fitAddonRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [historyLog, initXterm]);
+
+  // Dispose xterm when switching to history view
+  useEffect(() => {
+    if (!historyLog) return;
+    xtermRef.current?.dispose();
+    xtermRef.current = null;
+    fitAddonRef.current = null;
+    writtenSeqRef.current = 0;
+  }, [historyLog]);
 
   // Focus terminal and update cursor when execution starts/stops
   useEffect(() => {
+    if (historyLog) return;
     const terminal = xtermRef.current;
     if (!terminal) return;
     if (isRunning) {
@@ -198,6 +224,7 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
   }, [isRunning]);
 
   useEffect(() => {
+    if (historyLog) return;
     const el = containerRef.current;
     if (!el) return;
     const observer = new ResizeObserver(() => {
@@ -205,10 +232,11 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [historyLog]);
 
   // ─── Write new output chunks to xterm ─────────────────────────────────
   useEffect(() => {
+    if (historyLog) return;
     if (!xtermRef.current) return;
     const newChunks = outputChunks.filter((c) => c.seq > writtenSeqRef.current);
     for (const chunk of newChunks) {
@@ -217,75 +245,97 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
       xtermRef.current.write(normalized);
       writtenSeqRef.current = chunk.seq;
     }
-  }, [outputChunks]);
+  }, [outputChunks, historyLog]);
 
   // ─── Clear xterm when output is cleared ───────────────────────────────
   useEffect(() => {
+    if (historyLog) return;
     if (outputChunks.length === 0 && xtermRef.current) {
       xtermRef.current.clear();
       xtermRef.current.reset();
       writtenSeqRef.current = 0;
     }
-  }, [outputChunks.length]);
+  }, [outputChunks.length, historyLog]);
 
   // ─── Status badge ─────────────────────────────────────────────────────
-  const StatusBadge = () => {
-    if (status === "idle")
+  const StatusBadge = ({
+    statusOverride,
+    exitCodeOverride,
+    durationMsOverride,
+    errorMessageOverride,
+  }: {
+    statusOverride?: string;
+    exitCodeOverride?: number | null;
+    durationMsOverride?: number | null;
+    errorMessageOverride?: string | null;
+  }) => {
+    const displayStatus = statusOverride ?? status;
+    const displayExitCode =
+      exitCodeOverride !== undefined ? exitCodeOverride : exitCode;
+    const displayDurationMs =
+      durationMsOverride !== undefined ? durationMsOverride : durationMs;
+    const displayError =
+      errorMessageOverride !== undefined ? errorMessageOverride : errorMessage;
+
+    if (displayStatus === "idle")
       return (
         <span className="flex items-center gap-1 text-xs text-text-tertiary">
           Ready
         </span>
       );
-    if (status === "queued" || status === "running")
+    if (displayStatus === "queued" || displayStatus === "running")
       return (
         <span className="flex items-center gap-1 text-xs text-yellow-400">
           <Loader2 size={12} className="animate-spin" />
-          {status === "queued" ? "Queued" : "Running"}
+          {displayStatus === "queued" ? "Queued" : "Running"}
         </span>
       );
-    if (status === "completed")
+    if (displayStatus === "completed")
       return (
         <span className="flex items-center gap-1 text-xs text-green-400">
           <CheckCircle2 size={12} />
           Completed
-          {durationMs != null && (
+          {displayDurationMs != null && (
             <span className="text-text-tertiary ml-1">
-              ({(durationMs / 1000).toFixed(1)}s)
+              ({(displayDurationMs / 1000).toFixed(1)}s)
             </span>
           )}
         </span>
       );
-    if (status === "failed")
+    if (displayStatus === "failed")
       return (
         <span className="flex items-center gap-1 text-xs text-red-400">
           <XCircle size={12} />
-          Failed (exit {exitCode})
-          {durationMs != null && (
+          Failed
+          {displayExitCode != null && (
+            <span className="text-text-tertiary ml-1">(exit {displayExitCode})</span>
+          )}
+          {displayDurationMs != null && (
             <span className="text-text-tertiary ml-1">
-              ({(durationMs / 1000).toFixed(1)}s)
+              ({(displayDurationMs / 1000).toFixed(1)}s)
             </span>
           )}
         </span>
       );
-    if (status === "timeout")
+    if (displayStatus === "timeout")
       return (
         <span className="flex items-center gap-1 text-xs text-orange-400">
           <Clock size={12} />
           Timed out
         </span>
       );
-    if (status === "killed")
+    if (displayStatus === "killed")
       return (
         <span className="flex items-center gap-1 text-xs text-text-tertiary">
           <Square size={12} />
           Killed
         </span>
       );
-    if (status === "error")
+    if (displayStatus === "error")
       return (
         <span className="flex items-center gap-1 text-xs text-red-400">
           <AlertCircle size={12} />
-          {errorMessage ?? "Error"}
+          {displayError ?? "Error"}
         </span>
       );
     return null;
@@ -300,15 +350,33 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
     <div className="flex h-full flex-col overflow-hidden bg-bg-dark-secondary">
       {/* Toolbar */}
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] px-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-secondary">
             Output
           </span>
-          <StatusBadge />
+          {historyLog ? (
+            <StatusBadge
+              statusOverride={historyLog.status}
+              exitCodeOverride={historyLog.exitCode}
+              durationMsOverride={historyLog.durationMs}
+              errorMessageOverride={historyLog.error}
+            />
+          ) : (
+            <StatusBadge />
+          )}
         </div>
 
         <div className="flex items-center gap-1">
-          {isRunning ? (
+          {historyLog ? (
+            <button
+              className="flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              onClick={() => setSelectedExecutionLog(null)}
+              title="Back to live output"
+            >
+              <ArrowLeft size={12} />
+              <span>Live</span>
+            </button>
+          ) : isRunning ? (
             <button
               className="flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
               onClick={kill}
@@ -341,12 +409,30 @@ export function OutputPanel({ execution, runCommand }: OutputPanelProps) {
         </div>
       </div>
 
-      {/* xterm Output */}
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-hidden bg-bg-primary"
-        onClick={() => xtermRef.current?.focus()}
-      />
+      {historyLog ? (
+        <div className="flex-1 overflow-hidden bg-bg-primary">
+          <div className="border-b border-border-subtle px-3 py-2 text-[12px] text-text-secondary flex items-center justify-between gap-3">
+            <div className="min-w-0 truncate">
+              {historyLog.command}
+              {historyLog.exitCode != null && (
+                <span className="text-text-tertiary ml-2">exit {historyLog.exitCode}</span>
+              )}
+            </div>
+            <div className="text-text-tertiary text-[11px] shrink-0">
+              {new Date(historyLog.createdAt).toLocaleString()}
+            </div>
+          </div>
+          <pre className="h-full overflow-auto p-3 text-[12px] font-mono text-text-primary whitespace-pre-wrap">
+            {historyOutput || "No output recorded for this execution."}
+          </pre>
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-hidden bg-bg-primary"
+          onClick={() => xtermRef.current?.focus()}
+        />
+      )}
     </div>
   );
 }

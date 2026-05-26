@@ -63,6 +63,7 @@ const registerSubscribers = async (io: SocketServer) => {
       exitCode: data.exitCode,
       durationMs: data.durationMs,
       timedOut: data.timedOut,
+      killed: data.killed,
     });
   });
 

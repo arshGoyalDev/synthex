@@ -180,6 +180,14 @@ function CreateProjectPage() {
       const fallbackInstall =
         installCommand || detect.installCommand || undefined;
 
+      const languages = overrideLanguage
+        ? [overrideLanguage]
+        : detect.languages ?? [];
+      if (languages.length === 0) {
+        setError("Select a primary language before importing.");
+        return;
+      }
+
       const project = await importFromGithub(repoUrl, repoBranch || detect.repoBranch, {
         name: projectName || detect.name,
         description: projectDescription || detect.description,
@@ -188,7 +196,7 @@ function CreateProjectPage() {
         previewPort: detect.port ?? undefined,
         installCommand: fallbackInstall,
         isPreview: detect.isPreview ?? false,
-        languages: overrideLanguage ? [overrideLanguage] : detect.languages ?? [],
+        languages,
       });
       navigate({ to: `/project/${project.id}` });
     } catch (err) {
@@ -228,6 +236,14 @@ function CreateProjectPage() {
       const fallbackInstall =
         installCommand || detection.installCommand || undefined;
 
+      const languages = overrideLanguage
+        ? [overrideLanguage]
+        : detection.languages ?? [];
+      if (languages.length === 0) {
+        setError("Select a primary language before importing.");
+        return;
+      }
+
       const project = await importFromZip(uploaded.zipKey, {
         name: projectName || uploaded.originalName,
         description: projectDescription || undefined,
@@ -236,7 +252,7 @@ function CreateProjectPage() {
         previewPort: detection.port ?? undefined,
         installCommand: fallbackInstall,
         isPreview: detection.isPreview ?? false,
-        languages: overrideLanguage ? [overrideLanguage] : detection.languages ?? [],
+        languages,
       });
       navigate({ to: `/project/${project.id}` });
     } catch (err) {

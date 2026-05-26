@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getMonacoLanguage } from "../utils/monacoLanguage";
+import type { ExecutionRecord } from "../services/execution.service";
 
 
 export interface FileEntry {
@@ -47,7 +48,7 @@ interface EditorState {
   activeGroupId: string;
 
   isExplorerOpen: boolean;
-  sidebarTab: "files" | "search";
+  sidebarTab: "files" | "search" | "history";
   isTerminalOpen: boolean;
   isRightPanelOpen: boolean;
   bottomPanelTab: "terminal" | "output" | "preview";
@@ -59,7 +60,7 @@ interface EditorState {
 
   // Global Actions
   toggleExplorer: () => void;
-  setSidebarTab: (tab: "files" | "search") => void;
+  setSidebarTab: (tab: "files" | "search" | "history") => void;
   toggleTerminal: () => void;
   toggleRightPanel: () => void;
   setBottomPanelTab: (tab: "terminal" | "output" | "preview") => void;
@@ -80,6 +81,9 @@ interface EditorState {
   clipboard: { path: string; type: "copy" | "cut" } | null;
   setClipboard: (path: string | null, type?: "copy" | "cut") => void;
   pasteNode: (targetDir: string) => void;
+
+  executionHistoryTick: number;
+  bumpExecutionHistory: () => void;
 
   // Group-specific Actions
   openFile: (file: FileEntry, groupId?: string) => void;
@@ -164,6 +168,13 @@ export const useEditorStore = create<EditorState>((set) => ({
   activeTerminalGroupId: "main",
   nextTerminalNumber: 2,
   clipboard: null,
+
+  executionHistoryTick: 0,
+  bumpExecutionHistory: () =>
+    set((state) => ({ executionHistoryTick: state.executionHistoryTick + 1 })),
+
+  selectedExecutionLog: null,
+  setSelectedExecutionLog: (log) => set({ selectedExecutionLog: log }),
 
   setClipboard: (path, type = "copy") =>
     set({ clipboard: path ? { path, type } : null }),
@@ -1074,5 +1085,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       globalSearchQuery: "",
       activeSearchMatch: null,
       clipboard: null,
+      selectedExecutionLog: null,
+      executionHistoryTick: 0,
     }),
 }));

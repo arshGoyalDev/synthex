@@ -6,13 +6,14 @@ import { PreviewPanel } from "./PreviewPanel";
 import { Pane } from "./Pane";
 import { useEditorStore } from "../../stores/editor.store";
 import { useFileSync } from "../../hooks/useFileSync";
-import { Files, Search, TerminalSquare, ChevronUp } from "lucide-react";
+import { Files, Search, TerminalSquare, ChevronUp, Clock } from "lucide-react";
 import {
   Panel,
   Group as PanelGroup,
   Separator as PanelResizeHandle,
 } from "react-resizable-panels";
 import { GlobalSearch } from "./GlobalSearch";
+import { ExecutionHistory } from "./ExecutionHistory";
 
 // ─── Context for file-sync actions ──────────────────────────────────────────
 
@@ -90,6 +91,7 @@ export function EditorLayout({
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const sidebarTab = useEditorStore((s) => s.sidebarTab);
   const setSidebarTab = useEditorStore((s) => s.setSidebarTab);
+  const selectedExecutionLog = useEditorStore((s) => s.selectedExecutionLog);
   const grid = useEditorStore((s) => s.grid);
   const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
   const openNewTerminal = useEditorStore((s) => s.openNewTerminal);
@@ -146,20 +148,6 @@ export function EditorLayout({
     templateId,
   };
 
-  // ─── Bottom panel tab buttons ─────────────────────────────────────────
-  // const bottomTabs: {
-  //   id: "terminal";
-  //   label: string;
-  //   icon: React.ReactNode;
-  //   badge?: React.ReactNode;
-  // }[] = [
-  //   {
-  //     id: "terminal",
-  //     label: "Terminal",
-  //     icon: <TerminalSquare size={13} />,
-  //   },
-  // ];
-
   return (
     <FileSyncContext.Provider value={fileSyncActions}>
       <ExecutionContext.Provider value={executionCtx}>
@@ -201,6 +189,24 @@ export function EditorLayout({
             >
               <Search size={20} strokeWidth={2} />
             </button>
+
+            <button
+              className={`flex items-center justify-center w-10 h-10 rounded-md border-none cursor-pointer transition-all duration-200 ${
+                isExplorerOpen && sidebarTab === "history"
+                  ? "bg-accent-primary/10 text-accent-primary"
+                  : "bg-transparent text-text-tertiary hover:bg-white/5 hover:text-text-primary"
+              }`}
+              onClick={() => {
+                if (isExplorerOpen && sidebarTab === "history") {
+                  useEditorStore.getState().toggleExplorer();
+                } else {
+                  setSidebarTab("history");
+                }
+              }}
+              title="Execution History"
+            >
+              <Clock size={20} strokeWidth={2} />
+            </button>
           </div>
 
           <PanelGroup orientation="horizontal">
@@ -214,7 +220,13 @@ export function EditorLayout({
                   maxSize={480}
                   className="flex flex-col bg-bg-secondary z-10 border-r border-border-subtle"
                 >
-                  {sidebarTab === "files" ? <FileExplorer /> : <GlobalSearch />}
+                  {sidebarTab === "files" ? (
+                    <FileExplorer />
+                  ) : sidebarTab === "search" ? (
+                    <GlobalSearch />
+                  ) : (
+                    <ExecutionHistory />
+                  )}
                 </Panel>
                 <PanelResizeHandle className="w-1 shrink-0 bg-transparent hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-col-resize z-10 relative" />
               </>
@@ -264,8 +276,9 @@ export function EditorLayout({
                       </PanelGroup>
                     </Panel>
 
-                    {isRightPanelOpen && (!!previewCommand || !!runCommand) && (
-                      <>
+            {isRightPanelOpen &&
+              (!!previewCommand || !!runCommand || !!selectedExecutionLog) && (
+              <>
                         <PanelResizeHandle className="w-1 shrink-0 bg-transparent hover:bg-accent-primary active:bg-accent-primary transition-colors cursor-col-resize z-10 relative" />
                         <Panel
                           id="right-pane"
@@ -274,7 +287,7 @@ export function EditorLayout({
                           maxSize={1000}
                           className="flex flex-col bg-bg-secondary border-l border-border-subtle z-10"
                         >
-                          {previewCommand && previewPort ? (
+                          {previewCommand && previewPort && !selectedExecutionLog ? (
                             <PreviewPanel
                               preview={preview}
                               projectId={projectId}

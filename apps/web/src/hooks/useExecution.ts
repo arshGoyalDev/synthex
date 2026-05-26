@@ -5,6 +5,7 @@ import {
   killExecution as apiKillExecution,
   type OutputChunk,
 } from "../services/execution.service";
+import { useEditorStore } from "../stores/editor.store";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,8 @@ export function useExecution(
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const statusRef = useRef<ExecutionStatus>("idle");
+  const bumpExecutionHistory = useEditorStore((s) => s.bumpExecutionHistory);
 
   // Track the highest seq seen for reconnection replay
   const maxSeqRef = useRef(0);
@@ -75,6 +78,7 @@ export function useExecution(
   const runningRef = useRef(false);
 
   const isRunning = status === "queued" || status === "running";
+  statusRef.current = status;
 
   // ─── Decode a base64 output chunk ───────────────────────────────────────
   const decodeChunk = useCallback((chunk: OutputChunk): DecodedChunk => {
@@ -106,6 +110,7 @@ export function useExecution(
 
     const onOutput = (data: OutputChunk & { executionId: string }) => {
       if (data.executionId !== executionId) return;
+      if (statusRef.current === "killed") return;
       if (seenSeqRef.current.has(data.seq)) return;
 
       seenSeqRef.current.add(data.seq);
@@ -135,19 +140,23 @@ export function useExecution(
       exitCode: number;
       durationMs: number;
       timedOut: boolean;
+      killed?: boolean;
     }) => {
       if (data.executionId !== executionId) return;
 
-      const finalStatus: ExecutionStatus = data.timedOut
-        ? "timeout"
-        : data.exitCode === 0
-          ? "completed"
-          : "failed";
+      const finalStatus: ExecutionStatus = data.killed
+        ? "killed"
+        : data.timedOut
+          ? "timeout"
+          : data.exitCode === 0
+            ? "completed"
+            : "failed";
 
       setStatus(finalStatus);
       setExitCode(data.exitCode);
       setDurationMs(data.durationMs);
       runningRef.current = false;
+      bumpExecutionHistory();
     };
 
     socket.on("execution:output", onOutput);
@@ -188,6 +197,7 @@ export function useExecution(
         );
         setExecutionId(result.executionId);
         setStatus(result.status as ExecutionStatus);
+        bumpExecutionHistory();
       } catch (err: unknown) {
         runningRef.current = false;
         setStatus("error");
@@ -228,10 +238,9 @@ export function useExecution(
 
     try {
       await apiKillExecution(executionId);
-      setStatus("killed");
-      runningRef.current = false;
     } catch (err: unknown) {
       console.error("[useExecution] Kill failed:", err);
+      setErrorMessage("Failed to stop execution");
     }
   }, [executionId]);
 

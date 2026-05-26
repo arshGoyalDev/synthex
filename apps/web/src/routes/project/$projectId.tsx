@@ -324,7 +324,7 @@ function ProjectPage() {
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
       {/* Top Navbar */}
       <header className="h-[42px] flex items-center justify-between px-3 bg-bg-secondary border-b border-border-subtle shrink-0 gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
           <button
             className="flex items-center justify-center w-7 h-7 rounded-md border-none bg-transparent text-text-secondary cursor-pointer transition-all duration-150 hover:bg-bg-tertiary hover:text-text-primary"
             onClick={closeProject}
@@ -333,11 +333,11 @@ function ProjectPage() {
             <ChevronLeft size={18} />
           </button>
 
-          <div className="w-px h-[18px] bg-border-subtle mx-1" />
+          <div className="w-px h-[18px] bg-border-subtle ml-1 mr-3" />
           <h1 className="font-semibold text-sm truncate max-w-50">
             {project.name}
           </h1>
-          <div className="flex items-center gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md bg-bg-tertiary text-text-secondary">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium py-0.5 px-2 ml-2 rounded-md bg-bg-tertiary text-text-secondary">
             <span
               className={`w-[7px] h-[7px] rounded-full shrink-0 ${
                 containerStatus === "ready"
@@ -368,12 +368,12 @@ function ProjectPage() {
                       ? `Show ${isPreviewProject ? "Preview" : "Output"}`
                       : `${isPreviewProject ? "Start Preview" : "Run"}`
                 }
-                className={`flex items-center gap-1.5 h-[26px] px-3 rounded-md text-xs font-semibold transition-all duration-150 border ${
+                className={`flex items-center gap-1.5 py-1 px-3 rounded-md text-xs font-semibold transition-all duration-150 ${
                   isRightPanelOpen
-                    ? "bg-accent-primary text-white border-accent-primary shadow-[0_0_10px_rgba(22,163,74,0.3)]"
+                    ? "bg-accent-primary text-white shadow-[0_0_10px_rgba(22,163,74,0.3)]"
                     : isPanelActive
-                      ? "bg-accent-primary/15 text-accent-primary border-accent-primary/30 hover:bg-accent-primary/25"
-                      : "bg-accent-primary/10 text-accent-primary border-accent-primary/20 hover:bg-accent-primary/20"
+                      ? "bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25"
+                      : "bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20"
                 }`}
               >
                 {/* Running indicator dot */}
@@ -390,7 +390,7 @@ function ProjectPage() {
               </button>
             )}
 
-          <span className="text-xs text-text-tertiary hidden sm:inline">
+          <span className="text-xs ml-2 text-text-tertiary hidden sm:inline">
             {isConnected ? "● Connected" : "○ Disconnected"}
           </span>
 
