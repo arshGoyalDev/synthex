@@ -49,3 +49,6 @@ minio_data/
 
 packages/database/src/generated
 repo_or_zip.md
+
+.cursor
+.codegraph

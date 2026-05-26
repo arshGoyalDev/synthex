@@ -8,6 +8,8 @@ import {
   getProjectEnvVars,
   startProject,
   stopProject,
+  updateProject,
+  updateProjectConfig,
 } from "../../services/project.service";
 import { useProjectStore } from "../../stores/project.store";
 import type { Project } from "../../types/project";
@@ -24,6 +26,7 @@ import { FilePalette } from "../../components/editor/FilePalette";
 import { useEditorStore } from "../../stores/editor.store";
 import { useExecution } from "../../hooks/useExecution";
 import { usePreview } from "../../hooks/usePreview";
+import { ProjectSettingsModal } from "../../components/editor/ProjectSettingsModal";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -34,6 +37,7 @@ function ProjectPage() {
   const navigate = useNavigate();
   const { socket, isConnected } = useSocket();
   const projects = useProjectStore((s) => s.projects);
+  const updateProjectInStore = useProjectStore((s) => s.updateProject);
 
   const user = useAuthStore((s) => s.user);
 
@@ -52,12 +56,15 @@ function ProjectPage() {
   const resetEditorState = useEditorStore((s) => s.resetEditorState);
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [runtimeConfig, setRuntimeConfig] = useState<{
+    installCommand: string | null;
     runCommand: string | null;
     previewCommand: string | null;
     previewPort: number | null;
   }>(() => ({
+    installCommand: project?.installCommand ?? null,
     runCommand: project?.runCommand ?? null,
     previewCommand: project?.previewCommand ?? null,
     previewPort: project?.previewPort ?? null,
@@ -116,6 +123,7 @@ function ProjectPage() {
     setContainerStatus(startData.status);
     currentStatusRef.current = startData.status;
     setRuntimeConfig((current) => ({
+      installCommand: current.installCommand,
       runCommand: startData.runCommand ?? current.runCommand,
       previewCommand: startData.previewCommand ?? current.previewCommand,
       previewPort: startData.previewPort ?? current.previewPort,
@@ -130,7 +138,9 @@ function ProjectPage() {
   // Reset all editor state when leaving the project so stale file data
   // from this project's paths can't appear in another project's editor.
   useEffect(() => {
-    return () => { resetEditorState(); };
+    return () => {
+      resetEditorState();
+    };
   }, [resetEditorState]);
 
   useEffect(() => {
@@ -150,6 +160,7 @@ function ProjectPage() {
         if (p) {
           setProject(p);
           setRuntimeConfig({
+            installCommand: p.installCommand ?? null,
             runCommand: p.runCommand ?? null,
             previewCommand: p.previewCommand ?? null,
             previewPort: p.previewPort ?? null,
@@ -224,6 +235,7 @@ function ProjectPage() {
           setContainerMsg(data.message);
         }
         setRuntimeConfig((current) => ({
+          installCommand: current.installCommand,
           runCommand: data.runCommand ?? current.runCommand,
           previewCommand: data.previewCommand ?? current.previewCommand,
           previewPort: data.previewPort ?? current.previewPort,
@@ -256,9 +268,7 @@ function ProjectPage() {
 
   const closeProject = async () => {
     try {
-      console.log("started");
       await stopProject(projectId);
-      console.log("done");
     } catch (err) {
       console.error("Failed to stop project during close:", err);
     } finally {
@@ -283,13 +293,49 @@ function ProjectPage() {
     }
   };
 
-  const handleStop = async () => {
-    try {
-      await stopProject(projectId);
-      navigate({ to: "/" });
-    } catch (err) {
-      console.error("Failed to stop project:", err);
-    }
+  const handleSaveSettings = async (payload: {
+    name: string;
+    description: string | null;
+    installCommand: string | null;
+    runCommand: string | null;
+    previewCommand: string | null;
+    previewPort: number | null;
+    envVars: Record<string, string> | null;
+    autoSaveEnabled: boolean;
+  }) => {
+    const [updatedProject, updatedConfig] = await Promise.all([
+      updateProject(projectId, {
+        name: payload.name,
+        description: payload.description,
+        autoSaveEnabled: payload.autoSaveEnabled,
+      }),
+      updateProjectConfig(projectId, {
+        installCommand: payload.installCommand,
+        runCommand: payload.runCommand,
+        previewCommand: payload.previewCommand,
+        previewPort: payload.previewPort,
+        envVars: payload.envVars,
+      }),
+    ]);
+
+    const mergedProject: Project = {
+      ...updatedProject,
+      installCommand: updatedConfig.installCommand ?? null,
+      runCommand: updatedConfig.runCommand ?? null,
+      previewCommand: updatedConfig.previewCommand ?? null,
+      previewPort: updatedConfig.previewPort ?? null,
+      envVars: updatedConfig.envVars ?? null,
+    };
+
+    setProject(mergedProject);
+    setEnvVars(mergedProject.envVars ?? null);
+    setRuntimeConfig({
+      installCommand: mergedProject.installCommand ?? null,
+      runCommand: mergedProject.runCommand ?? null,
+      previewCommand: mergedProject.previewCommand ?? null,
+      previewPort: mergedProject.previewPort ?? null,
+    });
+    updateProjectInStore(projectId, mergedProject);
   };
 
   /* ——— Loading state ——— */
@@ -415,17 +461,31 @@ function ProjectPage() {
           <>
             <EditorLayout
               projectId={projectId}
-              projectName={project.folderName || project.name}
               userId={user?.id ?? ""}
               containerStatus={containerStatus}
+              autoSaveEnabled={project.autoSaveEnabled ?? true}
               runCommand={runCommand}
               previewCommand={previewCommand}
               previewPort={previewPort}
               templateId={templateId}
               execution={execution}
               preview={preview}
+              onOpenSettings={() => setIsSettingsOpen(true)}
             />
             <FilePalette />
+            <ProjectSettingsModal
+              open={isSettingsOpen}
+              project={{
+                ...project,
+                installCommand: runtimeConfig.installCommand,
+                runCommand,
+                previewCommand,
+                previewPort,
+                envVars,
+              }}
+              onClose={() => setIsSettingsOpen(false)}
+              onSave={handleSaveSettings}
+            />
           </>
         ) : containerStatus === "error" || containerStatus === "timeout" ? (
           <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary z-50 px-6">

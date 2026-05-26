@@ -80,6 +80,7 @@ model Project {
   installCommand  String?  @map("install_command")
 
   envVars         Json?    @map("env_vars")
+  autoSaveEnabled Boolean  @default(true) @map("auto_save_enabled")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

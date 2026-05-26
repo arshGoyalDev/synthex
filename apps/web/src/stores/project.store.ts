@@ -14,12 +14,7 @@ interface ProjectState {
   renameProject: (id: string, name: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   togglePin: (id: string) => void;
-  updateProject: (
-    id: string,
-    data: Partial<
-      Pick<Project, "name" | "description" | "languages" | "template">
-    >,
-  ) => void;
+  updateProject: (id: string, data: Partial<Project>) => void;
 }
 
 export const useProjectStore = create<ProjectState>()((set) => ({

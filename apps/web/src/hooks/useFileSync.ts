@@ -28,12 +28,14 @@ interface UseFileSyncOptions {
   projectId: string;
   userId: string;
   containerStatus: string;
+  autoSaveEnabled: boolean;
 }
 
 export function useFileSync({
   projectId,
   userId,
   containerStatus,
+  autoSaveEnabled,
 }: UseFileSyncOptions) {
   void userId;
   const { socket } = useSocket();
@@ -159,7 +161,7 @@ export function useFileSync({
 
   // Watch for dirty file changes and schedule saves
   useEffect(() => {
-    if (containerStatus !== "ready") return;
+    if (containerStatus !== "ready" || !autoSaveEnabled) return;
 
     const unsubscribe = useEditorStore.subscribe((state, prevState) => {
       for (const [path, file] of state.files) {
@@ -178,7 +180,7 @@ export function useFileSync({
       }
       saveTimers.current.clear();
     };
-  }, [containerStatus, scheduleSave]);
+  }, [autoSaveEnabled, containerStatus, scheduleSave]);
 
   // ─── 4. WebSocket events ──────────────────────────────────────────────────
 

@@ -16,10 +16,12 @@ export interface Project {
     | "timeout";
   folderName: string;
   isPinned?: boolean;
+  installCommand?: string | null;
   runCommand?: string | null;
   previewCommand?: string | null;
   previewPort?: number | null;
   envVars?: Record<string, string> | null;
+  autoSaveEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }

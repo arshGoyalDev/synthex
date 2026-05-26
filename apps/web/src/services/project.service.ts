@@ -29,6 +29,20 @@ export const getProjectEnvVars = async (
   return data.data;
 };
 
+export interface UpdateProjectPayload {
+  name: string;
+  description?: string | null;
+  autoSaveEnabled?: boolean;
+}
+
+export interface UpdateProjectConfigPayload {
+  runCommand?: string | null;
+  previewCommand?: string | null;
+  previewPort?: number | null;
+  installCommand?: string | null;
+  envVars?: Record<string, string> | null;
+}
+
 export interface CreateProjectPayload {
   name: string;
   description?: string;
@@ -79,6 +93,22 @@ export const renameProject = async (
   name: string,
 ): Promise<Project> => {
   const { data } = await api.patch(`/api/projects/${id}`, { name });
+  return data.data;
+};
+
+export const updateProject = async (
+  id: string,
+  payload: UpdateProjectPayload,
+): Promise<Project> => {
+  const { data } = await api.patch(`/api/projects/${id}`, payload);
+  return data.data;
+};
+
+export const updateProjectConfig = async (
+  id: string,
+  payload: UpdateProjectConfigPayload,
+): Promise<Project> => {
+  const { data } = await api.put(`/api/projects/${id}/config`, payload);
   return data.data;
 };
 

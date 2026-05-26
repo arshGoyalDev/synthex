@@ -59,7 +59,9 @@ function CreateProjectPage() {
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
-  const [overrideLanguage, setOverrideLanguage] = useState<string>("");
+  const [selectedImportLanguages, setSelectedImportLanguages] = useState<
+    string[]
+  >([]);
   const [installCommand, setInstallCommand] = useState("");
   const [runCommand, setRunCommand] = useState("");
 
@@ -69,8 +71,6 @@ function CreateProjectPage() {
   const [detectedLanguages, setDetectedLanguages] = useState<string[]>([]);
   const [detectedRun, setDetectedRun] = useState<string | null>(null);
   const [detectedInstall, setDetectedInstall] = useState<string | null>(null);
-  const [detectedPreview, setDetectedPreview] = useState<string | null>(null);
-  const [detectedPort, setDetectedPort] = useState<number | null>(null);
 
   const loadRepos = async () => {
     try {
@@ -128,9 +128,14 @@ function CreateProjectPage() {
     setError(null);
     setMode("zip");
     setZipFile(file);
-    setOverrideLanguage("");
+    setSelectedImportLanguages([]);
     setRunCommand("");
     setInstallCommand("");
+  };
+
+  const getPrimaryLanguageDefault = (languages: string[]) => {
+    const primaryLanguage = languages[0];
+    return primaryLanguage ? LANGUAGES[primaryLanguage] : null;
   };
 
   const handleGithubDetect = async () => {
@@ -148,8 +153,6 @@ function CreateProjectPage() {
       setDetectedLanguages(result.languages ?? []);
       setDetectedRun(result.runCommand ?? null);
       setDetectedInstall(result.installCommand ?? null);
-      setDetectedPreview(result.previewCommand ?? null);
-      setDetectedPort(result.port ?? null);
       if (!runCommand) setRunCommand(result.runCommand ?? "");
       if (!installCommand) setInstallCommand(result.installCommand ?? "");
     } catch (err) {
@@ -169,22 +172,21 @@ function CreateProjectPage() {
       setBusy(true);
       setError(null);
       const detect = await detectGithubRepo(repoUrl);
-      const languageDefaults = overrideLanguage
-        ? LANGUAGES[overrideLanguage]
-        : null;
+      const languages =
+        selectedImportLanguages.length > 0
+          ? selectedImportLanguages
+          : (detect.languages ?? []);
+      const languageDefaults = getPrimaryLanguageDefault(languages);
       const fallbackRun =
-        runCommand ||
+        runCommand.trim() ||
         languageDefaults?.runCommand ||
         detect.runCommand ||
         undefined;
       const fallbackInstall =
-        installCommand || detect.installCommand || undefined;
+        installCommand.trim() || detect.installCommand || undefined;
 
-      const languages = overrideLanguage
-        ? [overrideLanguage]
-        : detect.languages ?? [];
       if (languages.length === 0) {
-        setError("Select a primary language before importing.");
+        setError("Select at least one language or rely on detected languages.");
         return;
       }
 
@@ -220,27 +222,24 @@ function CreateProjectPage() {
       setDetectedLanguages(detection.languages ?? []);
       setDetectedRun(detection.runCommand ?? null);
       setDetectedInstall(detection.installCommand ?? null);
-      setDetectedPreview(detection.previewCommand ?? null);
-      setDetectedPort(detection.port ?? null);
       if (!runCommand) setRunCommand(detection.runCommand ?? "");
       if (!installCommand) setInstallCommand(detection.installCommand ?? "");
 
-      const languageDefaults = overrideLanguage
-        ? LANGUAGES[overrideLanguage]
-        : null;
+      const languages =
+        selectedImportLanguages.length > 0
+          ? selectedImportLanguages
+          : (detection.languages ?? []);
+      const languageDefaults = getPrimaryLanguageDefault(languages);
       const fallbackRun =
-        runCommand ||
+        runCommand.trim() ||
         languageDefaults?.runCommand ||
         detection.runCommand ||
         undefined;
       const fallbackInstall =
-        installCommand || detection.installCommand || undefined;
+        installCommand.trim() || detection.installCommand || undefined;
 
-      const languages = overrideLanguage
-        ? [overrideLanguage]
-        : detection.languages ?? [];
       if (languages.length === 0) {
-        setError("Select a primary language before importing.");
+        setError("Select at least one language or rely on detected languages.");
         return;
       }
 
@@ -579,21 +578,17 @@ function CreateProjectPage() {
                       <Settings2 size={14} />
                       Override detected config
                     </div>
-                    <div className="grid grid-cols-1 gap-3">
-                      <SelectField
-                        label="Primary Language"
-                        value={overrideLanguage}
-                        options={languageList.map((lang) => ({
-                          value: lang.id,
-                          label: lang.name,
-                        }))}
-                        placeholder="Auto-detect"
-                        onChange={(value) => {
-                          setOverrideLanguage(value);
-                          const defaults = LANGUAGES[value];
-                          setRunCommand(defaults?.runCommand ?? "");
-                          setInstallCommand("");
-                        }}
+                    <div className="grid grid-cols-1 gap-4">
+                      <LanguageChipSelector
+                        label="Languages"
+                        languages={languageList}
+                        selectedLanguages={selectedImportLanguages}
+                        onChange={setSelectedImportLanguages}
+                        helperText={
+                          detectedLanguages.length > 0
+                            ? `Leave empty to use detected languages: ${detectedLanguages.join(", ")}`
+                            : "Leave empty to use detected languages."
+                        }
                       />
                       <Input
                         label="Install Command"
@@ -652,21 +647,17 @@ function CreateProjectPage() {
                       <Settings2 size={14} />
                       Override detected config
                     </div>
-                    <div className="grid grid-cols-1 gap-3">
-                      <SelectField
-                        label="Primary Language"
-                        value={overrideLanguage}
-                        options={languageList.map((lang) => ({
-                          value: lang.id,
-                          label: lang.name,
-                        }))}
-                        placeholder="Auto-detect"
-                        onChange={(value) => {
-                          setOverrideLanguage(value);
-                          const defaults = LANGUAGES[value];
-                          setRunCommand(defaults?.runCommand ?? "");
-                          setInstallCommand("");
-                        }}
+                    <div className="grid grid-cols-1 gap-4">
+                      <LanguageChipSelector
+                        label="Languages"
+                        languages={languageList}
+                        selectedLanguages={selectedImportLanguages}
+                        onChange={setSelectedImportLanguages}
+                        helperText={
+                          detectedLanguages.length > 0
+                            ? `Leave empty to use detected languages: ${detectedLanguages.join(", ")}`
+                            : "Leave empty to use detected languages."
+                        }
                       />
                       <Input
                         label="Install Command"
@@ -857,6 +848,54 @@ function SelectField({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function LanguageChipSelector({
+  label,
+  languages,
+  selectedLanguages,
+  onChange,
+  helperText,
+}: {
+  label: string;
+  languages: Array<{ id: string; name: string }>;
+  selectedLanguages: string[];
+  onChange: (languages: string[]) => void;
+  helperText?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-text-secondary block">
+        {label}
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {languages.map((lang) => {
+          const isSelected = selectedLanguages.includes(lang.id);
+          return (
+            <button
+              key={lang.id}
+              type="button"
+              onClick={() =>
+                onChange(
+                  isSelected
+                    ? selectedLanguages.filter((id) => id !== lang.id)
+                    : [...selectedLanguages, lang.id],
+                )
+              }
+              className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                isSelected
+                  ? "border-accent-primary bg-accent-primary/10 text-accent-primary"
+                  : "border-border-subtle text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {lang.name}
+            </button>
+          );
+        })}
+      </div>
+      {helperText && <p className="m-0 text-xs text-text-tertiary">{helperText}</p>}
     </div>
   );
 }

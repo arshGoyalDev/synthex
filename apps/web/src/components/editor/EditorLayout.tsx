@@ -6,7 +6,14 @@ import { PreviewPanel } from "./PreviewPanel";
 import { Pane } from "./Pane";
 import { useEditorStore } from "../../stores/editor.store";
 import { useFileSync } from "../../hooks/useFileSync";
-import { Files, Search, TerminalSquare, ChevronUp, Clock } from "lucide-react";
+import {
+  Files,
+  Search,
+  TerminalSquare,
+  ChevronUp,
+  Clock,
+  Settings,
+} from "lucide-react";
 import {
   Panel,
   Group as PanelGroup,
@@ -63,28 +70,30 @@ export function useExecutionContext(): ExecutionContextData | null {
 
 interface EditorLayoutProps {
   projectId: string;
-  projectName: string;
   userId: string;
   containerStatus: string;
+  autoSaveEnabled: boolean;
   runCommand: string | null;
   previewCommand: string | null;
   previewPort: number | null;
   templateId: string | null;
   execution: UseExecutionReturn;
   preview: UsePreviewReturn;
+  onOpenSettings: () => void;
 }
 
 export function EditorLayout({
   projectId,
-  projectName,
   userId,
   containerStatus,
+  autoSaveEnabled,
   runCommand,
   previewCommand,
   previewPort,
   templateId,
   execution,
   preview,
+  onOpenSettings,
 }: EditorLayoutProps) {
   const isExplorerOpen = useEditorStore((s) => s.isExplorerOpen);
   const isTerminalOpen = useEditorStore((s) => s.isTerminalOpen);
@@ -101,7 +110,12 @@ export function EditorLayout({
   );
 
   // ─── Hooks ────────────────────────────────────────────────────────────
-  const fileSyncActions = useFileSync({ projectId, userId, containerStatus });
+  const fileSyncActions = useFileSync({
+    projectId,
+    userId,
+    containerStatus,
+    autoSaveEnabled,
+  });
 
   // ─── Keyboard shortcuts ─────────────────────────────────────────────────
 
@@ -206,6 +220,16 @@ export function EditorLayout({
               title="Execution History"
             >
               <Clock size={20} strokeWidth={2} />
+            </button>
+
+            <div className="flex-1" />
+
+            <button
+              className="mb-1 flex items-center justify-center w-10 h-10 rounded-md border-none cursor-pointer transition-all duration-200 bg-transparent text-text-tertiary hover:bg-white/5 hover:text-text-primary"
+              onClick={onOpenSettings}
+              title="Project Settings"
+            >
+              <Settings size={18} strokeWidth={2} />
             </button>
           </div>
 

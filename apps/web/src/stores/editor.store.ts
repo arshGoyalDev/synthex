@@ -84,6 +84,8 @@ interface EditorState {
 
   executionHistoryTick: number;
   bumpExecutionHistory: () => void;
+  selectedExecutionLog: ExecutionRecord | null;
+  setSelectedExecutionLog: (log: ExecutionRecord | null) => void;
 
   // Group-specific Actions
   openFile: (file: FileEntry, groupId?: string) => void;
