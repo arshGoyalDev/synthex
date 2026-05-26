@@ -226,11 +226,11 @@ class ContainerService {
       await container.start();
     }
 
-    // git clone
-    console.log(`[container-service] Cloning ${repoUrl} into ${projectName}`);
+    // git clone (skip if repo already present)
+    console.log(`[container-service] Ensuring repo present for ${projectName}`);
     const cloneCommands = [
       `mkdir -p /workspace`,
-      `git clone --depth 1 --branch ${repoBranch} ${repoUrl} /workspace/${projectName}`,
+      `if [ -d "/workspace/${projectName}/.git" ]; then echo "Repo already exists, skipping clone"; else git clone --depth 1 --branch ${repoBranch} ${repoUrl} /workspace/${projectName}; fi`,
     ];
     await this.runSetupCommands(container, cloneCommands, projectId);
 
@@ -239,7 +239,9 @@ class ContainerService {
       console.log(`[container-service] Running install: ${installCommand}`);
       await this.runSetupCommands(
         container,
-        [`cd /workspace/${projectName} && ${installCommand}`],
+        [
+          `if [ -f "/workspace/${projectName}/.synthex-installed" ]; then echo "Install already completed, skipping"; else cd /workspace/${projectName} && ${installCommand} && touch /workspace/${projectName}/.synthex-installed; fi`,
+        ],
         projectId,
       );
     }

@@ -19,8 +19,17 @@ class ExecutionHandler {
   private docker = new Dockerode();
   private activeExecs = new Map<
     string,
-    { pid?: number; containerId: string; stdin?: Duplex }
+    {
+      pid?: number;
+      containerId: string;
+      userId: string;
+      stdin?: Duplex;
+      stream?: Duplex;
+      inputHandler?: (data: { executionId: string; input: string }) => void;
+      killRequested?: boolean;
+    }
   >();
+  private pendingKills = new Set<string>();
 
   async startExecution(data: ExecutionStartData) {
     const {
@@ -87,12 +96,30 @@ class ExecutionHandler {
       },
     );
 
-    const startedInfo = await exec.inspect();
     this.activeExecs.set(executionId, {
       containerId: `synthex-${projectId}`,
-      pid: startedInfo.Pid,
+      userId,
       stdin: stream,
+      stream,
+      killRequested: false,
     });
+
+    const startedInfo = await exec.inspect();
+    const activeEntry = this.activeExecs.get(executionId);
+    if (activeEntry) {
+      activeEntry.pid = startedInfo.Pid;
+    }
+
+    if (this.pendingKills.has(executionId)) {
+      this.pendingKills.delete(executionId);
+      await this.killExecution(executionId, projectId);
+      return;
+    }
+
+    if (activeEntry?.killRequested) {
+      await this.killExecution(executionId, projectId);
+      return;
+    }
 
     // Forward user input from Redis pubsub into the exec stdin
     const inputHandler = async (data: { executionId: string; input: string }) => {
@@ -100,6 +127,10 @@ class ExecutionHandler {
       stream.write(data.input);
     };
     await pubsub.subscribe("execution:input", inputHandler);
+    let activeEntryWithInput = this.activeExecs.get(executionId);
+    if (activeEntryWithInput) {
+      activeEntryWithInput.inputHandler = inputHandler;
+    }
 
     const startTime = Date.now();
     let timedOut = false;
@@ -191,7 +222,9 @@ class ExecutionHandler {
     const exitCode = execInfo.ExitCode ?? -1;
     const durationMs = Date.now() - startTime;
 
+    const activeEntryAtEnd = this.activeExecs.get(executionId);
     this.activeExecs.delete(executionId);
+    if (!activeEntryAtEnd) return;
 
     await this.publishDone(
       executionId,
@@ -208,24 +241,51 @@ class ExecutionHandler {
       const container = this.docker.getContainer(`synthex-${projectId}`);
       const active = this.activeExecs.get(executionId);
 
-      if (!active?.pid) {
-        console.log(`[execution-handler] No active pid for ${executionId}`);
+      if (!active) {
+        console.log(`[execution-handler] No active execution for ${executionId}`);
+        this.pendingKills.add(executionId);
         return;
       }
 
+      if (!active.pid) {
+        console.log(`[execution-handler] No active pid for ${executionId}, deferring kill`);
+        active.killRequested = true;
+        return;
+      }
+
+      const killCommands = [
+        // Try graceful termination first
+        `kill -TERM -${active.pid} 2>/dev/null || kill -TERM ${active.pid} 2>/dev/null || true`,
+        // Wait up to ~1s
+        "sleep 1",
+        // If still alive, force kill
+        `kill -0 ${active.pid} 2>/dev/null && (kill -KILL -${active.pid} 2>/dev/null || kill -KILL ${active.pid} 2>/dev/null || true) || true`,
+      ].join(" && ");
+
       const exec = await container.exec({
-        Cmd: [
-          "bash",
-          "-lc",
-          `kill -TERM -${active.pid} 2>/dev/null || kill -TERM ${active.pid} 2>/dev/null || true`,
-        ],
+        Cmd: ["bash", "-lc", killCommands],
         AttachStdout: false,
         AttachStderr: false,
       });
 
       await exec.start({ hijack: false, stdin: false }, () => {});
 
+      if (active.inputHandler) {
+        await pubsub.unsubscribe("execution:input", active.inputHandler);
+      }
+      active.stream?.destroy();
       this.activeExecs.delete(executionId);
+
+      await this.publishDone(
+        executionId,
+        projectId,
+        active.userId,
+        -1,
+        0,
+        false,
+        "Execution killed",
+        true,
+      );
 
       console.log(`[execution-handler] Killed execution ${executionId}`);
     } catch (err: any) {
@@ -241,6 +301,7 @@ class ExecutionHandler {
     durationMs: number,
     timedOut: boolean,
     error?: string,
+    killed?: boolean,
   ) {
     await pubsub.publish("execution:done", {
       executionId,
@@ -250,6 +311,7 @@ class ExecutionHandler {
       durationMs,
       timedOut,
       error,
+      killed,
     });
   }
 }
