@@ -116,13 +116,29 @@ class ProjectService {
       },
     });
 
+    const createdType = project.importSource ? "blank" : data.type;
+    const createdLanguages = project.importSource
+      ? data.languages
+      : data.type === "blank"
+        ? data.languages
+        : null;
+
     await pubsub.publish("project:created", {
       projectId: project.id,
       projectName: safeName(data.name),
       userId,
-      type: data.type,
-      template: data.type === "template" ? data.template : null,
-      languages: data.type === "blank" ? data.languages : null,
+      importSource: project.importSource ?? null,
+      repoUrl: project.repoUrl ?? null,
+      repoBranch: project.repoBranch ?? null,
+      zipKey: project.zipKey ?? null,
+      installCommand: project.installCommand ?? null,
+      runCommand: project.runCommand ?? null,
+      previewCommand: project.previewCommand ?? null,
+      previewPort: project.previewPort ?? null,
+      envVars: (project.envVars as Record<string, string> | null) ?? null,
+      type: createdType,
+      template: createdType === "template" ? data.template : null,
+      languages: createdLanguages,
     });
 
     await redis.set(
@@ -168,13 +184,29 @@ class ProjectService {
       data: { containerStatus: "pending" },
     });
 
+    const startType = project.importSource ? "blank" : project.type;
+    const startLanguages = project.importSource
+      ? project.languages
+      : project.type === "blank"
+        ? project.languages
+        : null;
+
     await pubsub.publish("project:start", {
       projectId: project.id,
       projectName: project.folderName,
       userId: project.userId,
-      type: project.type,
-      template: project.type === "template" ? project.template : null,
-      languages: project.type === "blank" ? project.languages : null,
+      importSource: project.importSource ?? null,
+      repoUrl: project.repoUrl ?? null,
+      repoBranch: project.repoBranch ?? null,
+      zipKey: project.zipKey ?? null,
+      installCommand: project.installCommand ?? null,
+      runCommand: project.runCommand ?? null,
+      previewCommand: project.previewCommand ?? null,
+      previewPort: project.previewPort ?? null,
+      envVars: (project.envVars as Record<string, string> | null) ?? null,
+      type: startType,
+      template: startType === "template" ? project.template : null,
+      languages: startLanguages,
     });
 
     await redis.set(

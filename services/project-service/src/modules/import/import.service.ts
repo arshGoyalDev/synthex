@@ -160,13 +160,17 @@ class ImportService {
       `https://x-access-token:${encodeURIComponent(token)}@`,
     );
 
+    const safeLanguages = data.languages?.filter(Boolean) ?? [];
+    if (safeLanguages.length === 0) {
+      throw new AppError("Languages required for imported project", 400);
+    }
     const project = await db.project.create({
       data: {
         name: data.name,
         folderName: safeName(data.name),
         description: data.description,
-        type: "raw",
-        languages: data.languages,
+        type: "blank",
+        languages: safeLanguages,
         userId,
         importSource: "github",
         repoUrl: authedRepoUrl,
@@ -183,9 +187,9 @@ class ImportService {
       projectId: project.id,
       projectName: project.folderName,
       userId,
-      type: "raw",
+      type: "blank",
       template: null,
-      languages: data.languages,
+      languages: safeLanguages,
       importSource: "github",
       repoUrl: authedRepoUrl,
       repoBranch: data.repoBranch,
@@ -278,13 +282,17 @@ class ImportService {
       envVars?: Record<string, string>;
     },
   ) {
+    const safeLanguages = data.languages?.filter(Boolean) ?? [];
+    if (safeLanguages.length === 0) {
+      throw new AppError("Languages required for imported project", 400);
+    }
     const project = await db.project.create({
       data: {
         name: data.name,
         folderName: safeName(data.name),
         description: data.description,
-        type: "raw",
-        languages: data.languages,
+        type: "blank",
+        languages: safeLanguages,
         userId,
         importSource: "zip",
         zipKey: data.zipKey,
@@ -300,9 +308,9 @@ class ImportService {
       projectId: project.id,
       projectName: project.folderName,
       userId,
-      type: "raw",
+      type: "blank",
       template: null,
-      languages: data.languages,
+      languages: safeLanguages,
       importSource: "zip",
       zipKey: data.zipKey,
       installCommand: data.installCommand ?? null,
