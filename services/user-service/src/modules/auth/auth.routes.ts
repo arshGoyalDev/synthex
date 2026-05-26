@@ -25,7 +25,8 @@ passport.use(
       clientID: env.GITHUB_CLIENT_ID!,
       clientSecret: env.GITHUB_CLIENT_SECRET!,
       callbackURL: env.GITHUB_CALLBACK_URL,
-      scope: ["user:email", "repo"],
+      scope: ["read:user", "user:email", "repo"],
+      skipUserProfile: true,
     },
     async (
       accessToken: string,
@@ -34,18 +35,77 @@ passport.use(
       done: any,
     ) => {
       try {
-        const email = profile.emails?.[0].value ?? `${profile.id}@github.com`;
+        const profileRes = await fetch("https://api.github.com/user", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "synthex-auth/1.0",
+          },
+        });
+
+        if (!profileRes.ok) {
+          const details = await profileRes.text();
+          throw new Error(
+            `Failed to fetch user profile: ${profileRes.status} ${profileRes.statusText} ${details}`,
+          );
+        }
+
+        const profileJson = (await profileRes.json()) as {
+          id: number | string;
+          login?: string;
+          name?: string;
+          email?: string | null;
+          avatar_url?: string | null;
+        };
+
+        let email = profileJson.email ?? undefined;
+
+        if (!email) {
+          try {
+            const emailRes = await fetch("https://api.github.com/user/emails", {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "synthex-auth/1.0",
+              },
+            });
+
+            if (emailRes.ok) {
+              const emails = (await emailRes.json()) as Array<{
+                email: string;
+                primary?: boolean;
+                verified?: boolean;
+              }>;
+
+              const primaryVerified = emails.find(
+                (entry) => entry.primary && entry.verified,
+              );
+              const verified = emails.find((entry) => entry.verified);
+              email = primaryVerified?.email ?? verified?.email;
+            }
+          } catch {
+            // best-effort; fall back to placeholder
+          }
+        }
+
+        if (!email) {
+          email = `${profileJson.id}@github.com`;
+        }
 
         const tokens = await authService.handleOAuthLogin(
           "github",
-          profile.id,
+          String(profileJson.id),
           {
-            username: profile.username ?? profile.displayName,
+            username:
+              profileJson.login ?? profileJson.name ?? "github-user",
             email,
-            avatarUrl: profile.photos?.[0].value,
+            avatarUrl: profileJson.avatar_url ?? undefined,
           },
           accessToken,
-          (profile._json?.scope as string | undefined) ?? "user:email,repo",
+          profileRes.headers.get("x-oauth-scopes") ??
+            "read:user,user:email,repo",
         );
 
         done(null, tokens);

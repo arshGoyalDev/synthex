@@ -3,12 +3,25 @@ import { LANGUAGES, TEMPLATES } from "@synthex/templates";
 import { AppError } from "../../utils/AppError";
 import { createSnapshot, getLatestSnapshotKey } from "../../utils/snapshots";
 import { restoreSnapshot } from "../../utils/restore";
+import { createDockerFrameParser } from "../../utils/dockerStream";
 import {
   FILES_BUCKET,
   minioClient,
   pubsub,
   redis,
 } from "../../config/database";
+
+type SetupLogType = "info" | "success" | "error" | "command";
+type SetupStage = "install" | "setup" | "postSetup" | "done";
+
+const SETUP_BUFFER_TTL_SECONDS = 30 * 60;
+const SETUP_BUFFER_MAX_LINES = 2000;
+const DEFAULT_SETUP_STAGES = {
+  install: "Pulling runtime",
+  setup: "Scaffolding project",
+  postSetup: "Installing dependencies",
+};
+const DONE_STAGE_NAME = "Ready";
 
 class ContainerService {
   docker = new Dockerode();
@@ -43,15 +56,19 @@ class ContainerService {
     languages?: string[],
     template?: string,
   ) {
-    let commands: string[] = [];
+    let installCommands: string[] = [];
+    let setupCommands: string[] = [];
+    let postSetupCommands: string[] = [];
     let selectedTemplate: (typeof TEMPLATES)[string] | null = null;
     let image = this.DEFAULT_IMAGE;
+    let setupStages = DEFAULT_SETUP_STAGES;
 
     if (template) {
       const tmpl = TEMPLATES[template];
 
       if (!tmpl) throw new AppError(`Unknown Template: ${template}`, 400);
       selectedTemplate = tmpl;
+      setupStages = tmpl.setupStages ?? DEFAULT_SETUP_STAGES;
 
       const { install, setup, postSetup } = tmpl.getCommands(projectName);
 
@@ -62,9 +79,12 @@ class ContainerService {
 
       if (resolvedBaseImage) {
         image = resolvedBaseImage;
-        commands.push(...setup, ...postSetup);
+        setupCommands = setup;
+        postSetupCommands = postSetup;
       } else {
-        commands.push(...install, ...setup, ...postSetup);
+        installCommands = install;
+        setupCommands = setup;
+        postSetupCommands = postSetup;
       }
     } else {
       if (!languages || languages.length === 0) {
@@ -81,19 +101,17 @@ class ContainerService {
 
         if (lang.baseImage) {
           image = lang.baseImage;
-          commands = [`mkdir -p /workspace/${projectName}`];
+          setupCommands = [`mkdir -p /workspace/${projectName}`];
         } else {
-          commands = [
-            ...lang.installCommands,
-            `mkdir -p /workspace/${projectName}`,
-          ];
+          installCommands = lang.installCommands;
+          setupCommands = [`mkdir -p /workspace/${projectName}`];
         }
       } else {
-        const installCommands = languages.flatMap(
+        installCommands = languages.flatMap(
           (lang) => LANGUAGES[lang]?.installCommands ?? [],
         );
 
-        commands = [...installCommands, `mkdir -p /workspace/${projectName}`];
+        setupCommands = [`mkdir -p /workspace/${projectName}`];
       }
     }
 
@@ -163,8 +181,56 @@ class ContainerService {
         );
         await this.takeSnapshot(container, projectId, userId, projectName);
       } else {
-        if (commands.length > 0) {
-          await this.runSetupCommands(container, commands, projectId);
+        const totalCommands =
+          installCommands.length + setupCommands.length + postSetupCommands.length;
+
+        await this.initSetupLogging(projectId);
+
+        if (totalCommands > 0) {
+          let commandIndex = 0;
+
+          commandIndex = await this.runSetupStage({
+            container,
+            commands: installCommands,
+            projectId,
+            stage: "install",
+            stageName: setupStages.install,
+            commandIndex,
+            totalCommands,
+          });
+
+          commandIndex = await this.runSetupStage({
+            container,
+            commands: setupCommands,
+            projectId,
+            stage: "setup",
+            stageName: setupStages.setup,
+            commandIndex,
+            totalCommands,
+          });
+
+          if (postSetupCommands.length > 0) {
+            await pubsub.publish("container:status", {
+              projectId,
+              userId,
+              status: "installing",
+              message: "Installing dependencies...",
+            });
+          }
+
+          commandIndex = await this.runSetupStage({
+            container,
+            commands: postSetupCommands,
+            projectId,
+            stage: "postSetup",
+            stageName: setupStages.postSetup,
+            commandIndex,
+            totalCommands,
+          });
+
+          await this.completeSetupLogging(projectId, totalCommands);
+        } else {
+          await this.completeSetupLogging(projectId, 0);
         }
 
         await this.takeSnapshot(container, projectId, userId, projectName);
@@ -232,19 +298,44 @@ class ContainerService {
       `mkdir -p /workspace`,
       `if [ -d "/workspace/${projectName}/.git" ]; then echo "Repo already exists, skipping clone"; else git clone --depth 1 --branch ${repoBranch} ${repoUrl} /workspace/${projectName}; fi`,
     ];
-    await this.runSetupCommands(container, cloneCommands, projectId);
+    const totalCommands = cloneCommands.length + (installCommand ? 1 : 0);
+    await this.initSetupLogging(projectId);
+
+    let commandIndex = 0;
+    commandIndex = await this.runSetupStage({
+      container,
+      commands: cloneCommands,
+      projectId,
+      stage: "setup",
+      stageName: DEFAULT_SETUP_STAGES.setup,
+      commandIndex,
+      totalCommands,
+    });
 
     // install dependencies
     if (installCommand) {
       console.log(`[container-service] Running install: ${installCommand}`);
-      await this.runSetupCommands(
+      await pubsub.publish("container:status", {
+        projectId,
+        userId,
+        status: "installing",
+        message: "Installing dependencies...",
+      });
+
+      commandIndex = await this.runSetupStage({
         container,
-        [
+        commands: [
           `if [ -f "/workspace/${projectName}/.synthex-installed" ]; then echo "Install already completed, skipping"; else cd /workspace/${projectName} && ${installCommand} && touch /workspace/${projectName}/.synthex-installed; fi`,
         ],
         projectId,
-      );
+        stage: "postSetup",
+        stageName: DEFAULT_SETUP_STAGES.postSetup,
+        commandIndex,
+        totalCommands,
+      });
     }
+
+    await this.completeSetupLogging(projectId, totalCommands);
 
     await this.takeSnapshot(container, projectId, userId, projectName);
 
@@ -295,7 +386,7 @@ class ContainerService {
     }
 
     // Create workspace directory
-    await this.runSetupCommands(container, [`mkdir -p /workspace/${projectName}`], projectId);
+    const createWorkspaceCommands = [`mkdir -p /workspace/${projectName}`];
 
     // Extract zip into /workspace (Docker's putArchive expects a tar stream,
     // but for .zip we use unzip inside the container via stdin piping)
@@ -321,17 +412,43 @@ class ContainerService {
       // Strip single top-level folder if present (common zip convention)
       `cd /workspace/${projectName} && count=$(ls -1A 2>/dev/null | wc -l) && if [ "$count" -eq 1 ]; then dir=$(ls -1A 2>/dev/null); if [ -d "$dir" ]; then mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.[!.]* . 2>/dev/null || true; rmdir "$dir" 2>/dev/null || true; fi; fi`,
     ];
-    await this.runSetupCommands(container, extractCmds, projectId);
+    const setupCommands = [...createWorkspaceCommands, ...extractCmds];
+    const totalCommands = setupCommands.length + (installCommand ? 1 : 0);
+    await this.initSetupLogging(projectId);
+
+    let commandIndex = 0;
+    commandIndex = await this.runSetupStage({
+      container,
+      commands: setupCommands,
+      projectId,
+      stage: "setup",
+      stageName: DEFAULT_SETUP_STAGES.setup,
+      commandIndex,
+      totalCommands,
+    });
 
     // Run install
     if (installCommand) {
       console.log(`[container-service] Running install: ${installCommand}`);
-      await this.runSetupCommands(
-        container,
-        [`cd /workspace/${projectName} && ${installCommand}`],
+      await pubsub.publish("container:status", {
         projectId,
-      );
+        userId,
+        status: "installing",
+        message: "Installing dependencies...",
+      });
+
+      commandIndex = await this.runSetupStage({
+        container,
+        commands: [`cd /workspace/${projectName} && ${installCommand}`],
+        projectId,
+        stage: "postSetup",
+        stageName: DEFAULT_SETUP_STAGES.postSetup,
+        commandIndex,
+        totalCommands,
+      });
     }
+
+    await this.completeSetupLogging(projectId, totalCommands);
 
     await this.takeSnapshot(container, projectId, userId, projectName);
 
@@ -445,57 +562,292 @@ class ContainerService {
     }
   }
 
-  private async runSetupCommands(
-    container: Dockerode.Container,
-    commands: string[],
-    projectId: string,
-  ) {
+  private async runSetupStage(options: {
+    container: Dockerode.Container;
+    commands: string[];
+    projectId: string;
+    stage: SetupStage;
+    stageName: string;
+    commandIndex: number;
+    totalCommands: number;
+  }) {
+    const {
+      container,
+      commands,
+      projectId,
+      stage,
+      stageName,
+      totalCommands,
+    } = options;
+    let { commandIndex } = options;
+
+    if (commands.length === 0) return commandIndex;
+
+    await this.publishSetupStage({
+      projectId,
+      stage,
+      stageName,
+      commandIndex: Math.min(commandIndex + 1, totalCommands),
+      totalCommands,
+    });
+
+    await this.publishSetupLog({
+      projectId,
+      type: "info",
+      text: `⟳ ${stageName}`,
+      commandIndex: Math.min(commandIndex + 1, totalCommands),
+      totalCommands,
+    });
+
     for (const command of commands) {
-      console.log(`[${projectId}] Running: ${command}`);
-
-      const exec = await container.exec({
-        Cmd: ["bash", "-c", command],
-        AttachStdout: true,
-        AttachStderr: true,
+      commandIndex += 1;
+      await this.runSetupCommand({
+        container,
+        command,
+        projectId,
+        commandIndex,
+        totalCommands,
       });
-
-      let output = "";
-
-      await new Promise<void>((resolve, reject) => {
-        exec.start({ hijack: false, stdin: false }, (err, stream) => {
-          if (err) return reject(err);
-
-          if (!stream) return resolve();
-
-          stream.on("data", (chunk: Buffer) => {
-            const text = chunk.toString("utf8");
-            output += text;
-            if (text.trim()) {
-              process.stdout.write(`[${projectId}] ${text}`);
-            }
-          });
-
-          stream.on("end", () => {
-            console.log(`[${projectId}] Command completed`);
-            resolve();
-          });
-
-          stream.on("error", reject);
-        });
-      });
-
-      const execInfo = await exec.inspect();
-      const exitCode = execInfo.ExitCode ?? 1;
-
-      if (exitCode !== 0) {
-        console.log(`[${projectId}] Command failed: ${command}`);
-
-        throw new AppError(
-          `Setup command failed (exit ${exitCode}): ${command}\n${output.trim()}`,
-          500,
-        );
-      }
+      await this.updateSetupProgress(projectId, commandIndex, totalCommands);
     }
+
+    return commandIndex;
+  }
+
+  private async runSetupCommand(options: {
+    container: Dockerode.Container;
+    command: string;
+    projectId: string;
+    commandIndex: number;
+    totalCommands: number;
+  }) {
+    const { container, command, projectId, commandIndex, totalCommands } = options;
+    const startedAt = Date.now();
+    const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g; // eslint-disable-line no-control-regex
+
+    await this.publishSetupLog({
+      projectId,
+      type: "command",
+      text: `$ ${command}`,
+      commandIndex,
+      totalCommands,
+    });
+
+    console.log(`[${projectId}] Running: ${command}`);
+
+    const exec = await container.exec({
+      Cmd: ["bash", "-c", command],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+
+    let output = "";
+    const lineBuffers: Record<"stdout" | "stderr", string> = {
+      stdout: "",
+      stderr: "",
+    };
+
+    const emitLines = async (type: "stdout" | "stderr", chunk: string) => {
+      const cleaned = chunk.replace(ANSI_RE, "").replace(/\r\n/g, "\n");
+      const buffer = `${lineBuffers[type]}${cleaned}`;
+      const lines = buffer.split(/\n/);
+      lineBuffers[type] = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const text = line.replace(/\r$/, "");
+        if (!text.trim()) continue;
+        await this.publishSetupLog({
+          projectId,
+          type: type === "stderr" ? "error" : "info",
+          text,
+          commandIndex,
+          totalCommands,
+        });
+      }
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      exec.start({ hijack: false, stdin: false }, (err, stream) => {
+        if (err) return reject(err);
+
+        if (!stream) return resolve();
+
+        let processing = false;
+        const pendingFrames: Array<{ type: "stdout" | "stderr"; payload: Buffer }> = [];
+
+        const drainFrames = async () => {
+          if (processing || pendingFrames.length === 0) return;
+          processing = true;
+          (stream as NodeJS.ReadableStream).pause?.();
+
+          while (pendingFrames.length > 0) {
+            const batch = pendingFrames.splice(0, 20);
+
+            for (const { type, payload } of batch) {
+              const text = payload.toString("utf8");
+              output += text;
+              await emitLines(type, text);
+            }
+          }
+
+          processing = false;
+          (stream as NodeJS.ReadableStream).resume?.();
+        };
+
+        const parseFrame = createDockerFrameParser(({ type, payload }) => {
+          if (payload.length === 0) return;
+          pendingFrames.push({ type, payload });
+          drainFrames().catch(console.error);
+        });
+
+        stream.on("data", parseFrame);
+        stream.on("end", async () => {
+          while (pendingFrames.length > 0 || processing) {
+            await new Promise((wait) => setTimeout(wait, 10));
+          }
+
+          await emitLines("stdout", "\n");
+          await emitLines("stderr", "\n");
+
+          console.log(`[${projectId}] Command completed`);
+          resolve();
+        });
+
+        stream.on("error", reject);
+      });
+    });
+
+    const execInfo = await exec.inspect();
+    const exitCode = execInfo.ExitCode ?? 1;
+    const durationSeconds = (Date.now() - startedAt) / 1000;
+
+    if (exitCode !== 0) {
+      console.log(`[${projectId}] Command failed: ${command}`);
+      await this.publishSetupLog({
+        projectId,
+        type: "error",
+        text: `✗ Command failed (exit ${exitCode})`,
+        commandIndex,
+        totalCommands,
+      });
+      await this.markSetupFailed(projectId);
+
+      throw new AppError(
+        `Setup command failed (exit ${exitCode}): ${command}\n${output.trim()}`,
+        500,
+      );
+    }
+
+    await this.publishSetupLog({
+      projectId,
+      type: "success",
+      text: `✓ Command completed (${durationSeconds.toFixed(1)}s)`,
+      commandIndex,
+      totalCommands,
+    });
+  }
+
+  private async initSetupLogging(projectId: string) {
+    await redis
+      .pipeline()
+      .del(`setup:buffer:${projectId}`)
+      .del(`setup:seq:${projectId}`)
+      .del(`setup:status:${projectId}`)
+      .del(`setup:progress:${projectId}`)
+      .exec();
+
+    await redis.setex(
+      `setup:status:${projectId}`,
+      SETUP_BUFFER_TTL_SECONDS,
+      "running",
+    );
+    await redis.setex(
+      `setup:progress:${projectId}`,
+      SETUP_BUFFER_TTL_SECONDS,
+      "0",
+    );
+  }
+
+  private async markSetupFailed(projectId: string) {
+    await redis.setex(
+      `setup:status:${projectId}`,
+      SETUP_BUFFER_TTL_SECONDS,
+      "error",
+    );
+  }
+
+  private async completeSetupLogging(projectId: string, totalCommands: number) {
+    await this.publishSetupStage({
+      projectId,
+      stage: "done",
+      stageName: DONE_STAGE_NAME,
+      commandIndex: totalCommands,
+      totalCommands,
+    });
+    await this.updateSetupProgress(projectId, totalCommands, totalCommands);
+    await redis.setex(
+      `setup:status:${projectId}`,
+      SETUP_BUFFER_TTL_SECONDS,
+      "completed",
+    );
+  }
+
+  private async publishSetupStage(options: {
+    projectId: string;
+    stage: SetupStage;
+    stageName: string;
+    commandIndex: number;
+    totalCommands: number;
+  }) {
+    const payload = { ...options };
+    await pubsub.publish("container:setup:stage", payload);
+  }
+
+  private async updateSetupProgress(
+    projectId: string,
+    commandIndex: number,
+    totalCommands: number,
+  ) {
+    const progress =
+      totalCommands > 0
+        ? Math.min(100, Math.round((commandIndex / totalCommands) * 100))
+        : 100;
+    await redis.setex(
+      `setup:progress:${projectId}`,
+      SETUP_BUFFER_TTL_SECONDS,
+      progress.toString(),
+    );
+  }
+
+  private async nextSetupSeq(projectId: string) {
+    const seq = await redis.incr(`setup:seq:${projectId}`);
+    await redis.expire(`setup:seq:${projectId}`, SETUP_BUFFER_TTL_SECONDS);
+    return seq;
+  }
+
+  private async publishSetupLog(options: {
+    projectId: string;
+    type: SetupLogType;
+    text: string;
+    commandIndex: number;
+    totalCommands: number;
+  }) {
+    const { projectId } = options;
+    const seq = await this.nextSetupSeq(projectId);
+    const payload = {
+      ...options,
+      seq,
+      timestamp: Date.now(),
+    };
+
+    await redis
+      .pipeline()
+      .rpush(`setup:buffer:${projectId}`, JSON.stringify(payload))
+      .ltrim(`setup:buffer:${projectId}`, -SETUP_BUFFER_MAX_LINES, -1)
+      .expire(`setup:buffer:${projectId}`, SETUP_BUFFER_TTL_SECONDS)
+      .exec();
+
+    await pubsub.publish("container:setup:log", payload);
   }
 
   async takeSnapshot(

@@ -17,6 +17,7 @@ enum ProjectType {
 enum ContainerStatus {
   pending
   starting
+  installing
   stopping
   ready
   stopped
