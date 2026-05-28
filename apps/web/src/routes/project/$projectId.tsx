@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useSocket } from "../../contexts/SocketContext";
 import {
@@ -12,6 +12,7 @@ import {
   updateProjectConfig,
 } from "../../services/project.service";
 import { useProjectStore } from "../../stores/project.store";
+import { useSetupStore } from "../../stores/setup.store";
 import type { Project } from "../../types/project";
 import { useAuthStore } from "../../stores/auth.store";
 import {
@@ -20,6 +21,7 @@ import {
   AlertCircle,
   ChevronLeft,
   Monitor,
+  RefreshCw,
 } from "lucide-react";
 import { EditorLayout } from "../../components/editor/EditorLayout";
 import { FilePalette } from "../../components/editor/FilePalette";
@@ -27,6 +29,8 @@ import { useEditorStore } from "../../stores/editor.store";
 import { useExecution } from "../../hooks/useExecution";
 import { usePreview } from "../../hooks/usePreview";
 import { ProjectSettingsModal } from "../../components/editor/ProjectSettingsModal";
+import { SetupLogPanel } from "../../components/editor/SetupLogPanel";
+import { InstallStatusBanner } from "../../components/editor/InstallStatusBanner";
 
 export const Route = createFileRoute("/project/$projectId")({
   component: ProjectPage,
@@ -57,6 +61,30 @@ function ProjectPage() {
   const isRightPanelOpen = useEditorStore((s) => s.isRightPanelOpen);
   const toggleRightPanel = useEditorStore((s) => s.toggleRightPanel);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showSetupLogs, setShowSetupLogs] = useState(false);
+
+  // ─── Setup store ────────────────────────────────────────────────────────────
+  const setupStore = useSetupStore();
+  const {
+    initForProject,
+    appendLog,
+    applyStage,
+    applyStatus,
+    openEditorEarly,
+    markInstallDone,
+    reset: resetSetup,
+  } = setupStore;
+
+  // ─── Derived: when to show setup screen vs editor ───────────────────────────
+  const isSettingUp =
+    (containerStatus === "starting" ||
+      containerStatus === "installing" ||
+      containerStatus === "pending") &&
+    !setupStore.openedEditorEarly;
+
+  const showEditor =
+    containerStatus === "ready" ||
+    containerStatus === "installing" && setupStore.openedEditorEarly;
 
   const [runtimeConfig, setRuntimeConfig] = useState<{
     installCommand: string | null;
@@ -79,12 +107,11 @@ function ProjectPage() {
   const previewCommand = runtimeConfig.previewCommand;
   const previewPort = runtimeConfig.previewPort;
 
-  // ─── Execution & Preview hooks (hoisted so navbar button can access state) ──
+  // ─── Execution & Preview hooks ──────────────────────────────────────────────
   const projectName = project?.folderName || project?.name || "";
   const execution = useExecution(projectId, projectName);
   const preview = usePreview(projectId, projectName);
 
-  // Derived state for the Run/Preview button
   const isPreviewProject = !!previewCommand && !!previewPort;
   const isExecutionActive =
     execution.status === "running" || execution.status === "queued";
@@ -92,16 +119,18 @@ function ProjectPage() {
     preview.previewStatus === "ready" || preview.previewStatus === "starting";
   const isPanelActive = isPreviewProject ? isPreviewActive : isExecutionActive;
 
-  /** Open the panel (and start execution/preview if not already running) */
+  // Disable run/preview while installing
+  const isInstallRunning =
+    containerStatus === "installing" && !setupStore.openedEditorEarly
+      ? true
+      : setupStore.isInstalling && setupStore.openedEditorEarly;
+
   const handlePanelButton = async () => {
     if (isRightPanelOpen) {
-      // Panel is open → just toggle it closed
       toggleRightPanel();
       return;
     }
-    // Panel is closed → open it
     toggleRightPanel();
-    // Start if not already active
     if (!isPanelActive) {
       if (isPreviewProject) {
         await preview.start(
@@ -131,17 +160,94 @@ function ProjectPage() {
     if (startData.message) {
       setContainerMsg(startData.message);
     }
-
     return startData;
   };
 
-  // Reset all editor state when leaving the project so stale file data
-  // from this project's paths can't appear in another project's editor.
+  // ─── Setup log socket subscriptions ─────────────────────────────────────────
+  const joinedSetupRoomRef = useRef(false);
+
+  const joinSetupRoom = useCallback(() => {
+    if (!socket || joinedSetupRoomRef.current) return;
+    socket.emit("setup:join", { projectId, fromSeq: 0 });
+    joinedSetupRoomRef.current = true;
+  }, [socket, projectId]);
+
+  const leaveSetupRoom = useCallback(() => {
+    if (!socket || !joinedSetupRoomRef.current) return;
+    socket.emit("setup:leave", { projectId });
+    joinedSetupRoomRef.current = false;
+  }, [socket, projectId]);
+
+  // Init setup store when project loads
+  useEffect(() => {
+    if (projectId) {
+      initForProject(projectId);
+    }
+  }, [projectId, initForProject]);
+
+  // Join setup room and subscribe to events
+  useEffect(() => {
+    if (!socket) return;
+
+    joinSetupRoom();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onSetupLog = (data: any) => {
+      if (data.projectId === projectId) {
+        appendLog({
+          projectId: data.projectId,
+          seq: data.seq,
+          type: data.type,
+          text: data.text,
+          timestamp: data.timestamp,
+          commandIndex: data.commandIndex,
+          totalCommands: data.totalCommands,
+        });
+      }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onSetupStage = (data: any) => {
+      if (data.projectId === projectId) {
+        applyStage({
+          projectId: data.projectId,
+          stage: data.stage,
+          stageName: data.stageName,
+          commandIndex: data.commandIndex,
+          totalCommands: data.totalCommands,
+        });
+      }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onSetupStatus = (data: any) => {
+      if (data.projectId === projectId) {
+        applyStatus(data);
+        if (data.status === "completed") {
+          markInstallDone();
+        }
+      }
+    };
+
+    socket.on("setup:log", onSetupLog);
+    socket.on("setup:stage", onSetupStage);
+    socket.on("setup:status", onSetupStatus);
+
+    return () => {
+      socket.off("setup:log", onSetupLog);
+      socket.off("setup:stage", onSetupStage);
+      socket.off("setup:status", onSetupStatus);
+      leaveSetupRoom();
+    };
+  }, [socket, projectId, appendLog, applyStage, applyStatus, markInstallDone, joinSetupRoom, leaveSetupRoom]);
+
+  // Reset editor state when leaving the project
   useEffect(() => {
     return () => {
       resetEditorState();
+      resetSetup();
     };
-  }, [resetEditorState]);
+  }, [resetEditorState, resetSetup]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -185,6 +291,7 @@ function ProjectPage() {
           if (
             initialStatus !== "ready" &&
             initialStatus !== "starting" &&
+            initialStatus !== "installing" &&
             initialStatus !== "stopping" &&
             initialStatus !== "pending" &&
             !startRequestedRef.current
@@ -241,6 +348,11 @@ function ProjectPage() {
           previewPort: data.previewPort ?? current.previewPort,
         }));
 
+        // When install completes (status → ready after installing), mark it done
+        if (data.status === "ready" && setupStore.isInstalling) {
+          markInstallDone();
+        }
+
         if (data.status === "stopped" && !restartAfterStoppedRef.current) {
           restartAfterStoppedRef.current = true;
           void requestStart().catch((err) => {
@@ -264,7 +376,7 @@ function ProjectPage() {
     return () => {
       socket.off("container:status", onContainerStatus);
     };
-  }, [socket, projectId]);
+  }, [socket, projectId, setupStore.isInstalling, markInstallDone]);
 
   const closeProject = async () => {
     try {
@@ -291,6 +403,18 @@ function ProjectPage() {
         setContainerMsg(message || "Failed to start container");
       }
     }
+  };
+
+  const handleRetry = async () => {
+    // Re-init setup store and re-trigger start
+    initForProject(projectId);
+    await handleStart();
+  };
+
+  const handleOpenEditorEarly = () => {
+    openEditorEarly();
+    // Update project context so the editor mounts properly
+    setProjectContext(projectId, containerStatus);
   };
 
   const handleSaveSettings = async (payload: {
@@ -365,6 +489,19 @@ function ProjectPage() {
     );
   }
 
+  /* ——— Status badge color helper ——— */
+  const statusDotClass =
+    containerStatus === "ready"
+      ? "bg-green-500"
+      : containerStatus === "pending" ||
+          containerStatus === "stopping" ||
+          containerStatus === "starting" ||
+          containerStatus === "installing"
+        ? "bg-yellow-500 animate-pulse"
+        : containerStatus === "error"
+          ? "bg-red-500"
+          : "bg-gray-500";
+
   /* ——— Main editor view ——— */
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
@@ -384,49 +521,42 @@ function ProjectPage() {
             {project.name}
           </h1>
           <div className="flex items-center gap-1.5 text-[11px] font-medium py-0.5 px-2 ml-2 rounded-md bg-bg-tertiary text-text-secondary">
-            <span
-              className={`w-[7px] h-[7px] rounded-full shrink-0 ${
-                containerStatus === "ready"
-                  ? "bg-green-500"
-                  : containerStatus === "pending" ||
-                      containerStatus === "stopping" ||
-                      containerStatus === "starting"
-                    ? "bg-yellow-500 animate-pulse"
-                    : containerStatus === "error"
-                      ? "bg-red-500"
-                      : "bg-gray-500"
-              }`}
-            />
-            <span className="capitalize">{containerStatus}</span>
+            <span className={`w-[7px] h-[7px] rounded-full shrink-0 ${statusDotClass}`} />
+            <span className="capitalize">
+              {containerStatus === "installing" ? "Installing" : containerStatus}
+            </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Smart Run / Preview button */}
-          {containerStatus === "ready" &&
+          {/* Smart Run / Preview button — disabled while installing */}
+          {(containerStatus === "ready" || (containerStatus === "installing" && setupStore.openedEditorEarly)) &&
             (!!runCommand || !!previewCommand) && (
               <button
-                onClick={handlePanelButton}
+                onClick={isInstallRunning ? undefined : handlePanelButton}
+                disabled={isInstallRunning}
                 title={
-                  isRightPanelOpen
-                    ? `Hide ${isPreviewProject ? "Preview" : "Output"}`
-                    : isPanelActive
-                      ? `Show ${isPreviewProject ? "Preview" : "Output"}`
-                      : `${isPreviewProject ? "Start Preview" : "Run"}`
+                  isInstallRunning
+                    ? "Waiting for packages to install"
+                    : isRightPanelOpen
+                      ? `Hide ${isPreviewProject ? "Preview" : "Output"}`
+                      : isPanelActive
+                        ? `Show ${isPreviewProject ? "Preview" : "Output"}`
+                        : `${isPreviewProject ? "Start Preview" : "Run"}`
                 }
                 className={`flex items-center gap-1.5 py-1 px-3 rounded-md text-xs font-semibold transition-all duration-150 ${
-                  isRightPanelOpen
-                    ? "bg-accent-primary text-white shadow-[0_0_10px_rgba(22,163,74,0.3)]"
-                    : isPanelActive
-                      ? "bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25"
-                      : "bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20"
+                  isInstallRunning
+                    ? "opacity-40 cursor-not-allowed bg-bg-tertiary text-text-tertiary"
+                    : isRightPanelOpen
+                      ? "bg-accent-primary text-white shadow-[0_0_10px_rgba(22,163,74,0.3)]"
+                      : isPanelActive
+                        ? "bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25"
+                        : "bg-accent-primary/10 text-accent-primary hover:bg-accent-primary/20"
                 }`}
               >
-                {/* Running indicator dot */}
-                {isPanelActive && !isRightPanelOpen && (
+                {isPanelActive && !isRightPanelOpen && !isInstallRunning && (
                   <span className="w-1.5 h-1.5 rounded-full bg-accent-primary animate-pulse shrink-0" />
                 )}
-                {/* Icon */}
                 {isPreviewProject ? (
                   <Monitor size={12} />
                 ) : (
@@ -440,7 +570,7 @@ function ProjectPage() {
             {isConnected ? "● Connected" : "○ Disconnected"}
           </span>
 
-          {/* Container Start button (when not ready) */}
+          {/* Container Start button (when not ready or setting up) */}
           {(containerStatus === "stopped" ||
             containerStatus === "timeout" ||
             containerStatus === "error" ||
@@ -457,8 +587,15 @@ function ProjectPage() {
 
       {/* Workspace Area */}
       <main className="flex-1 overflow-hidden relative flex flex-col">
-        {containerStatus === "ready" ? (
+
+        {/* ── Editor (ready OR early-open during install) ── */}
+        {showEditor ? (
           <>
+            {/* Install status banner (floating pill at top of editor) */}
+            <InstallStatusBanner
+              onViewLogs={() => setShowSetupLogs((v) => !v)}
+            />
+
             <EditorLayout
               projectId={projectId}
               userId={user?.id ?? ""}
@@ -486,8 +623,47 @@ function ProjectPage() {
               onClose={() => setIsSettingsOpen(false)}
               onSave={handleSaveSettings}
             />
+
+            {/* ── Setup log drawer (shown when user clicks View in banner) ── */}
+            {showSetupLogs && (
+              <div className="setup-log-drawer">
+                <div className="setup-log-drawer-header">
+                  <span className="setup-log-drawer-title">
+                    Setup Logs
+                    {setupStore.isInstalling && (
+                      <span className="setup-log-drawer-badge">Installing…</span>
+                    )}
+                    {setupStore.stage === "done" && (
+                      <span className="setup-log-drawer-badge setup-log-drawer-badge-done">Done</span>
+                    )}
+                  </span>
+                  <button
+                    className="setup-log-drawer-close"
+                    onClick={() => setShowSetupLogs(false)}
+                    title="Close logs"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="setup-log-drawer-body">
+                  <SetupLogPanel
+                    projectName={project.name}
+                    logs={setupStore.logs}
+                    stage={setupStore.stage}
+                    stageName={setupStore.stageName}
+                    progress={setupStore.progress}
+                    totalCommands={setupStore.totalCommands}
+                    currentCommandIndex={setupStore.currentCommandIndex}
+                    canOpenEditor={false}
+                    error={setupStore.error}
+                    onOpenEditorEarly={() => {}}
+                  />
+                </div>
+              </div>
+            )}
           </>
         ) : containerStatus === "error" || containerStatus === "timeout" ? (
+          /* ── Error state ── */
           <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary z-50 px-6">
             <div className="w-14 h-14 mb-5 flex items-center justify-center rounded-2xl bg-status-error/15 text-status-error">
               <AlertCircle className="w-7 h-7" />
@@ -499,14 +675,49 @@ function ProjectPage() {
               {containerMsg ||
                 "Container startup failed. Please return to dashboard and try again."}
             </p>
-            <button
-              onClick={closeProject}
-              className="flex items-center gap-2 py-2 px-4 text-sm font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
-            >
-              <ChevronLeft size={16} /> Back to Dashboard
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleRetry}
+                className="flex items-center gap-2 py-2 px-4 text-sm font-medium border-none rounded-md cursor-pointer transition-all duration-150 text-white bg-accent-primary hover:bg-accent-secondary"
+              >
+                <RefreshCw size={14} /> Retry
+              </button>
+              <button
+                onClick={closeProject}
+                className="flex items-center gap-2 py-2 px-4 text-sm font-medium rounded-md cursor-pointer transition-all duration-150 text-text-secondary border border-border-subtle hover:bg-bg-tertiary"
+              >
+                <ChevronLeft size={14} /> Back to Dashboard
+              </button>
+            </div>
+          </div>
+        ) : isSettingUp ? (
+          /* ── Setup in progress — logs ── */
+          <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary px-6 py-10 gap-8">
+            <div className="w-full flex flex-col items-center gap-2">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-text-tertiary">
+                Synthex
+              </p>
+              <h2 className="text-2xl font-semibold text-text-primary">
+                {project.name}
+              </h2>
+            </div>
+
+            <SetupLogPanel
+              projectName={project.name}
+              logs={setupStore.logs}
+              stage={setupStore.stage}
+              stageName={setupStore.stageName}
+              progress={setupStore.progress}
+              totalCommands={setupStore.totalCommands}
+              currentCommandIndex={setupStore.currentCommandIndex}
+              canOpenEditor={setupStore.canOpenEditor}
+              error={setupStore.error}
+              onOpenEditorEarly={handleOpenEditorEarly}
+              onRetry={handleRetry}
+            />
           </div>
         ) : (
+          /* ── Generic loading (pending / starting but no logs yet) ── */
           <div className="flex-1 flex flex-col items-center justify-center bg-bg-primary z-50">
             <motion.div
               animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}

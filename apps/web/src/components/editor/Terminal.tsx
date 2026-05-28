@@ -58,7 +58,7 @@ function TerminalSession({
     projectId,
     userId,
     terminalId,
-    enabled: containerStatus === "ready",
+    enabled: containerStatus === "ready" || containerStatus === "installing",
     onOutput: (data) => xtermRef.current?.write(data),
     onReady: () => {
       setStatus("ready");
@@ -165,7 +165,7 @@ function TerminalSession({
       className={`absolute inset-0 ${active ? "block" : "hidden"}`}
       data-terminal-session-id={terminalId}
     >
-      {containerStatus !== "ready" ? (
+      {containerStatus !== "ready" && containerStatus !== "installing" ? (
         <TerminalStateOverlay
           icon={
             <Loader2 size={16} className="animate-spin text-accent-primary" />
@@ -196,7 +196,7 @@ function TerminalSession({
         onMouseDown={() => xtermRef.current?.focus()}
         style={{
           visibility:
-            containerStatus !== "ready" ||
+            (containerStatus !== "ready" && containerStatus !== "installing") ||
             status === "connecting" ||
             status === "error"
               ? "hidden"

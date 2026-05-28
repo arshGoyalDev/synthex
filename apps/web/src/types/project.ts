@@ -9,6 +9,7 @@ export interface Project {
   containerStatus:
     | "pending"
     | "starting"
+    | "installing"
     | "stopping"
     | "ready"
     | "stopped"

@@ -60,8 +60,10 @@ export function useFileSync({
 
   // ─── 1. Load file list when container becomes ready ───────────────────────
 
+  const isContainerActive = containerStatus === "ready" || containerStatus === "installing";
+
   useEffect(() => {
-    if (containerStatus !== "ready") return;
+    if (!isContainerActive) return;
 
     let cancelled = false;
 
@@ -161,7 +163,7 @@ export function useFileSync({
 
   // Watch for dirty file changes and schedule saves
   useEffect(() => {
-    if (containerStatus !== "ready" || !autoSaveEnabled) return;
+    if (!isContainerActive || !autoSaveEnabled) return;
 
     const unsubscribe = useEditorStore.subscribe((state, prevState) => {
       for (const [path, file] of state.files) {
@@ -185,7 +187,7 @@ export function useFileSync({
   // ─── 4. WebSocket events ──────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!socket || containerStatus !== "ready") return;
+    if (!socket || !isContainerActive) return;
 
     // Full file list refresh
     const onFsRefresh = (data: { projectId: string }) => {
