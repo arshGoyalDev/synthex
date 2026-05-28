@@ -96,6 +96,30 @@ const registerSubscribers = async (io: SocketServer) => {
       data: data.data,
     });
   });
+
+  // ─── Setup log → setup room streaming) ─────────────────────
+  pubsub.subscribe("container:setup:log", (data) => {
+    io.to(`setup:${data.projectId}`).emit("setup:log", {
+      projectId: data.projectId,
+      seq: data.seq,
+      type: data.type,
+      text: data.text,
+      timestamp: data.timestamp,
+      commandIndex: data.commandIndex,
+      totalCommands: data.totalCommands,
+    });
+  });
+
+  // ─── Setup stage transition → setup room ─────────────────────────────────
+  pubsub.subscribe("container:setup:stage", (data) => {
+    io.to(`setup:${data.projectId}`).emit("setup:stage", {
+      projectId: data.projectId,
+      stage: data.stage,
+      stageName: data.stageName,
+      commandIndex: data.commandIndex,
+      totalCommands: data.totalCommands,
+    });
+  });
 };
 
 export { registerSubscribers };

@@ -159,6 +159,49 @@ class SocketService {
         socket.leave(`preview:${projectId}`);
       });
 
+      // ─── Setup log room ──────────────────────────────────────────────────
+      socket.on("setup:join", async ({ projectId, fromSeq = 0 }) => {
+        const canJoin = await canJoinProject(userId, projectId);
+        if (!canJoin) {
+          socket.emit("setup:error", {
+            projectId,
+            message: "Setup access denied",
+          });
+          return;
+        }
+
+        socket.join(`setup:${projectId}`);
+        console.log(`[gateway] ${userId} joined setup:${projectId}`);
+
+        // Replay buffered lines for reconnect
+        const buffered = await redis.lrange(`setup:buffer:${projectId}`, 0, -1);
+        const lines = buffered
+          .map((r) => { try { return JSON.parse(r); } catch { return null; } })
+          .filter((c) => c !== null && (fromSeq === 0 || c.seq >= fromSeq))
+          .sort((a: any, b: any) => a.seq - b.seq);
+
+        for (const line of lines) {
+          socket.emit("setup:log", { projectId, ...line });
+        }
+
+        // Send current status and progress so the UI can reconstruct state
+        const [status, progressStr] = await Promise.all([
+          redis.get(`setup:status:${projectId}`),
+          redis.get(`setup:progress:${projectId}`),
+        ]);
+        if (status) {
+          socket.emit("setup:status", {
+            projectId,
+            status,
+            progress: progressStr ? parseInt(progressStr, 10) : 0,
+          });
+        }
+      });
+
+      socket.on("setup:leave", ({ projectId }) => {
+        socket.leave(`setup:${projectId}`);
+      });
+
       socket.on("disconnect", () => {
         console.log(`[gateway] User disconnected: ${userId}`);
       });
