@@ -174,7 +174,8 @@ class ProjectService {
 
     if (
       project.containerStatus === "pending" ||
-      project.containerStatus === "starting"
+      project.containerStatus === "starting" ||
+      project.containerStatus === "installing"
     ) {
       return {
         alreadyRunning: false,
@@ -240,6 +241,7 @@ class ProjectService {
       project.containerStatus === "ready" ||
       project.containerStatus === "pending" ||
       project.containerStatus === "starting" ||
+      project.containerStatus === "installing" ||
       project.containerStatus === "stopping"
     ) {
       await db.project.update({

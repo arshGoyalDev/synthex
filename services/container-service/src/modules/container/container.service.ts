@@ -210,6 +210,10 @@ class ContainerService {
           });
 
           if (postSetupCommands.length > 0) {
+            // Snapshot BEFORE postSetup so the file explorer works when
+            // the user opens the editor early ("Install in Background").
+            await this.takeSnapshot(container, projectId, userId, projectName);
+
             await pubsub.publish("container:status", {
               projectId,
               userId,
@@ -315,6 +319,8 @@ class ContainerService {
     // install dependencies
     if (installCommand) {
       console.log(`[container-service] Running install: ${installCommand}`);
+      // Snapshot BEFORE install so files are in storage if user opens editor early.
+      await this.takeSnapshot(container, projectId, userId, projectName);
       await pubsub.publish("container:status", {
         projectId,
         userId,
@@ -430,6 +436,8 @@ class ContainerService {
     // Run install
     if (installCommand) {
       console.log(`[container-service] Running install: ${installCommand}`);
+      // Snapshot BEFORE install so files are in storage if user opens editor early.
+      await this.takeSnapshot(container, projectId, userId, projectName);
       await pubsub.publish("container:status", {
         projectId,
         userId,
