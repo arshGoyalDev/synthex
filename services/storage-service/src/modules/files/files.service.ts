@@ -84,15 +84,23 @@ class FilesService {
 
   // ─── List files ──────────────────────────────────────────────────────────
 
-  async listFiles(projectId: string) {
+  async listFiles(projectId: string, userId: string) {
     const existing = await this.filesRepo.findByProject(projectId);
     if (existing.length > 0) {
+      // Verify ownership via the first file record's minioPath prefix
+      const ownerMatch = existing.some((f) =>
+        f.minioPath.startsWith(`${userId}/`),
+      );
+      if (!ownerMatch) throw new AppError("Forbidden", 403);
       return existing;
     }
 
     const latestSnapshot = await this.snapshotRepo.getLatest(projectId);
     if (!latestSnapshot) {
       return existing;
+    }
+    if (latestSnapshot.userId !== userId) {
+      throw new AppError("Forbidden", 403);
     }
 
     const manifest = await this.extractManifestFromSnapshot(
@@ -171,10 +179,15 @@ class FilesService {
 
   // ─── Get single file content ─────────────────────────────────────────────
 
-  async getFile(projectId: string, filePath: string) {
+  async getFile(projectId: string, filePath: string, userId: string) {
     filePath = this.normalizeFilePath(filePath);
     const file = await this.filesRepo.findByPath(projectId, filePath);
     if (!file) throw new AppError("File not found", 404);
+
+    // Ownership check: the file's minioPath encodes the owner as the first path segment
+    if (!file.minioPath.startsWith(`${userId}/`)) {
+      throw new AppError("Forbidden", 403);
+    }
 
     const fileObjectKey = file.minioPath;
     const hasFileObject = await this.objectExists(FILES_BUCKET, fileObjectKey);
@@ -207,9 +220,11 @@ class FilesService {
 
   // ─── Get latest snapshot key (for container-service restore) ─────────────
 
-  async getLatestSnapshotKey(projectId: string) {
+  async getLatestSnapshotKey(projectId: string, userId: string) {
     const snapshot = await this.snapshotRepo.getLatest(projectId);
-    return snapshot?.minioKey ?? null;
+    if (!snapshot) return null;
+    if (snapshot.userId !== userId) throw new AppError("Forbidden", 403);
+    return snapshot.minioKey;
   }
 
   // ─── Delete file from manifest ───────────────────────────────────────────
@@ -297,7 +312,7 @@ class FilesService {
 
     if (oldPath === newPath) return;
 
-    const file = await this.getFile(projectId, oldPath);
+    const file = await this.getFile(projectId, oldPath, userId);
     const content = file.content ?? "";
     const oldObjectKey = `${this.filesPrefix(userId, projectId)}${oldPath}`;
 

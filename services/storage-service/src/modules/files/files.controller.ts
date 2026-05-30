@@ -42,7 +42,8 @@ class FilesController {
   async listFiles(req: Request, res: Response, next: NextFunction) {
     try {
       const projectId = getProjectId(req);
-      const files = await filesService.listFiles(projectId);
+      const userId = getUserId(req);
+      const files = await filesService.listFiles(projectId, userId);
 
       res.json({ data: files });
     } catch (err) {
@@ -53,7 +54,8 @@ class FilesController {
   async getLatestSnapshot(req: Request, res: Response, next: NextFunction) {
     try {
       const projectId = getProjectId(req);
-      const key = await filesService.getLatestSnapshotKey(projectId);
+      const userId = getUserId(req);
+      const key = await filesService.getLatestSnapshotKey(projectId, userId);
 
       res.json({ data: { snapshotKey: key } });
     } catch (err) {
@@ -64,8 +66,9 @@ class FilesController {
   async getFile(req: Request, res: Response, next: NextFunction) {
     try {
       const projectId = getProjectId(req);
+      const userId = getUserId(req);
       const filePath = getWildcardPath(req);
-      const file = await filesService.getFile(projectId, filePath);
+      const file = await filesService.getFile(projectId, filePath, userId);
 
       res.json({ data: file });
     } catch (err) {
