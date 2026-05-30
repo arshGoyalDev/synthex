@@ -247,10 +247,15 @@ export function useFileSync({
           await storageService.saveFile(projectId, path, "");
         } catch (err: any) {
           console.error(`[useFileSync] Create file failed for ${path}:`, err);
+          // Rollback: re-fetch authoritative file list from server
+          try {
+            const serverFiles = await storageService.listFiles(projectId);
+            setFilesFromServer(serverFiles.map(toFileEntry));
+          } catch { /* best-effort */ }
         }
       }
     },
-    [projectId],
+    [projectId, setFilesFromServer],
   );
 
   const renameFileOnServer = useCallback(
@@ -265,9 +270,14 @@ export function useFileSync({
           `[useFileSync] Rename failed for ${oldPath} → ${newPath}:`,
           err,
         );
+        // Rollback: re-fetch authoritative file list from server
+        try {
+          const serverFiles = await storageService.listFiles(projectId);
+          setFilesFromServer(serverFiles.map(toFileEntry));
+        } catch { /* best-effort */ }
       }
     },
-    [projectId],
+    [projectId, setFilesFromServer],
   );
 
   const deleteFileOnServer = useCallback(
@@ -279,9 +289,14 @@ export function useFileSync({
         await storageService.deleteFile(projectId, path);
       } catch (err: any) {
         console.error(`[useFileSync] Delete failed for ${path}:`, err);
+        // Rollback: re-fetch authoritative file list from server
+        try {
+          const serverFiles = await storageService.listFiles(projectId);
+          setFilesFromServer(serverFiles.map(toFileEntry));
+        } catch { /* best-effort */ }
       }
     },
-    [projectId],
+    [projectId, setFilesFromServer],
   );
 
   return {

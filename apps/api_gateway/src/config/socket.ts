@@ -204,16 +204,12 @@ class SocketService {
 
       socket.on("disconnect", () => {
         console.log(`[gateway] User disconnected: ${userId}`);
-      });
-
-      socket.on("disconnect", () => {
-        console.log(`[api_gateway] User disconnected: ${userId}`);
 
         const activeCount = this.decrementUserSockets(userId);
 
         if (activeCount === 0) {
           console.log(
-            `[api_gateway] Scheduling cleanup for disconnected user ${userId}`,
+            `[gateway] Scheduling cleanup for disconnected user ${userId}`,
           );
 
           this.scheduleUserCleanup(userId);

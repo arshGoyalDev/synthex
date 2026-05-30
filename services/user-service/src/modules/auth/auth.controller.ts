@@ -5,11 +5,13 @@ import { loginSchema, signupSchema } from "./auth.schema";
 
 const authService = new AuthService();
 
+const isProd = process.env.NODE_ENV === "production";
+
 const setRefreshCookie = (res: Response, token: string) => {
   res.cookie("refreshToken", token, {
     httpOnly: true,
-    secure: false,
-    sameSite: "lax",
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
@@ -58,11 +60,24 @@ class AuthController {
 
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
-      const accessToken = req.headers.authorization?.split(" ")[1]!;
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "Missing or invalid Authorization header" });
+      }
 
-      await authService.logout(req.headers["x-user-id"] as string, accessToken);
+      const accessToken = authHeader.split(" ")[1] as string;
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-      res.clearCookie("refreshToken");
+      await authService.logout(userId, accessToken);
+
+      res.clearCookie("refreshToken", {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+      });
       res.json({ message: "Logged out successfully" });
     } catch (error) {
       next(error);

@@ -18,11 +18,17 @@ class TerminalService {
     attemptLabel: string,
   ): Promise<Duplex> {
     const timeoutMs = 10000;
+    let startedStream: Duplex | undefined;
     let timeoutHandle: NodeJS.Timeout | undefined;
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
         void (async () => {
+          // Kill the stream if it was opened before the timeout fired
+          if (startedStream) {
+            try { startedStream.destroy(); } catch { /* ignore */ }
+          }
+
           try {
             const details = await exec.inspect();
             reject(
@@ -42,7 +48,7 @@ class TerminalService {
     });
 
     try {
-      const startedStream = (await Promise.race([
+      startedStream = (await Promise.race([
         exec.start({
           hijack: true,
           stdin: true,

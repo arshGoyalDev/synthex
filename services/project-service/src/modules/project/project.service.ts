@@ -13,11 +13,11 @@ class ProjectService {
     return projects.map((project) => this.withRuntimeConfig(project));
   }
 
-  async getProjectById(id: string) {
+  async getProjectById(id: string, userId: string) {
     if (!id) throw new AppError("Project ID is required", 400);
 
-    const project = await db.project.findUnique({
-      where: { id },
+    const project = await db.project.findFirst({
+      where: { id, userId },
     });
 
     if (!project) throw new AppError("Project not found", 404);
@@ -163,8 +163,8 @@ class ProjectService {
     return this.withRuntimeConfig(project);
   }
 
-  async startProject(id: string) {
-    const project = await db.project.findUnique({ where: { id } });
+  async startProject(id: string, userId: string) {
+    const project = await db.project.findFirst({ where: { id, userId } });
 
     if (!project) throw new AppError("Project not found", 404);
 
@@ -232,8 +232,8 @@ class ProjectService {
     return { alreadyRunning: false, project: this.withRuntimeConfig(project) };
   }
 
-  async stopProject(id: string) {
-    const project = await db.project.findUnique({ where: { id } });
+  async stopProject(id: string, userId: string) {
+    const project = await db.project.findFirst({ where: { id, userId } });
 
     if (!project) throw new AppError("Project not found", 404);
 

@@ -29,9 +29,7 @@ const verifyToken = (token: string): TokenPayload => {
 };
 
 const saveRefreshToken = async (userId: string, token: string) => {
-  console.log("saving refresh token for", userId); // ← add this
   await redis.set(`refresh:${userId}`, token, "EX", 7 * 24 * 60 * 60);
-  console.log("refresh token saved"); // ← add this
 };
 
 const deleteRefreshToken = async (userId: string) => {

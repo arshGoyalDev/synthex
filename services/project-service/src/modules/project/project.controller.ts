@@ -20,13 +20,17 @@ class ProjectController {
 
   async getProjectById(req: Request, res: Response, next: NextFunction) {
     try {
+      const userId = req.headers["x-user-id"] as string;
       const projectId = req.params.id;
 
       if (!projectId) {
         throw new AppError("Project ID is required", 400);
       }
+      if (!userId) {
+        throw new AppError("Unauthorized", 401);
+      }
 
-      const project = await projectService.getProjectById(projectId);
+      const project = await projectService.getProjectById(projectId, userId);
 
       res.json({ data: project });
     } catch (err) {
@@ -113,13 +117,17 @@ class ProjectController {
 
   async startProject(req: Request, res: Response, next: NextFunction) {
     try {
+      const userId = req.headers["x-user-id"] as string;
       const projectId = req.params.id;
 
       if (!projectId) {
         throw new AppError("Project ID is required", 400);
       }
+      if (!userId) {
+        throw new AppError("Unauthorized", 401);
+      }
 
-      const result = await projectService.startProject(projectId);
+      const result = await projectService.startProject(projectId, userId);
 
       if (result.alreadyRunning) {
         return res.json({
@@ -155,13 +163,17 @@ class ProjectController {
 
   async stopProject(req: Request, res: Response, next: NextFunction) {
     try {
+      const userId = req.headers["x-user-id"] as string;
       const projectId = req.params.id;
 
       if (!projectId) {
         throw new AppError("Project ID is required", 400);
       }
+      if (!userId) {
+        throw new AppError("Unauthorized", 401);
+      }
 
-      const result = await projectService.stopProject(projectId);
+      const result = await projectService.stopProject(projectId, userId);
 
       if (!result.wasRunning) {
         return res.json({ message: "Project already stopped" });

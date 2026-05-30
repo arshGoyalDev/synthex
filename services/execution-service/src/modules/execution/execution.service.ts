@@ -9,7 +9,7 @@ import { TEMPLATES } from "@synthex/templates";
 
 class ExecutionService {
   private repo = new ExecutionRepository();
-  private readonly previewLockTtlSeconds = 120;
+  private readonly previewLockTtlSeconds = 600; // 10 min — deleted immediately on ready/error
 
   async startExecution(userId: string, dto: StartExecutionDto) {
     // check concurrency lock

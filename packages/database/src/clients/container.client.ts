@@ -12,5 +12,6 @@ export function getContainerDbClient() {
 export function getContainerRepository(prisma: PrismaClient) {
   return {
     containerLog: prisma.containerLog,
+    project: prisma.project,
   };
 }
