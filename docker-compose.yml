@@ -313,6 +313,9 @@ services:
       API_GATEWAY_PORT: ${API_GATEWAY_PORT}
       ORIGIN: ${ORIGIN}
       JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: synthex-redis
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       USER_SERVICE_URL: http://synthex-user-service:${USER_SERVICE_PORT}
       PROJECT_SERVICE_URL: http://synthex-project-service:${PROJECT_SERVICE_PORT}
       CONTAINER_SERVICE_URL: http://synthex-container-service:${CONTAINER_SERVICE_PORT}
