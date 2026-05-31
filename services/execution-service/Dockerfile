@@ -22,6 +22,7 @@ FROM deps AS builder
 COPY packages ./packages
 COPY services/execution-service ./services/execution-service
 
+RUN pnpm --filter @synthex/database exec prisma generate
 RUN pnpm --filter @synthex/database build
 RUN pnpm --filter @synthex/templates build
 RUN pnpm --filter @synthex/execution-service build
