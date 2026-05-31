@@ -39,9 +39,6 @@ lerna-debug.log*
 # Turbo
 .turbo/
 
-# Prisma
-packages/database/prisma/migrations/
-
 # Docker volumes
 postgres_data/
 redis_data/
