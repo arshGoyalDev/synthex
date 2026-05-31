@@ -2,6 +2,7 @@
   "name": "@synthex/templates",
   "version": "0.0.1",
   "scripts": {
+    "build": "tsc --outDir dist --noEmit false",
     "check-types": "tsc --noEmit -p tsconfig.json"
   },
   "main": "./src/index.ts",

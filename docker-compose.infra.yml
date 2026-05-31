@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: synthex-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: synthex_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d synthex_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - synthex-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: synthex-redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "redis_password"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - synthex-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: synthex-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: ["server", "/data", "--console-address", ":9001"]
+    networks:
+      - synthex-network
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: synthex-minio-setup
+    depends_on:
+      minio:
+        condition: service_started
+    networks:
+      - synthex-network
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin123; do sleep 2; done
+        /usr/bin/mc mb myminio/user-files --ignore-existing
+        /usr/bin/mc mb myminio/project-files --ignore-existing
+        /usr/bin/mc mb myminio/execution-outputs --ignore-existing
+        /usr/bin/mc anonymous set download myminio/user-files
+        /usr/bin/mc anonymous set download myminio/project-files
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  synthex-network:
+    driver: bridge

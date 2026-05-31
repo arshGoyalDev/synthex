@@ -51,5 +51,7 @@ packages/database/src/generated
 
 .cursor
 .codegraph
+.agents
+.codex
 *.md
 !README.md

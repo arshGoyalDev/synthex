@@ -15,6 +15,7 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@synthex/config": "workspace:*",
     "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
     "typescript": "^5.3.0"

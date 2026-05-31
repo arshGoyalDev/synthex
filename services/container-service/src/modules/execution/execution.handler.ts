@@ -215,7 +215,7 @@ class ExecutionHandler {
     if (timeoutHandle) clearTimeout(timeoutHandle);
 
     // Unsubscribe stdin input handler and close the stdin pipe
-    await pubsub.unsubscribe("execution:input", inputHandler);
+    await pubsub.unsubscribe("execution:input");
     stream.end();
 
     const execInfo = await exec.inspect();
@@ -271,7 +271,7 @@ class ExecutionHandler {
       await exec.start({ hijack: false, stdin: false }, () => {});
 
       if (active.inputHandler) {
-        await pubsub.unsubscribe("execution:input", active.inputHandler);
+        await pubsub.unsubscribe("execution:input");
       }
       active.stream?.destroy();
       this.activeExecs.delete(executionId);
