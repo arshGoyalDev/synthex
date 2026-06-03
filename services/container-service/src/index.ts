@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { createServer } from "http";
+import openapiSpec from "./openapi";
 
 import { env } from "./config";
 import { ensureBuckets } from "./config/database";
@@ -57,6 +58,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/openapi.json", (req, res) => {
+  res.json(openapiSpec);
+});
+
 app.use(
   (
     err: any,
@@ -64,7 +69,7 @@ app.use(
     res: express.Response,
     next: express.NextFunction,
   ) => {
-    console.error("Error:", err.message);
+    console.error("[container-service] Error:", err.message);
 
     if (err.name === "ZodError") {
       const message = err.issues?.[0]?.message ?? "Validation failed";

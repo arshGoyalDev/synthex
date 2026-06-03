@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import openapiSpec from "./openapi";
 
 import { env } from "./config";
 
@@ -26,6 +27,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/openapi.json", (req, res) => {
+  res.json(openapiSpec);
+});
+
 app.use("/", authRoutes);
 app.use("/", userRoutes);
 
@@ -36,9 +41,8 @@ app.use(
     res: express.Response,
     next: express.NextFunction,
   ) => {
-    console.error("Error:", err.message);
+    console.error("[user-service] Error:", err.message);
 
-    // Zod validation errors
     if (err.name === "ZodError") {
       const message = err.issues?.[0]?.message ?? "Validation failed";
       return res.status(400).json({ error: message });

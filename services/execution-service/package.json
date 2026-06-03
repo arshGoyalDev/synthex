@@ -9,15 +9,17 @@
   },
   "dependencies": {
     "@synthex/database": "workspace:*",
+    "@synthex/openapi": "workspace:*",
     "@synthex/templates": "workspace:*",
-    "express": "^4.18.2",
     "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "openapi3-ts": "^4.6.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {
     "@synthex/config": "workspace:*",
-    "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "typescript": "^5.3.0"
   }
 }

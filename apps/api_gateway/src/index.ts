@@ -12,6 +12,7 @@ import { socketService } from "./config/socket";
 import { registerSubscribers } from "./config/subscriber";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { initPreviewProxy, restorePreviewProxies } from "./proxy/preview.proxy";
+import { docsRouter } from "./docs/docs.router";
 
 const app = express();
 const httpServer = createServer(app);
@@ -59,6 +60,10 @@ httpServer.on("upgrade", (req, socket, head) => {
 app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "gateway" });
 });
+
+// ── API Docs: Swagger UI + aggregated OpenAPI spec ────────────────────────────
+app.use("/docs", docsRouter);
+app.get("/openapi.json", (req, res) => res.redirect("/docs/openapi.json"));
 
 registerProxies(app);
 

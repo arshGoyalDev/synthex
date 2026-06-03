@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import openapiSpec from "./openapi";
 
 import { env } from "./config";
 
@@ -22,6 +23,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/openapi.json", (req, res) => {
+  res.json(openapiSpec);
+});
+
 app.use("/", projectRoutes);
 
 app.use(
@@ -31,7 +36,7 @@ app.use(
     res: express.Response,
     next: express.NextFunction,
   ) => {
-    console.error("Error:", err.message);
+    console.error("[project-service] Error:", err.message);
 
     if (err.name === "ZodError") {
       const message = err.issues?.[0]?.message ?? "Validation failed";

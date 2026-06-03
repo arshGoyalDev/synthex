@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import openapiSpec from "./openapi";
 
 import { filesRoutes } from "./modules/files/files.routes";
 import { uploadRoutes } from "./modules/upload/upload.routes";
@@ -18,6 +19,7 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 app.get("/health", (req, res) => res.json({ status: "ok" }));
+app.get("/openapi.json", (req, res) => res.json(openapiSpec));
 app.use("/files", filesRoutes);
 app.use("/upload", uploadRoutes);
 
@@ -28,7 +30,8 @@ app.use(
     res: express.Response,
     next: express.NextFunction,
   ) => {
-    console.error("Error:", err.message);
+    console.error("[storage-service] Error:", err.message);
+  
     if (err.name === "ZodError") {
       const message = err.issues?.[0]?.message ?? "Validation failed";
       return res.status(400).json({ error: message });
