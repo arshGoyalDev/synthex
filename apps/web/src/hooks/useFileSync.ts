@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useRef, useCallback } from "react";
 import { useSocket } from "../contexts/SocketContext";
 import { useEditorStore } from "../stores/editor.store";
@@ -26,22 +25,20 @@ function toFileEntry(sf: storageService.StorageFileEntry): FileEntry {
 
 interface UseFileSyncOptions {
   projectId: string;
-  userId: string;
   containerStatus: string;
   autoSaveEnabled: boolean;
 }
 
 export function useFileSync({
   projectId,
-  userId,
   containerStatus,
   autoSaveEnabled,
 }: UseFileSyncOptions) {
-  void userId;
   const { socket } = useSocket();
 
   // Store actions – grabbed once, stable references
   const setFilesFromServer = useEditorStore((s) => s.setFilesFromServer);
+  const mergeFilesFromServer = useEditorStore((s) => s.mergeFilesFromServer);
   const setFileContentFromServer = useEditorStore(
     (s) => s.setFileContentFromServer,
   );
@@ -197,14 +194,13 @@ export function useFileSync({
         .listFiles(projectId)
         .then((serverFiles) => {
           const entries: FileEntry[] = serverFiles.map(toFileEntry);
-          setFilesFromServer(entries);
+          mergeFilesFromServer(entries);
         })
         .catch((err) => {
           console.error("[useFileSync] fs:refresh reload failed:", err);
         });
     };
 
-    // Individual mutation
     const onFsChange = (data: {
       projectId: string;
       event: "change" | "delete" | "rename";
@@ -213,13 +209,11 @@ export function useFileSync({
     }) => {
       if (data.projectId !== projectId) return;
 
-      // For now, re-fetch the full list to stay consistent
-      // In the future this can be optimized to handle individual mutations
       storageService
         .listFiles(projectId)
         .then((serverFiles) => {
           const entries: FileEntry[] = serverFiles.map(toFileEntry);
-          setFilesFromServer(entries);
+          mergeFilesFromServer(entries);
         })
         .catch((err) => {
           console.error("[useFileSync] fs:change reload failed:", err);
@@ -233,7 +227,7 @@ export function useFileSync({
       socket.off("container:fs:refresh", onFsRefresh);
       socket.off("container:fs:change", onFsChange);
     };
-  }, [socket, projectId, containerStatus, setFilesFromServer]);
+  }, [socket, projectId, containerStatus, mergeFilesFromServer]);
 
   // ─── 5. Server-backed filesystem operations ───────────────────────────────
 

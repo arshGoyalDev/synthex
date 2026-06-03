@@ -127,14 +127,15 @@ authRoutes.get(
       refreshToken: string;
     };
 
+    const isProd = process.env.NODE_ENV === "production";
     res.cookie("refreshToken", tokens.refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.redirect(`${env.ORIGIN}/auth/callback?token=${tokens.accessToken}`);
+    res.redirect(`${env.ORIGIN}/auth/callback#token=${tokens.accessToken}`);
   },
 );
 

@@ -1,7 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { env } from "../config";
-import { redis } from "../config/database";
+import { verifyAccessToken } from "../utils/jwt";
 
 interface AuthRequest extends Request {
   user?: { id: string; email: string };
@@ -22,25 +20,15 @@ const authMiddleware = async (
     return res.status(401).json({ error: "No token provided" });
   }
 
-  const blacklistAccessToken = await redis.get(`blacklist:${token}`);
-
-  if (blacklistAccessToken) {
-    return res.status(401).json({ error: "Token has been blacklisted" });
+  const payload = await verifyAccessToken(token);
+  if (!payload) {
+    return res.status(401).json({ error: "Invalid or revoked token" });
   }
 
-  try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as {
-      id: string;
-      email: string;
-    };
+  req.headers["x-user-id"] = payload.id;
+  req.headers["x-user-email"] = payload.email;
 
-    req.headers["x-user-id"] = payload.id;
-    req.headers["x-user-email"] = payload.email;
-
-    next();
-  } catch {
-    return res.status(401).json({ error: "Invalid token" });
-  }
+  next();
 };
 
 export { authMiddleware };

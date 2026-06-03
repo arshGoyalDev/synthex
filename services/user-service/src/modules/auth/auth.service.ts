@@ -1,4 +1,5 @@
 import * as argon2 from "argon2";
+import { randomBytes } from "crypto";
 import { AuthRepository } from "./auth.repository";
 import { AppError } from "../../utils/AppError";
 import {
@@ -35,13 +36,17 @@ class AuthService {
     const user = await this.repo.findUserByEmail(email);
 
     if (!user) {
-      throw new AppError("No user found with this email", 404);
+      throw new AppError("Invalid email or password", 401);
+    }
+
+    if (!user.passwordHash) {
+      throw new AppError("Invalid email or password", 401);
     }
 
     const isValid = await argon2.verify(user.passwordHash, password);
 
     if (!isValid) {
-      throw new AppError("Wrong password", 401);
+      throw new AppError("Invalid email or password", 401);
     }
 
     return this.generateTokenPair(user);
@@ -67,16 +72,24 @@ class AuthService {
       return this.generateTokenPair(oauthAccount.user);
     }
 
-    let user = await this.repo.findUserByEmail(profile.email);
-
-    if (!user) {
-      user = await this.repo.createUser({
-        username: profile.username,
-        email: profile.email,
-        avatarUrl: profile.avatarUrl,
-        passwordHash: "",
-      });
+    const existingByEmail = await this.repo.findUserByEmail(profile.email);
+    if (existingByEmail) {
+      throw new AppError(
+        "An account with this email already exists. Sign in with your password first.",
+        409,
+      );
     }
+
+    const oauthOnlyPasswordHash = await argon2.hash(
+      randomBytes(32).toString("hex"),
+    );
+
+    const user = await this.repo.createUser({
+      username: profile.username,
+      email: profile.email,
+      avatarUrl: profile.avatarUrl,
+      passwordHash: oauthOnlyPasswordHash,
+    });
 
     await this.repo.createOAuthAccount(
       user.id,

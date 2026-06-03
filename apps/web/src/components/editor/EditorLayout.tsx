@@ -112,7 +112,6 @@ export function EditorLayout({
   // ─── Hooks ────────────────────────────────────────────────────────────
   const fileSyncActions = useFileSync({
     projectId,
-    userId,
     containerStatus,
     autoSaveEnabled,
   });

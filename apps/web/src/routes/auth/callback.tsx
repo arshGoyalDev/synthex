@@ -11,7 +11,7 @@ export const Route = createFileRoute("/auth/callback")({
  * Landing page for GitHub OAuth redirects.
  *
  * The backend sends the browser here after a successful OAuth handshake:
- *   ${ORIGIN}/auth/callback?token=<accessToken>
+ *   ${ORIGIN}/auth/callback#token=<accessToken>
  *
  * This page reads the token, stores it in the auth store, fetches the user
  * profile, then immediately navigates to the dashboard.
@@ -21,7 +21,9 @@ function AuthCallbackPage() {
   const { loginWithOAuthToken } = useAuthStore();
   const handledRef = useRef(false); // guard against React StrictMode double-invoke
 
-  const token = new URLSearchParams(window.location.search).get("token");
+  const token =
+    new URLSearchParams(window.location.hash.replace(/^#/, "")).get("token") ??
+    new URLSearchParams(window.location.search).get("token");
 
   useEffect(() => {
     if (handledRef.current) return;
@@ -34,7 +36,10 @@ function AuthCallbackPage() {
     }
 
     loginWithOAuthToken(token)
-      .then(() => navigate({ to: "/", replace: true }))
+      .then(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+        navigate({ to: "/", replace: true });
+      })
       .catch(() => navigate({ to: "/auth/login", replace: true }));
   }, [token, loginWithOAuthToken, navigate]);
 

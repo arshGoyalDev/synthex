@@ -2,15 +2,21 @@ import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import AdmZip from "adm-zip";
 import { v4 as uuid } from "uuid";
-import { minioClient } from "../../config/database";
+import { minioClient, redis } from "../../config/database";
 import { AppError } from "../../utils/AppError";
 
-// Use memory storage — files are streamed directly to MinIO
+const ZIP_BUCKET = "project-zips";
+const ZIP_OWNER_TTL_SEC = 60 * 60; // 1 hour
+const MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024; // 200 MB total extracted
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype === "application/zip" || file.originalname.endsWith(".zip")) {
+    if (
+      file.mimetype === "application/zip" ||
+      file.originalname.endsWith(".zip")
+    ) {
       cb(null, true);
     } else {
       cb(new AppError("Only .zip files are allowed", 400) as any);
@@ -18,17 +24,22 @@ const upload = multer({
   },
 });
 
-const ZIP_BUCKET = "project-zips";
-
 const uploadRoutes: Router = Router();
 
-// Ensure the ZIP bucket exists on first use
 let bucketReady = false;
 async function ensureZipBucket() {
   if (bucketReady) return;
   const exists = await minioClient.bucketExists(ZIP_BUCKET);
   if (!exists) await minioClient.makeBucket(ZIP_BUCKET);
   bucketReady = true;
+}
+
+function getUserId(req: Request): string {
+  const userId = req.headers["x-user-id"];
+  if (typeof userId !== "string" || !userId) {
+    throw new AppError("Unauthorized", 401);
+  }
+  return userId;
 }
 
 uploadRoutes.post(
@@ -38,45 +49,59 @@ uploadRoutes.post(
     try {
       if (!req.file) throw new AppError("No file uploaded", 400);
 
+      const userId = getUserId(req);
       await ensureZipBucket();
 
-      // Parse zip in-memory to extract file tree + key config files
       const zip = new AdmZip(req.file.buffer);
       const entries = zip.getEntries();
 
-      // Security checks
       if (entries.length > 10_000) {
         throw new AppError("ZIP contains too many files (max 10,000)", 400);
       }
 
-      // Collect file paths (strip top-level folder prefix if present)
+      let uncompressedTotal = 0;
+      for (const entry of entries) {
+        if (entry.isDirectory) continue;
+        uncompressedTotal += entry.header.size;
+        if (uncompressedTotal > MAX_UNCOMPRESSED_BYTES) {
+          throw new AppError(
+            "ZIP uncompressed size exceeds limit (max 200 MB)",
+            400,
+          );
+        }
+      }
+
       let prefix = "";
       const topLevelDirs = new Set<string>();
       for (const entry of entries) {
         const parts = entry.entryName.split("/");
         if (parts[0]) topLevelDirs.add(parts[0]);
       }
-      // If all files share one top-level dir, strip it (common zip convention)
       if (topLevelDirs.size === 1) {
         prefix = Array.from(topLevelDirs)[0] + "/";
       }
 
       const filePaths: string[] = [];
       const fileContents: Record<string, string> = {};
-      const CONFIG_FILES = ["package.json", "requirements.txt", "Cargo.toml", "go.mod"];
+      const CONFIG_FILES = [
+        "package.json",
+        "requirements.txt",
+        "Cargo.toml",
+        "go.mod",
+      ];
 
       for (const entry of entries) {
         if (entry.isDirectory) continue;
 
-        const path = prefix ? entry.entryName.replace(prefix, "") : entry.entryName;
+        const path = prefix
+          ? entry.entryName.replace(prefix, "")
+          : entry.entryName;
         if (!path) continue;
 
-        // Path traversal prevention
         if (path.includes("..") || path.startsWith("/")) continue;
 
         filePaths.push(path);
 
-        // Extract key config file contents for detection
         const fileName = path.split("/").pop() ?? "";
         if (CONFIG_FILES.includes(fileName)) {
           try {
@@ -87,7 +112,6 @@ uploadRoutes.post(
         }
       }
 
-      // Upload raw zip buffer to MinIO
       const zipKey = `${uuid()}.zip`;
       await minioClient.putObject(
         ZIP_BUCKET,
@@ -96,6 +120,8 @@ uploadRoutes.post(
         req.file.buffer.length,
         { "Content-Type": "application/zip" },
       );
+
+      await redis.setex(`zip:owner:${zipKey}`, ZIP_OWNER_TTL_SEC, userId);
 
       res.json({
         data: {

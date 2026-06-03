@@ -1,7 +1,7 @@
 import { createProxyMiddleware, RequestHandler } from "http-proxy-middleware";
 import { Application, Request, Response, NextFunction } from "express";
 import { Server as HttpServer } from "http";
-import { redis } from "../config/database";
+import { redis, scanKeys } from "../config/database";
 
 type PreviewProxy = RequestHandler & {
   upgrade?: (req: any, socket: any, head: any) => void;
@@ -117,7 +117,7 @@ export function getPreviewProxy(projectId: string): RequestHandler | undefined {
 }
 
 export async function restorePreviewProxies() {
-  const keys = await redis.keys("preview:*:target");
+  const keys = await scanKeys(redis, "preview:*:target");
 
   for (const key of keys) {
     const match = key.match(/^preview:(.+):target$/);

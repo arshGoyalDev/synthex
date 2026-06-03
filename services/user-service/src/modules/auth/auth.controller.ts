@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 import { AuthService } from "./auth.service";
 import { env } from "../../config";
 import { loginSchema, signupSchema } from "./auth.schema";
@@ -66,9 +67,15 @@ class AuthController {
       }
 
       const accessToken = authHeader.split(" ")[1] as string;
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
+
+      let userId: string;
+      try {
+        const payload = jwt.verify(accessToken, env.JWT_SECRET) as {
+          id: string;
+        };
+        userId = payload.id;
+      } catch {
+        return res.status(401).json({ message: "Invalid token" });
       }
 
       await authService.logout(userId, accessToken);

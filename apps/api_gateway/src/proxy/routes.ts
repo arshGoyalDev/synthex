@@ -17,7 +17,7 @@ const serviceRoutes = [
   {
     path: "/api/storage/upload",
     target: env.STORAGE_SERVICE_URL,
-    protected: false,
+    protected: true,
     pathRewrite: { "^/api/storage": "" },
   },
   { path: "/api/storage", target: env.STORAGE_SERVICE_URL, protected: true },

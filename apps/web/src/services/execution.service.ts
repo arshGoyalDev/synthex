@@ -10,6 +10,7 @@ export interface ExecutionResult {
 export interface PreviewResult {
   status: string;
   previewUrl?: string;
+  previewAccessToken?: string;
   projectId?: string;
 }
 

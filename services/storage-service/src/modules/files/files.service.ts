@@ -9,6 +9,7 @@ import { FilesRepository } from "./files.repository";
 import { SnapshotRepository } from "../snapshots/snapshot.repository";
 import { getMimeType } from "../../utils/mime";
 import { AppError } from "../../utils/AppError";
+import { assertProjectOwner } from "../../utils/projectAccess";
 import { Readable } from "stream";
 
 class FilesService {
@@ -85,6 +86,8 @@ class FilesService {
   // ─── List files ──────────────────────────────────────────────────────────
 
   async listFiles(projectId: string, userId: string) {
+    await assertProjectOwner(projectId, userId);
+
     const existing = await this.filesRepo.findByProject(projectId);
     if (existing.length > 0) {
       // Verify ownership via the first file record's minioPath prefix
@@ -180,6 +183,8 @@ class FilesService {
   // ─── Get single file content ─────────────────────────────────────────────
 
   async getFile(projectId: string, filePath: string, userId: string) {
+    await assertProjectOwner(projectId, userId);
+
     filePath = this.normalizeFilePath(filePath);
     const file = await this.filesRepo.findByPath(projectId, filePath);
     if (!file) throw new AppError("File not found", 404);
@@ -221,6 +226,8 @@ class FilesService {
   // ─── Get latest snapshot key (for container-service restore) ─────────────
 
   async getLatestSnapshotKey(projectId: string, userId: string) {
+    await assertProjectOwner(projectId, userId);
+
     const snapshot = await this.snapshotRepo.getLatest(projectId);
     if (!snapshot) return null;
     if (snapshot.userId !== userId) throw new AppError("Forbidden", 403);
@@ -241,8 +248,11 @@ class FilesService {
     content: string,
     options: { publish?: boolean } = {},
   ) {
+    const project = await assertProjectOwner(projectId, userId);
+    const ownerId = project.userId;
+
     filePath = this.normalizeFilePath(filePath);
-    const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
+    const minioPath = `${this.filesPrefix(ownerId, projectId)}${filePath}`;
     const buffer = Buffer.from(content, "utf8");
     const mimeType = getMimeType(filePath);
 
@@ -266,12 +276,12 @@ class FilesService {
       },
     ]);
 
-    await this.removeDeleteMarker(userId, projectId, filePath);
+    await this.removeDeleteMarker(ownerId, projectId, filePath);
 
     if (options.publish !== false) {
       await pubsub.publish("storage:file:mutation", {
         projectId,
-        userId,
+        userId: ownerId,
         event: "change",
         filePath,
         content,
@@ -282,20 +292,28 @@ class FilesService {
   }
 
   async deleteStoredFile(projectId: string, userId: string, filePath: string) {
+    const project = await assertProjectOwner(projectId, userId);
+    const ownerId = project.userId;
+
     filePath = this.normalizeFilePath(filePath);
+    const file = await this.filesRepo.findByPath(projectId, filePath);
+    if (!file) {
+      throw new AppError("File not found", 404);
+    }
+    if (!file.minioPath.startsWith(`${ownerId}/`)) {
+      throw new AppError("Forbidden", 403);
+    }
+
     await this.filesRepo.delete(projectId, filePath);
 
     await minioClient
-      .removeObject(
-        FILES_BUCKET,
-        `${this.filesPrefix(userId, projectId)}${filePath}`,
-      )
+      .removeObject(FILES_BUCKET, file.minioPath)
       .catch(() => {});
-    await this.putDeleteMarker(userId, projectId, filePath);
+    await this.putDeleteMarker(ownerId, projectId, filePath);
 
     await pubsub.publish("storage:file:mutation", {
       projectId,
-      userId,
+      userId: ownerId,
       event: "delete",
       filePath,
     });
@@ -307,6 +325,8 @@ class FilesService {
     oldPath: string,
     newPath: string,
   ) {
+    await assertProjectOwner(projectId, userId);
+
     oldPath = this.normalizeFilePath(oldPath);
     newPath = this.normalizeFilePath(newPath);
 
@@ -314,19 +334,19 @@ class FilesService {
 
     const file = await this.getFile(projectId, oldPath, userId);
     const content = file.content ?? "";
-    const oldObjectKey = `${this.filesPrefix(userId, projectId)}${oldPath}`;
+    const ownerId = file.minioPath.split("/")[0] ?? userId;
 
     await this.saveFile(projectId, userId, newPath, content, {
       publish: false,
     });
     await this.filesRepo.delete(projectId, oldPath);
-    await minioClient.removeObject(FILES_BUCKET, oldObjectKey).catch(() => {});
-    await this.putDeleteMarker(userId, projectId, oldPath);
-    await this.removeDeleteMarker(userId, projectId, newPath);
+    await minioClient.removeObject(FILES_BUCKET, file.minioPath).catch(() => {});
+    await this.putDeleteMarker(ownerId, projectId, oldPath);
+    await this.removeDeleteMarker(ownerId, projectId, newPath);
 
     await pubsub.publish("storage:file:mutation", {
       projectId,
-      userId,
+      userId: ownerId,
       event: "rename",
       filePath: oldPath,
       newPath,

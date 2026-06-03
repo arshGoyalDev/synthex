@@ -1,6 +1,5 @@
 import { type Server } from "socket.io";
-import jwt from "jsonwebtoken";
-import { env } from ".";
+import { verifyAccessToken } from "../utils/jwt";
 import { db, executionDb, pubsub, redis } from "./database";
 
 const USER_CLEANUP_DELAY_MS = 10 * 60 * 1000;
@@ -19,13 +18,11 @@ class SocketService {
   private incrementUserSockets(userId: string) {
     const current = this.activeSocketsByUser.get(userId) ?? 0;
     this.activeSocketsByUser.set(userId, current + 1);
-    console.log("incremented");
   }
 
   private decrementUserSockets(userId: string) {
     const current = this.activeSocketsByUser.get(userId) ?? 0;
     const next = Math.max(0, current - 1);
-    console.log("decremented");
 
     if (next === 0) {
       this.activeSocketsByUser.delete(userId);
@@ -69,20 +66,15 @@ class SocketService {
   public init(io: Server) {
     this.io = io;
 
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
       const token = socket.handshake.auth.token;
       if (!token) return next(new Error("No token"));
 
-      try {
-        const payload = jwt.verify(token, env.JWT_SECRET) as {
-          id: string;
-          email: string;
-        };
-        socket.data.userId = payload.id;
-        next();
-      } catch {
-        next(new Error("Invalid token"));
-      }
+      const payload = await verifyAccessToken(token);
+      if (!payload) return next(new Error("Invalid or revoked token"));
+
+      socket.data.userId = payload.id;
+      next();
     });
 
     io.on("connection", (socket) => {
@@ -116,8 +108,14 @@ class SocketService {
           );
 
           const chunks = buffered
-            .map((r) => JSON.parse(r))
-            .filter((c) => c.seq >= fromSeq)
+            .map((r) => {
+              try {
+                return JSON.parse(r);
+              } catch {
+                return null;
+              }
+            })
+            .filter((c) => c !== null && c.seq >= fromSeq)
             .sort((a: any, b: any) => a.seq - b.seq);
 
           for (const chunk of chunks) {

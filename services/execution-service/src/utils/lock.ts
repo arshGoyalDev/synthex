@@ -23,8 +23,20 @@ const acquireLock = async (
   return result === "OK";
 };
 
-const releaseLock = async (projectId: string) => {
-  await redis.del(`execution:lock:${projectId}`);
+const releaseLock = async (projectId: string, executionId?: string) => {
+  if (!executionId) {
+    await redis.del(`execution:lock:${projectId}`);
+    return;
+  }
+
+  const script = `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("del", KEYS[1])
+    else
+      return 0
+    end
+  `;
+  await redis.eval(script, 1, `execution:lock:${projectId}`, executionId);
 };
 
 const getLock = async (projectId: string) => {

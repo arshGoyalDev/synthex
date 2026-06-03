@@ -21,10 +21,14 @@ class UserController {
 
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
+      const requesterId = req.headers["x-user-id"] as string;
       const userId = req.params.id;
 
       if (!userId) {
         throw new AppError("User id is required", 400);
+      }
+      if (!requesterId || requesterId !== userId) {
+        throw new AppError("Forbidden", 403);
       }
 
       const user = await userService.getById(userId);

@@ -1,25 +1,9 @@
 import { Server as SocketServer, Socket } from "socket.io";
-import jwt from "jsonwebtoken";
 import { TerminalService } from "./terminal.service";
 import { db } from "../../config/database";
+import { verifyAccessToken } from "../../utils/jwt";
 
 const terminalService = new TerminalService();
-
-const JWT_SECRET = process.env.JWT_SECRET;
-
-interface TokenPayload {
-  id: string;
-  email: string;
-}
-
-function verifyToken(token: string): TokenPayload | null {
-  if (!JWT_SECRET) return null;
-  try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch {
-    return null;
-  }
-}
 
 const registerTerminalHandlers = (io: SocketServer) => {
   io.on("connection", async (socket: Socket) => {
@@ -37,7 +21,7 @@ const registerTerminalHandlers = (io: SocketServer) => {
       return;
     }
 
-    const payload = verifyToken(rawToken);
+    const payload = await verifyAccessToken(rawToken);
     if (!payload) {
       socket.emit("terminal:error", { message: "Unauthorized: invalid token" });
       socket.disconnect();

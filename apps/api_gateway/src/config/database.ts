@@ -6,6 +6,7 @@ import {
   getProjectDbClient,
   getProjectRepository,
   PubSubManager,
+  scanKeys,
   type RedisClient,
 } from "@synthex/database";
 
@@ -23,3 +24,4 @@ redis.on("error", (err) => console.error("Redis error:", err.message));
 
 export const cache = new CacheManager(redis);
 export const pubsub = new PubSubManager(redis, redisSubscriber);
+export { scanKeys };

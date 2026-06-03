@@ -81,11 +81,12 @@ class FilesController {
       const projectId = getProjectId(req);
       const userId = getUserId(req);
       const { filePath, content } = saveFileSchema.parse(req.body);
+      const normalizedPath = filesService.normalizeFilePath(filePath);
 
       await filesService.saveFile(
         projectId,
         userId,
-        filePath,
+        normalizedPath,
         content,
       );
 

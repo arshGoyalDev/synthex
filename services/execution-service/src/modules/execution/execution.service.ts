@@ -1,9 +1,10 @@
 import { randomBytes, randomUUID } from "crypto";
 import { ExecutionRepository } from "./execution.repository";
 import { pubsub, redis } from "../../config/database";
-import { acquireLock, releaseLock, getLock } from "../../utils/lock";
+import { acquireLock, releaseLock } from "../../utils/lock";
 import { flushBuffer, clearBuffer, readBuffer } from "@synthex/database";
 import { AppError } from "../../utils/AppError";
+import { assertProjectOwner } from "../../utils/projectAccess";
 import { StartExecutionDto, StartPreviewDto } from "./execution.schema";
 import { TEMPLATES } from "@synthex/templates";
 
@@ -12,47 +13,47 @@ class ExecutionService {
   private readonly previewLockTtlSeconds = 600; // 10 min — deleted immediately on ready/error
 
   async startExecution(userId: string, dto: StartExecutionDto) {
-    // check concurrency lock
-    const existing = await getLock(dto.projectId);
-    if (existing) {
+    await assertProjectOwner(dto.projectId, userId);
+
+    const executionId = randomUUID();
+    const workDir = dto.workDir ?? `/workspace/${dto.projectName}`;
+
+    const locked = await acquireLock(dto.projectId, executionId, false);
+    if (!locked) {
       throw new AppError(
         "Another execution is already running for this project",
         409,
       );
     }
 
-    const executionId = randomUUID();
-    const workDir = dto.workDir ?? `/workspace/${dto.projectName}`;
-
-    // create DB record
-    await this.repo.create({
-      executionId,
-      projectId: dto.projectId,
-      userId,
-      command: dto.command,
-      isDevServer: false,
-    });
-
-    // set Redis status
-    await redis.set(`execution:status:${executionId}`, "queued", "EX", 20 * 60);
-
-    await redis.set(
-      `execution:meta:${executionId}`,
-      JSON.stringify({
+    try {
+      await this.repo.create({
+        executionId,
         projectId: dto.projectId,
         userId,
         command: dto.command,
-      }),
-      "EX",
-      20 * 60,
-    );
+        isDevServer: false,
+      });
 
-    // acquire lock
-    const locked = await acquireLock(dto.projectId, executionId, false);
-    if (!locked) throw new AppError("Failed to acquire execution lock", 409);
+      await redis.set(
+        `execution:status:${executionId}`,
+        "queued",
+        "EX",
+        20 * 60,
+      );
 
-    // publish to container-service
-    await pubsub.publish("execution:start", {
+      await redis.set(
+        `execution:meta:${executionId}`,
+        JSON.stringify({
+          projectId: dto.projectId,
+          userId,
+          command: dto.command,
+        }),
+        "EX",
+        20 * 60,
+      );
+
+      await pubsub.publish("execution:start", {
       executionId,
       projectId: dto.projectId,
       userId,
@@ -61,19 +62,39 @@ class ExecutionService {
       timeoutMs: 30_000,
       isDevServer: false,
       envVars: dto.envVars ?? null,
-    });
+      });
+    } catch (err) {
+      await this.repo
+        .updateStatus(executionId, {
+          status: "failed",
+          completedAt: new Date(),
+        })
+        .catch(() => {});
+      await releaseLock(dto.projectId, executionId);
+      throw err;
+    }
 
     return { executionId, status: "queued" };
   }
 
   async startPreview(userId: string, dto: StartPreviewDto) {
+    await assertProjectOwner(dto.projectId, userId);
+
     const previewStatus = await redis.get(`preview:${dto.projectId}:status`);
 
     if (previewStatus === "running" || previewStatus === "starting") {
-      const previewUrl = await this.getPreviewUrl(dto.projectId);
+      const ownerUserId = await redis.get(
+        `preview:${dto.projectId}:ownerUserId`,
+      );
+      if (ownerUserId && ownerUserId !== userId) {
+        throw new AppError("Forbidden", 403);
+      }
+
       return {
         status: previewStatus === "running" ? "already_running" : "starting",
-        previewUrl: previewUrl ?? undefined,
+        previewUrl: this.previewPath(dto.projectId),
+        previewAccessToken:
+          (await redis.get(`preview:${dto.projectId}:token`)) ?? undefined,
         projectId: dto.projectId,
       };
     }
@@ -87,10 +108,18 @@ class ExecutionService {
     );
 
     if (locked !== "OK") {
-      const previewUrl = await this.getPreviewUrl(dto.projectId);
+      const ownerUserId = await redis.get(
+        `preview:${dto.projectId}:ownerUserId`,
+      );
+      if (ownerUserId && ownerUserId !== userId) {
+        throw new AppError("Forbidden", 403);
+      }
+
       return {
         status: "starting",
-        previewUrl: previewUrl ?? undefined,
+        previewUrl: this.previewPath(dto.projectId),
+        previewAccessToken:
+          (await redis.get(`preview:${dto.projectId}:token`)) ?? undefined,
         projectId: dto.projectId,
       };
     }
@@ -131,6 +160,13 @@ class ExecutionService {
   }
 
   async stopPreview(projectId: string, userId: string) {
+    await assertProjectOwner(projectId, userId);
+
+    const ownerUserId = await redis.get(`preview:${projectId}:ownerUserId`);
+    if (ownerUserId && ownerUserId !== userId) {
+      throw new AppError("Forbidden", 403);
+    }
+
     await pubsub.publish("preview:stop", { projectId, userId });
     await redis
       .pipeline()
@@ -179,6 +215,7 @@ class ExecutionService {
   }
 
   async getExecutionHistory(projectId: string, userId: string) {
+    await assertProjectOwner(projectId, userId);
     return this.repo.findByProject(projectId);
   }
 
@@ -217,8 +254,7 @@ class ExecutionService {
       completedAt: new Date(),
     });
 
-    // release lock
-    await releaseLock(data.projectId);
+    await releaseLock(data.projectId, data.executionId);
 
     // clean Redis immediately
     await clearBuffer(data.executionId);
@@ -231,24 +267,23 @@ class ExecutionService {
     userId: string;
     hostPort: number;
   }) {
-    const previewToken = await redis.get(`preview:${data.projectId}:token`);
-    const proxyUrl = previewToken
-      ? `/preview/${data.projectId}/?previewToken=${previewToken}`
-      : `/preview/${data.projectId}/`;
+    const previewAccessToken = await redis.get(
+      `preview:${data.projectId}:token`,
+    );
+    const proxyUrl = this.previewPath(data.projectId);
 
-    // store in Redis
     await redis.set(`preview:${data.projectId}:status`, "running");
     await redis.set(`preview:${data.projectId}:port`, data.hostPort.toString());
     await redis.set(`preview:${data.projectId}:proxyUrl`, proxyUrl);
     await redis.del(`preview:${data.projectId}:lock`);
 
-    // publish to gateway — frontend receives this
     await pubsub.publish("preview:status", {
       projectId: data.projectId,
       userId: data.userId,
       status: "ready",
       previewUrl: proxyUrl,
-      hostPort: data.hostPort, // gateway needs this to set up proxy
+      previewAccessToken: previewAccessToken ?? undefined,
+      hostPort: data.hostPort,
     });
   }
 
@@ -299,14 +334,8 @@ class ExecutionService {
       .exec();
   }
 
-  private async getPreviewUrl(projectId: string) {
-    const proxyUrl = await redis.get(`preview:${projectId}:proxyUrl`);
-    if (proxyUrl) return proxyUrl;
-
-    const token = await redis.get(`preview:${projectId}:token`);
-    if (!token) return null;
-
-    return `/preview/${projectId}/?previewToken=${token}`;
+  private previewPath(projectId: string) {
+    return `/preview/${projectId}/`;
   }
 
   private buildEnvVars(

@@ -96,6 +96,8 @@ interface EditorState {
   setFilesError: (message: string | null) => void;
   setProjectContext: (projectId: string, containerStatus: string) => void;
   setFilesFromServer: (files: FileEntry[]) => void;
+  /** Merge server file tree without clobbering dirty buffers or local-only paths */
+  mergeFilesFromServer: (files: FileEntry[]) => void;
   setFileContentFromServer: (path: string, content: string) => void;
   markFileSaving: (path: string, saving: boolean) => void;
   markFileSaved: (path: string) => void;
@@ -209,6 +211,53 @@ export const useEditorStore = create<EditorState>((set) => ({
             existing?.lastSaveAttemptContent ?? file.lastSaveAttemptContent,
           lastSaveError: existing?.lastSaveError ?? file.lastSaveError ?? null,
         });
+      });
+
+      const nextGroups: Record<string, EditorGroup> = { ...state.groups };
+      Object.keys(nextGroups).forEach((groupId) => {
+        const group = nextGroups[groupId];
+        const filteredTabs = group.openTabs.filter((path) => nextFiles.has(path));
+        const activeFile =
+          group.activeFile && nextFiles.has(group.activeFile)
+            ? group.activeFile
+            : filteredTabs[filteredTabs.length - 1] ?? null;
+        nextGroups[groupId] = {
+          ...group,
+          openTabs: filteredTabs,
+          activeFile,
+        };
+      });
+
+      return { files: nextFiles, groups: nextGroups };
+    }),
+
+  mergeFilesFromServer: (files) =>
+    set((state) => {
+      const serverPaths = new Set(files.map((f) => f.path));
+      const nextFiles = new Map(state.files);
+
+      for (const [path, file] of state.files) {
+        if (!file.isFolder && !file.isDirty && !serverPaths.has(path)) {
+          nextFiles.delete(path);
+        }
+      }
+
+      files.forEach((file) => {
+        const existing = nextFiles.get(file.path);
+        if (existing?.isDirty) {
+          nextFiles.set(file.path, {
+            ...existing,
+            name: file.name,
+            language: file.language ?? existing.language,
+            isFolder: file.isFolder,
+          });
+        } else {
+          nextFiles.set(file.path, {
+            ...file,
+            isDirty: false,
+            isSaving: false,
+          });
+        }
       });
 
       const nextGroups: Record<string, EditorGroup> = { ...state.groups };

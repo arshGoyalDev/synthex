@@ -1,4 +1,4 @@
-import { db } from "../config/database";
+import { db, pubsub } from "../config/database";
 import { releaseLock } from "../utils/lock";
 import { clearBuffer } from "@synthex/database";
 
@@ -24,7 +24,12 @@ const startStaleWatcher = () => {
             data: { status: "failed", completedAt: new Date() },
           });
 
-          await releaseLock(exec.projectId);
+          await pubsub.publish("execution:kill", {
+            executionId: exec.executionId,
+            projectId: exec.projectId,
+          });
+
+          await releaseLock(exec.projectId, exec.executionId);
           await clearBuffer(exec.executionId);
         }
 

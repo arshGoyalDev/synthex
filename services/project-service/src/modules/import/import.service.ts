@@ -267,6 +267,16 @@ class ImportService {
     return detection;
   }
 
+  private async assertZipOwner(zipKey: string, userId: string) {
+    const owner = await redis.get(`zip:owner:${zipKey}`);
+    if (!owner) {
+      throw new AppError("ZIP upload not found or expired", 404);
+    }
+    if (owner !== userId) {
+      throw new AppError("Forbidden", 403);
+    }
+  }
+
   async importZip(
     userId: string,
     data: {
@@ -286,6 +296,9 @@ class ImportService {
     if (safeLanguages.length === 0) {
       throw new AppError("Languages required for imported project", 400);
     }
+
+    await this.assertZipOwner(data.zipKey, userId);
+
     const project = await db.project.create({
       data: {
         name: data.name,

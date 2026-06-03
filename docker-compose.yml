@@ -66,9 +66,8 @@ services:
         until /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}; do sleep 2; done
         /usr/bin/mc mb myminio/user-files --ignore-existing
         /usr/bin/mc mb myminio/project-files --ignore-existing
+        /usr/bin/mc mb myminio/project-zips --ignore-existing
         /usr/bin/mc mb myminio/execution-outputs --ignore-existing
-        /usr/bin/mc anonymous set download myminio/user-files
-        /usr/bin/mc anonymous set download myminio/project-files
     restart: "no"
     networks:
       - synthex-network

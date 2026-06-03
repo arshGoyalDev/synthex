@@ -85,6 +85,7 @@ const registerSubscribers = async (io: SocketServer) => {
       projectId: data.projectId,
       status: data.status,
       previewUrl: data.previewUrl,
+      previewAccessToken: data.previewAccessToken,
       message: data.message,
     });
   });

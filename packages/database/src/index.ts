@@ -34,3 +34,6 @@ export {
   clearBuffer,
   newSeq,
 } from "./buffer";
+
+export { findOwnedProject, isProjectOwnedBy } from "./project-access";
+export { scanKeys } from "./redis-scan";

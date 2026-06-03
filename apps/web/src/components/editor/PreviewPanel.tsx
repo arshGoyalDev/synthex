@@ -28,7 +28,7 @@ export function PreviewPanel({
   templateId,
 }: PreviewPanelProps) {
   const {
-    previewUrl,
+    previewFrameUrl,
     previewStatus,
     previewOutput,
     errorMessage,
@@ -40,9 +40,7 @@ export function PreviewPanel({
 
   const [showConsole, setShowConsole] = useState(false);
 
-  const fullUrl = previewUrl
-    ? `${import.meta.env.VITE_SERVER_URL}${previewUrl}`
-    : null;
+  const fullUrl = previewFrameUrl;
 
   const canStart = !!previewCommand && !!previewPort;
 

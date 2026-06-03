@@ -3,12 +3,24 @@ import { Client as MinioClient } from "minio";
 import type { Readable } from "stream";
 
 export function createMinioClient() {
+  const accessKey = process.env.MINIO_ACCESS_KEY;
+  const secretKey = process.env.MINIO_SECRET_KEY;
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!accessKey?.trim() || !secretKey?.trim())
+  ) {
+    throw new Error(
+      "MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be set in production",
+    );
+  }
+
   return new MinioClient({
     endPoint: process.env.MINIO_ENDPOINT || "localhost",
     port: parseInt(process.env.MINIO_PORT || "9000"),
     useSSL: process.env.MINIO_USE_SSL === "true",
-    accessKey: process.env.MINIO_ACCESS_KEY || "minioadmin",
-    secretKey: process.env.MINIO_SECRET_KEY || "minioadmin123",
+    accessKey: accessKey || "minioadmin",
+    secretKey: secretKey || "minioadmin123",
   });
 }
 
