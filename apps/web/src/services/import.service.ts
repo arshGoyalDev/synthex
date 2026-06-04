@@ -1,3 +1,4 @@
+import axios from "axios";
 import { api } from "../lib/api";
 import type { Project } from "../types/project";
 
@@ -61,22 +62,45 @@ export interface ZipUploadResult {
   originalName: string;
 }
 
-export const uploadZip = async (
-  file: File,
-  onProgress?: (pct: number) => void,
-): Promise<ZipUploadResult> => {
-  const formData = new FormData();
-  formData.append("file", file);
+export interface ZipUploadInitResult {
+  zipKey: string;
+  uploadUrl: string;
+  uploadHeaders: Record<string, string>;
+  expiresInSeconds: number;
+  originalName: string;
+}
 
-  const { data } = await api.post(`${UPLOAD_BASE}/zip`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+export const initZipUpload = async (
+  file: File,
+): Promise<ZipUploadInitResult> => {
+  const { data } = await api.post(`${UPLOAD_BASE}/zip/init`, {
+    fileName: file.name,
+    fileSize: file.size,
+    contentType: file.type || "application/zip",
+  });
+
+  return data.data;
+};
+
+export const uploadZipToObjectStore = async (
+  file: File,
+  init: ZipUploadInitResult,
+  onProgress?: (pct: number) => void,
+): Promise<void> => {
+  await axios.put(init.uploadUrl, file, {
+    headers: init.uploadHeaders,
     onUploadProgress: (evt) => {
       if (onProgress && evt.total) {
         onProgress(Math.round((evt.loaded / evt.total) * 100));
       }
     },
   });
+};
 
+export const completeZipUpload = async (
+  zipKey: string,
+): Promise<ZipUploadResult> => {
+  const { data } = await api.post(`${UPLOAD_BASE}/zip/complete`, { zipKey });
   return data.data;
 };
 

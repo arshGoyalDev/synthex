@@ -21,6 +21,7 @@ export { createRedisClient, CacheManager, PubSubManager, createRedisSubscriber }
 export type { RedisClient } from "./redis";
 export {
   createMinioClient,
+  createPresignedMinioClient,
   MinioManager,
   SNAPSHOT_BUCKET,
   FILES_BUCKET,

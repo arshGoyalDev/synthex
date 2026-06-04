@@ -2,7 +2,11 @@ import { Client as MinioClient } from "minio";
 
 import type { Readable } from "stream";
 
-export function createMinioClient() {
+function createClientFromConfig(options?: {
+  endPoint?: string;
+  port?: number;
+  useSSL?: boolean;
+}) {
   const accessKey = process.env.MINIO_ACCESS_KEY;
   const secretKey = process.env.MINIO_SECRET_KEY;
 
@@ -16,11 +20,30 @@ export function createMinioClient() {
   }
 
   return new MinioClient({
-    endPoint: process.env.MINIO_ENDPOINT || "localhost",
-    port: parseInt(process.env.MINIO_PORT || "9000"),
-    useSSL: process.env.MINIO_USE_SSL === "true",
+    endPoint: options?.endPoint ?? (process.env.MINIO_ENDPOINT || "localhost"),
+    port: options?.port ?? parseInt(process.env.MINIO_PORT || "9000"),
+    useSSL: options?.useSSL ?? process.env.MINIO_USE_SSL === "true",
     accessKey: accessKey || "minioadmin",
     secretKey: secretKey || "minioadmin123",
+  });
+}
+
+export function createMinioClient() {
+  return createClientFromConfig();
+}
+
+export function createPresignedMinioClient() {
+  const publicUrl = process.env.MINIO_PUBLIC_URL?.trim();
+
+  if (!publicUrl) {
+    return createClientFromConfig();
+  }
+
+  const parsed = new URL(publicUrl);
+  return createClientFromConfig({
+    endPoint: parsed.hostname,
+    port: parsed.port ? parseInt(parsed.port) : parsed.protocol === "https:" ? 443 : 80,
+    useSSL: parsed.protocol === "https:",
   });
 }
 

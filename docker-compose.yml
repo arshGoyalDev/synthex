@@ -68,6 +68,8 @@ services:
         /usr/bin/mc mb myminio/project-files --ignore-existing
         /usr/bin/mc mb myminio/project-zips --ignore-existing
         /usr/bin/mc mb myminio/execution-outputs --ignore-existing
+        printf '%s' '[{"AllowedOrigin":["${ORIGIN}"],"AllowedMethod":["GET","HEAD","PUT"],"AllowedHeader":["*"],"ExposeHeader":["ETag"],"MaxAgeSeconds":3600}]' > /tmp/project-zips-cors.json
+        /usr/bin/mc cors set myminio/project-zips /tmp/project-zips-cors.json
     restart: "no"
     networks:
       - synthex-network
@@ -190,6 +192,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_USE_SSL: ${MINIO_USE_SSL}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
       MINIO_USER_FILES_BUCKET: ${MINIO_USER_FILES_BUCKET}
       MINIO_PROJECT_FILES_BUCKET: ${MINIO_PROJECT_FILES_BUCKET}
       MINIO_EXECUTION_OUTPUTS_BUCKET: ${MINIO_EXECUTION_OUTPUTS_BUCKET}

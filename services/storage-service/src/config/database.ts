@@ -4,6 +4,7 @@ import {
   PubSubManager,
   type RedisClient,
   createMinioClient,
+  createPresignedMinioClient,
   MinioManager,
   getStorageDbClient,
   getStorageRepository,
@@ -30,5 +31,6 @@ export const pubsub = new PubSubManager(redis, redisSubscriber);
 
 export const minioClient = createMinioClient();
 export const minioManager = new MinioManager(minioClient);
+export const minioPresignClient = createPresignedMinioClient();
 
 export { SNAPSHOT_BUCKET, FILES_BUCKET } from "@synthex/database";

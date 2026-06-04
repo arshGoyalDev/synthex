@@ -18,12 +18,14 @@ import {
   type CreateProjectPayload,
 } from "../../services/project.service";
 import {
+  completeZipUpload,
   detectGithubRepo,
   importFromGithub,
   importFromZip,
+  initZipUpload,
   listGithubRepos,
-  uploadZip,
   detectZip,
+  uploadZipToObjectStore,
   type GithubRepoInfo,
 } from "../../services/import.service";
 import { Input } from "../../components/ui/Input";
@@ -34,6 +36,8 @@ type CreationMode =
   | "template"
   | "blank"
   | "raw";
+
+const MAX_ZIP_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 export const Route = createFileRoute("/project/")({
   component: CreateProjectPage,
@@ -125,6 +129,10 @@ function CreateProjectPage() {
       setError("Please upload a .zip file.");
       return;
     }
+    if (file.size > MAX_ZIP_UPLOAD_BYTES) {
+      setError("ZIP files must be 100 MB or smaller.");
+      return;
+    }
     setError(null);
     setMode("zip");
     setZipFile(file);
@@ -214,7 +222,12 @@ function CreateProjectPage() {
     try {
       setBusy(true);
       setError(null);
-      const uploaded = await uploadZip(zipFile, (pct) => setZipProgress(pct));
+      setZipProgress(0);
+      const uploadInit = await initZipUpload(zipFile);
+      await uploadZipToObjectStore(zipFile, uploadInit, (pct) =>
+        setZipProgress(pct),
+      );
+      const uploaded = await completeZipUpload(uploadInit.zipKey);
       const detection = await detectZip(
         uploaded.filePaths,
         uploaded.fileContents,

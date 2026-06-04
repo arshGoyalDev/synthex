@@ -157,24 +157,22 @@ const spec: OpenAPIObject = {
       },
     },
     // ── Upload ────────────────────────────────────────────────────────────────
-    "/upload/zip": {
+    "/upload/zip/init": {
       post: {
         tags: ["Upload"],
-        summary: "Upload a ZIP archive – returns zipKey + file manifest",
-        operationId: "uploadZip",
+        summary: "Start a ZIP upload and get a presigned PUT URL",
+        operationId: "initZipUpload",
         requestBody: {
           required: true,
           content: {
-            "multipart/form-data": {
+            "application/json": {
               schema: {
                 type: "object",
-                required: ["file"],
+                required: ["fileName", "fileSize"],
                 properties: {
-                  file: {
-                    type: "string",
-                    format: "binary",
-                    description: "ZIP file (max 100 MB)",
-                  },
+                  fileName: { type: "string", example: "my-project.zip" },
+                  fileSize: { type: "integer", example: 1048576 },
+                  contentType: { type: "string", example: "application/zip" },
                 },
               },
             },
@@ -183,6 +181,55 @@ const spec: OpenAPIObject = {
         responses: {
           200: {
             description: "Upload successful",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: {
+                      type: "object",
+                      properties: {
+                        zipKey: { type: "string", example: "550e8400.zip" },
+                        uploadUrl: { type: "string" },
+                        uploadHeaders: {
+                          type: "object",
+                          additionalProperties: { type: "string" },
+                        },
+                        expiresInSeconds: { type: "integer", example: 900 },
+                        originalName: { type: "string" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          ...commonResponses,
+        },
+      },
+    },
+    "/upload/zip/complete": {
+      post: {
+        tags: ["Upload"],
+        summary: "Validate an uploaded ZIP and generate its manifest",
+        operationId: "completeZipUpload",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["zipKey"],
+                properties: {
+                  zipKey: { type: "string", example: "550e8400.zip" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "ZIP validated",
             content: {
               "application/json": {
                 schema: {

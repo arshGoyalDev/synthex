@@ -394,44 +394,45 @@ class ContainerService {
     // Create workspace directory
     const createWorkspaceCommands = [`mkdir -p /workspace/${projectName}`];
 
-    // Extract zip into /workspace (Docker's putArchive expects a tar stream,
-    // but for .zip we use unzip inside the container via stdin piping)
-    // Strategy: stream the zip to MinIO temp, then exec unzip inside container
+    // Stream the ZIP directly into the container and unzip after stdin closes.
     console.log(`[container-service] Extracting ZIP for ${projectName}`);
 
-    // Write zip to a temp path inside container via exec + base64
-    // This is reliable cross-platform without needing tar conversion
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      zipStream.on("data", (chunk: Buffer) => chunks.push(chunk));
-      zipStream.on("end", resolve);
-      zipStream.on("error", reject);
-    });
-    const zipBuffer = Buffer.concat(chunks);
-    const b64 = zipBuffer.toString("base64");
-
-    // Write zip to container then unzip
-    const extractCmds = [
-      `mkdir -p /workspace/${projectName}`,
-      `echo '${b64}' | base64 -d > /tmp/import.zip`,
-      `unzip -q -o /tmp/import.zip -d /workspace/${projectName} && rm /tmp/import.zip`,
-      // Strip single top-level folder if present (common zip convention)
-      `cd /workspace/${projectName} && count=$(ls -1A 2>/dev/null | wc -l) && if [ "$count" -eq 1 ]; then dir=$(ls -1A 2>/dev/null); if [ -d "$dir" ]; then mv "$dir"/* . 2>/dev/null || true; mv "$dir"/.[!.]* . 2>/dev/null || true; rmdir "$dir" 2>/dev/null || true; fi; fi`,
-    ];
-    const setupCommands = [...createWorkspaceCommands, ...extractCmds];
-    const totalCommands = setupCommands.length + (installCommand ? 1 : 0);
+    const totalCommands = createWorkspaceCommands.length + 1 + (installCommand ? 1 : 0);
     await this.initSetupLogging(projectId);
 
     let commandIndex = 0;
     commandIndex = await this.runSetupStage({
       container,
-      commands: setupCommands,
+      commands: createWorkspaceCommands,
       projectId,
       stage: "setup",
       stageName: DEFAULT_SETUP_STAGES.setup,
       commandIndex,
       totalCommands,
     });
+
+    await this.runStreamedSetupCommand({
+      container,
+      projectId,
+      command:
+        `cat >/tmp/import.zip && ` +
+        `unzip -q -o /tmp/import.zip -d /workspace/${projectName} && ` +
+        `rm /tmp/import.zip && ` +
+        `cd /workspace/${projectName} && ` +
+        `count=$(ls -1A 2>/dev/null | wc -l) && ` +
+        `if [ "$count" -eq 1 ]; then ` +
+        `dir=$(ls -1A 2>/dev/null); ` +
+        `if [ -d "$dir" ]; then ` +
+        `mv "$dir"/* . 2>/dev/null || true; ` +
+        `mv "$dir"/.[!.]* . 2>/dev/null || true; ` +
+        `rmdir "$dir" 2>/dev/null || true; ` +
+        `fi; ` +
+        `fi`,
+      stdinStream: zipStream,
+      commandIndex,
+      totalCommands,
+    });
+    commandIndex += 1;
 
     // Run install
     if (installCommand) {
@@ -731,6 +732,162 @@ class ContainerService {
 
     if (exitCode !== 0) {
       console.log(`[${projectId}] Command failed: ${command}`);
+      await this.publishSetupLog({
+        projectId,
+        type: "error",
+        text: `✗ Command failed (exit ${exitCode})`,
+        commandIndex,
+        totalCommands,
+      });
+      await this.markSetupFailed(projectId);
+
+      throw new AppError(
+        `Setup command failed (exit ${exitCode}): ${command}\n${output.trim()}`,
+        500,
+      );
+    }
+
+    await this.publishSetupLog({
+      projectId,
+      type: "success",
+      text: `✓ Command completed (${durationSeconds.toFixed(1)}s)`,
+      commandIndex,
+      totalCommands,
+    });
+  }
+
+  private async runStreamedSetupCommand(options: {
+    container: Dockerode.Container;
+    command: string;
+    stdinStream: NodeJS.ReadableStream;
+    projectId: string;
+    commandIndex: number;
+    totalCommands: number;
+  }) {
+    const {
+      container,
+      command,
+      stdinStream,
+      projectId,
+      commandIndex,
+      totalCommands,
+    } = options;
+    const startedAt = Date.now();
+    const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g; // eslint-disable-line no-control-regex
+
+    await this.publishSetupLog({
+      projectId,
+      type: "command",
+      text: `$ ${command}`,
+      commandIndex,
+      totalCommands,
+    });
+
+    console.log(`[${projectId}] Running streamed command: ${command}`);
+
+    const exec = await container.exec({
+      Cmd: ["bash", "-c", command],
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+    });
+
+    let output = "";
+    const lineBuffers: Record<"stdout" | "stderr", string> = {
+      stdout: "",
+      stderr: "",
+    };
+
+    const emitLines = async (type: "stdout" | "stderr", chunk: string) => {
+      const cleaned = chunk.replace(ANSI_RE, "").replace(/\r\n/g, "\n");
+      const buffer = `${lineBuffers[type]}${cleaned}`;
+      const lines = buffer.split(/\n/);
+      lineBuffers[type] = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const text = line.replace(/\r$/, "");
+        if (!text.trim()) continue;
+        await this.publishSetupLog({
+          projectId,
+          type: type === "stderr" ? "error" : "info",
+          text,
+          commandIndex,
+          totalCommands,
+        });
+      }
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      exec.start({ hijack: true, stdin: true }, (err, stream) => {
+        if (err) return reject(err);
+        if (!stream) return resolve();
+
+        let settled = false;
+        let processing = false;
+        const pendingFrames: Array<{ type: "stdout" | "stderr"; payload: Buffer }> = [];
+
+        const fail = (error: Error) => {
+          if (settled) return;
+          settled = true;
+          stream.destroy();
+          reject(error);
+        };
+
+        const finish = async () => {
+          if (settled) return;
+          settled = true;
+
+          while (pendingFrames.length > 0 || processing) {
+            await new Promise((wait) => setTimeout(wait, 10));
+          }
+
+          await emitLines("stdout", "\n");
+          await emitLines("stderr", "\n");
+          resolve();
+        };
+
+        const drainFrames = async () => {
+          if (processing || pendingFrames.length === 0) return;
+          processing = true;
+          (stream as NodeJS.ReadableStream).pause?.();
+
+          while (pendingFrames.length > 0) {
+            const batch = pendingFrames.splice(0, 20);
+            for (const { type, payload } of batch) {
+              const text = payload.toString("utf8");
+              output += text;
+              await emitLines(type, text);
+            }
+          }
+
+          processing = false;
+          (stream as NodeJS.ReadableStream).resume?.();
+        };
+
+        const parseFrame = createDockerFrameParser(({ type, payload }) => {
+          if (payload.length === 0) return;
+          pendingFrames.push({ type, payload });
+          drainFrames().catch((error) => fail(error as Error));
+        });
+
+        stream.on("data", parseFrame);
+        stream.on("end", () => {
+          finish().catch((error) => fail(error as Error));
+        });
+        stream.on("error", (error) => fail(error));
+
+        stdinStream.on("error", (error) => fail(error));
+        stdinStream.pipe(stream);
+      });
+    });
+
+    const execInfo = await exec.inspect();
+    const exitCode = execInfo.ExitCode ?? 1;
+    const durationSeconds = (Date.now() - startedAt) / 1000;
+
+    if (exitCode !== 0) {
+      console.log(`[${projectId}] Streamed command failed: ${command}`);
       await this.publishSetupLog({
         projectId,
         type: "error",
