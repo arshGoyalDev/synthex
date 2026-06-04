@@ -105,7 +105,7 @@ Used for:
 - `execution-outputs`
 - `project-snapshots`
 
-The ZIP import flow now uses direct browser upload with presigned URLs. The browser uploads to MinIO, then the storage service validates the uploaded object and generates the manifest used for import detection.
+The ZIP import flow uses direct browser upload with presigned URLs. The browser uploads to MinIO, then the storage service validates the uploaded object and generates the manifest used for import detection.
 
 ### Docker
 
