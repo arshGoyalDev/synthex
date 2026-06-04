@@ -331,7 +331,7 @@ const spec: OpenAPIObject = {
     "/import/zip/detect": {
       post: {
         tags: ["Import"],
-        summary: "Detect language/framework from an uploaded ZIP (by zipKey)",
+        summary: "Detect language/framework from a validated ZIP manifest",
         operationId: "detectZip",
         security: bearerSecurity,
         requestBody: {
@@ -340,9 +340,13 @@ const spec: OpenAPIObject = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["zipKey"],
+                required: ["filePaths"],
                 properties: {
-                  zipKey: { type: "string", example: "550e8400.zip" },
+                  filePaths: {
+                    type: "array",
+                    items: { type: "string" },
+                    example: ["package.json", "src/index.ts"],
+                  },
                   fileContents: { type: "object", additionalProperties: { type: "string" } },
                 },
               },
@@ -367,17 +371,32 @@ const spec: OpenAPIObject = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["zipKey", "projectId"],
+                required: ["zipKey", "name", "isPreview", "languages"],
                 properties: {
                   zipKey: { type: "string" },
-                  projectId: { type: "string", format: "uuid" },
+                  name: { type: "string", example: "my-project" },
+                  description: { type: "string" },
+                  runCommand: { type: "string" },
+                  previewCommand: { type: "string" },
+                  previewPort: { type: "integer", example: 3000 },
+                  installCommand: { type: "string" },
+                  isPreview: { type: "boolean", example: true },
+                  languages: {
+                    type: "array",
+                    items: { type: "string" },
+                    example: ["javascript", "typescript"],
+                  },
+                  envVars: {
+                    type: "object",
+                    additionalProperties: { type: "string" },
+                  },
                 },
               },
             },
           },
         },
         responses: {
-          200: { description: "Import started" },
+          201: { description: "Project created and import started" },
           ...commonResponses,
         },
       },
