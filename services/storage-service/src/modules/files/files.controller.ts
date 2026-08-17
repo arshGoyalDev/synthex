@@ -83,14 +83,14 @@ class FilesController {
       const { filePath, content } = saveFileSchema.parse(req.body);
       const normalizedPath = filesService.normalizeFilePath(filePath);
 
-      await filesService.saveFile(
+      const file = await filesService.saveFile(
         projectId,
         userId,
         normalizedPath,
         content,
       );
 
-      res.json({ message: "File saved" });
+      res.json({ data: file });
     } catch (err) {
       next(err);
     }

@@ -11,6 +11,11 @@ import { getMimeType } from "../../utils/mime";
 import { AppError } from "../../utils/AppError";
 import { assertProjectOwner } from "../../utils/projectAccess";
 import { Readable } from "stream";
+import { createHash } from "crypto";
+
+const MAX_FILE_BYTES = 1 * 1024 * 1024;
+const MAX_PROJECT_FILE_BYTES = 100 * 1024 * 1024;
+const INLINE_CONTENT_BYTES = 64 * 1024;
 
 class FilesService {
   private filesRepo = new FilesRepository();
@@ -36,6 +41,32 @@ class FilesService {
     }
 
     return parts.join("/");
+  }
+
+  private contentHash(content: Buffer) {
+    return createHash("sha256").update(content).digest("hex");
+  }
+
+  private async assertProjectQuota(
+    projectId: string,
+    filePath: string,
+    nextSizeBytes: number,
+  ) {
+    if (nextSizeBytes > MAX_FILE_BYTES) {
+      throw new AppError("File exceeds the 1 MB limit", 413);
+    }
+
+    const files = await this.filesRepo.findByProject(projectId);
+    const currentFile = files.find((file) => file.filePath === filePath);
+    const totalBytes = files.reduce(
+      (sum, file) => sum + (file.sizeBytes ?? 0),
+      0,
+    );
+    const nextTotal =
+      totalBytes - (currentFile?.sizeBytes ?? 0) + nextSizeBytes;
+    if (nextTotal > MAX_PROJECT_FILE_BYTES) {
+      throw new AppError("Project exceeds the 100 MB file storage limit", 413);
+    }
   }
 
   // ─── Called when container-service publishes "files:snapshot" ─────────────
@@ -95,12 +126,12 @@ class FilesService {
         f.minioPath.startsWith(`${userId}/`),
       );
       if (!ownerMatch) throw new AppError("Forbidden", 403);
-      return existing;
+      return this.withoutInlineContent(existing);
     }
 
     const latestSnapshot = await this.snapshotRepo.getLatest(projectId);
     if (!latestSnapshot) {
-      return existing;
+      return this.withoutInlineContent(existing);
     }
     if (latestSnapshot.userId !== userId) {
       throw new AppError("Forbidden", 403);
@@ -110,12 +141,20 @@ class FilesService {
       latestSnapshot.minioKey,
     );
     if (manifest.length === 0) {
-      return existing;
+      return this.withoutInlineContent(existing);
     }
 
     await this.reconcileFileIndex(projectId, latestSnapshot.userId, manifest);
 
-    return this.filesRepo.findByProject(projectId);
+    return this.withoutInlineContent(
+      await this.filesRepo.findByProject(projectId),
+    );
+  }
+
+  private withoutInlineContent<T extends { content?: string | null }>(
+    files: T[],
+  ) {
+    return files.map(({ content: _content, ...file }) => file);
   }
 
   private async reconcileFileIndex(
@@ -146,6 +185,7 @@ class FilesService {
         sizeBytes: f.sizeBytes,
         mimeType: f.mimeType,
         content: null,
+        contentHash: f.checksum || null,
       })),
       ...(await Promise.all(
         savedOnlyPaths.map(async (filePath) => {
@@ -160,6 +200,7 @@ class FilesService {
             sizeBytes: stat.size,
             mimeType: getMimeType(filePath),
             content: null,
+            contentHash: null,
           };
         }),
       )),
@@ -255,6 +296,9 @@ class FilesService {
     const minioPath = `${this.filesPrefix(ownerId, projectId)}${filePath}`;
     const buffer = Buffer.from(content, "utf8");
     const mimeType = getMimeType(filePath);
+    const contentHash = this.contentHash(buffer);
+
+    await this.assertProjectQuota(projectId, filePath, buffer.length);
 
     await minioClient.putObject(
       FILES_BUCKET,
@@ -272,7 +316,8 @@ class FilesService {
         minioPath,
         sizeBytes: buffer.length,
         mimeType,
-        content,
+        content: buffer.length <= INLINE_CONTENT_BYTES ? content : null,
+        contentHash,
       },
     ]);
 
@@ -284,11 +329,18 @@ class FilesService {
         userId: ownerId,
         event: "change",
         filePath,
-        content,
+        sizeBytes: buffer.length,
+        contentHash,
       });
     }
 
     console.log(`[storage-service] Saved file ${filePath} for ${projectId}`);
+    return {
+      filePath,
+      sizeBytes: buffer.length,
+      contentHash,
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   async deleteStoredFile(projectId: string, userId: string, filePath: string) {
@@ -340,7 +392,9 @@ class FilesService {
       publish: false,
     });
     await this.filesRepo.delete(projectId, oldPath);
-    await minioClient.removeObject(FILES_BUCKET, file.minioPath).catch(() => {});
+    await minioClient
+      .removeObject(FILES_BUCKET, file.minioPath)
+      .catch(() => {});
     await this.putDeleteMarker(ownerId, projectId, oldPath);
     await this.removeDeleteMarker(ownerId, projectId, newPath);
 
@@ -350,7 +404,7 @@ class FilesService {
       event: "rename",
       filePath: oldPath,
       newPath,
-      content,
+      contentHash: file.contentHash ?? undefined,
     });
   }
 

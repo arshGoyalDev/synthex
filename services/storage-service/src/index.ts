@@ -17,8 +17,10 @@ app.use(
     origin: env.ORIGIN,
   }),
 );
-app.use(express.json({ limit: "10mb" }));
-app.get("/health", (req, res) => res.json({ status: "ok" }));
+app.use(express.json({ limit: "1mb" }));
+app.get("/health", (req, res) =>
+  res.json({ status: "ok", service: "storage-service" }),
+);
 app.get("/openapi.json", (req, res) => res.json(openapiSpec));
 app.use("/files", filesRoutes);
 app.use("/upload", uploadRoutes);
@@ -31,7 +33,7 @@ app.use(
     next: express.NextFunction,
   ) => {
     console.error("[storage-service] Error:", err.message);
-  
+
     if (err.name === "ZodError") {
       const message = err.issues?.[0]?.message ?? "Validation failed";
       return res.status(400).json({ error: message });
@@ -61,8 +63,8 @@ const start = async () => {
   await registerSubscribers();
   console.log("[storage-service] Subscribers registered");
 
-  app.listen(env.PORT, () => {
-    console.log(`storage-service running on port ${env.PORT}`);
+  app.listen(env.STORAGE_SERVICE_PORT, () => {
+    console.log(`storage-service running on port ${env.STORAGE_SERVICE_PORT}`);
   });
 };
 

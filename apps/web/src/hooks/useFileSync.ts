@@ -4,6 +4,11 @@ import { useEditorStore } from "../stores/editor.store";
 import type { FileEntry } from "../stores/editor.store";
 import * as storageService from "../services/storage.service";
 import { getMonacoLanguage } from "../utils/monacoLanguage";
+import {
+  getLocalSnapshot,
+  removeLocalSnapshot,
+  saveLocalSnapshot,
+} from "../lib/localFileSnapshots";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -54,10 +59,12 @@ export function useFileSync({
   );
   // Track which files we've already initiated a content fetch for
   const fetchingPaths = useRef<Set<string>>(new Set());
+  const retryCounts = useRef<Map<string, number>>(new Map());
 
   // ─── 1. Load file list when container becomes ready ───────────────────────
 
-  const isContainerActive = containerStatus === "ready" || containerStatus === "installing";
+  const isContainerActive =
+    containerStatus === "ready" || containerStatus === "installing";
 
   useEffect(() => {
     if (!isContainerActive) return;
@@ -106,6 +113,19 @@ export function useFileSync({
       try {
         const file = await storageService.getFileContent(projectId, filePath);
         setFileContentFromServer(filePath, file.content ?? "");
+        const snapshot = await getLocalSnapshot(projectId, filePath).catch(
+          () => undefined,
+        );
+        if (
+          snapshot?.content !== undefined &&
+          snapshot.content !== (file.content ?? "")
+        ) {
+          useEditorStore
+            .getState()
+            .updateFileContent(filePath, snapshot.content);
+        } else if (snapshot) {
+          await removeLocalSnapshot(projectId, filePath).catch(() => {});
+        }
       } catch (err: any) {
         console.error(
           `[useFileSync] Failed to fetch content for ${filePath}:`,
@@ -130,13 +150,27 @@ export function useFileSync({
 
       try {
         await storageService.saveFile(projectId, filePath, content);
-        markFileSaved(filePath);
+        const current = useEditorStore.getState().files.get(filePath);
+        if (current?.content === content) {
+          await removeLocalSnapshot(projectId, filePath).catch(() => {});
+          retryCounts.current.delete(filePath);
+          markFileSaved(filePath);
+        }
       } catch (err: any) {
         console.error(`[useFileSync] Save failed for ${filePath}:`, err);
         markFileSaveError(
           filePath,
           err.response?.data?.error || err.message || "Save failed",
         );
+        const retries = retryCounts.current.get(filePath) ?? 0;
+        if (retries < 3) {
+          retryCounts.current.set(filePath, retries + 1);
+          const retryTimer = setTimeout(
+            () => saveFileNow(filePath),
+            1000 * 2 ** retries,
+          );
+          saveTimers.current.set(filePath, retryTimer);
+        }
       }
     },
     [projectId, markFileSaving, markFileSaved, markFileSaveError],
@@ -150,7 +184,13 @@ export function useFileSync({
 
       const timer = setTimeout(() => {
         saveTimers.current.delete(filePath);
-        saveFileNow(filePath);
+        const file = useEditorStore.getState().files.get(filePath);
+        if (file) {
+          void saveLocalSnapshot(projectId, filePath, file.content ?? "").catch(
+            () => {},
+          );
+        }
+        void saveFileNow(filePath);
       }, AUTO_SAVE_DELAY_MS);
 
       saveTimers.current.set(filePath, timer);
@@ -245,7 +285,9 @@ export function useFileSync({
           try {
             const serverFiles = await storageService.listFiles(projectId);
             setFilesFromServer(serverFiles.map(toFileEntry));
-          } catch { /* best-effort */ }
+          } catch {
+            /* best-effort */
+          }
         }
       }
     },
@@ -268,7 +310,9 @@ export function useFileSync({
         try {
           const serverFiles = await storageService.listFiles(projectId);
           setFilesFromServer(serverFiles.map(toFileEntry));
-        } catch { /* best-effort */ }
+        } catch {
+          /* best-effort */
+        }
       }
     },
     [projectId, setFilesFromServer],
@@ -287,7 +331,9 @@ export function useFileSync({
         try {
           const serverFiles = await storageService.listFiles(projectId);
           setFilesFromServer(serverFiles.map(toFileEntry));
-        } catch { /* best-effort */ }
+        } catch {
+          /* best-effort */
+        }
       }
     },
     [projectId, setFilesFromServer],

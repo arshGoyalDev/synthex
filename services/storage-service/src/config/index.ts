@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 const envScheme = z.object({
-  PORT: z.string().default("3005"),
-
+  STORAGE_SERVICE_PORT: z.string().default("3005"),
   ORIGIN: z.string().default("http://localhost:5173"),
 });
 

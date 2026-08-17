@@ -32,6 +32,7 @@ class FilesRepository {
       sizeBytes: number;
       mimeType: string | null;
       content: string | null;
+      contentHash?: string | null;
     }>,
   ) {
     return prisma.$transaction(
@@ -49,6 +50,7 @@ class FilesRepository {
             fileName: file.fileName,
             minioPath: file.minioPath,
             sizeBytes: BigInt(file.sizeBytes),
+            contentHash: file.contentHash ?? null,
             mimeType: file.mimeType,
             content: file.content,
           },
@@ -56,6 +58,7 @@ class FilesRepository {
             fileName: file.fileName,
             minioPath: file.minioPath,
             sizeBytes: BigInt(file.sizeBytes),
+            contentHash: file.contentHash ?? null,
             mimeType: file.mimeType,
             content: file.content,
             updatedAt: new Date(),

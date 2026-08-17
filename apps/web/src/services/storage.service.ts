@@ -10,6 +10,7 @@ export interface StorageFileEntry {
   minioPath: string;
   sizeBytes: number | null;
   mimeType: string | null;
+  contentHash?: string | null;
   content?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -47,9 +48,7 @@ export async function getFileContent(
   filePath: string,
 ): Promise<StorageFileEntry> {
   const storagePath = toStoragePath(filePath);
-  const { data } = await api.get(
-    `${STORAGE_BASE}/${projectId}/${storagePath}`,
-  );
+  const { data } = await api.get(`${STORAGE_BASE}/${projectId}/${storagePath}`);
   return data.data;
 }
 
@@ -60,12 +59,18 @@ export async function saveFile(
   projectId: string,
   filePath: string,
   content: string,
-): Promise<void> {
+): Promise<{
+  filePath: string;
+  sizeBytes: number;
+  contentHash: string;
+  updatedAt: string;
+}> {
   const storagePath = toStoragePath(filePath);
-  await api.post(`${STORAGE_BASE}/${projectId}`, {
+  const { data } = await api.post(`${STORAGE_BASE}/${projectId}`, {
     filePath: storagePath,
     content,
   });
+  return data.data;
 }
 
 /**
