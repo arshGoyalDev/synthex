@@ -20,8 +20,7 @@ app.use(
 app.use(express.json());
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
+  res.json({ status: "ok", service: "project-service" })});
 
 app.get("/openapi.json", (req, res) => {
   res.json(openapiSpec);
@@ -54,6 +53,6 @@ registerSubscribers().then(() => {
 
 startTimeoutWatcher();
 
-const server = app.listen(env.PORT, () => {
-  console.log(`project-service running on port ${env.PORT}`);
+const server = app.listen(env.PROJECT_SERVICE_PORT, () => {
+  console.log(`project-service running on port ${env.PROJECT_SERVICE_PORT}`);
 });
