@@ -43,6 +43,6 @@ registerSubscribers().then(() => {
 startStaleWatcher();
 console.log("[execution-service] Stale watcher started");
 
-app.listen(env.PORT, () => {
-  console.log(`execution-service running on port ${env.PORT}`);
+app.listen(env.EXECUTION_SERVICE_PORT, () => {
+  console.log(`execution-service running on port ${env.EXECUTION_SERVICE_PORT}`);
 });

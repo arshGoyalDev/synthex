@@ -4,12 +4,14 @@ import { PreviewHandler } from "../modules/preview/preview.handler";
 
 import { pubsub, redis, minioClient, FILES_BUCKET } from "./database";
 import { LANGUAGES, TEMPLATES, PREVIEW_TEMPLATE_IDS } from "@synthex/templates";
+import { randomUUID } from "crypto";
 
 const containerService = new ContainerService();
 const executionHandler = new ExecutionHandler();
 const previewHandler = new PreviewHandler();
 
 const ZIP_BUCKET = "project-zips";
+const SETUP_LEASE_TTL_SECONDS = 20 * 60;
 
 interface ProjectData {
   projectId: string;
@@ -63,6 +65,7 @@ const registerSubscribers = async () => {
 
   await pubsub.subscribe("project:stop", async (data) => {
     try {
+      await invalidateSetup(data.projectId);
       await containerService
         .stopContainer(data.projectId, data.userId, data.projectName)
         .catch((err) => {
@@ -95,6 +98,7 @@ const registerSubscribers = async () => {
 
   await pubsub.subscribe("project:delete", async (data) => {
     try {
+      await invalidateSetup(data.projectId);
       await containerService.cleanupContainer(
         data.projectId,
         data.userId,
@@ -118,6 +122,7 @@ const registerSubscribers = async () => {
       `[container-service] Cleaning up timed out container for ${data.projectId}`,
     );
 
+    await invalidateSetup(data.projectId);
     await containerService
       .cleanupContainer(
         data.projectId,
@@ -215,8 +220,40 @@ const registerSubscribers = async () => {
 };
 
 const startContainerSetup = async (projectData: ProjectData) => {
-  const { projectId, userId, projectName, languages, template, importSource } = projectData;
+  const { projectId, userId, projectName, languages, template, importSource } =
+    projectData;
+  const attemptId = randomUUID();
+  const acquired = await redis.set(
+    `project:setup:${projectId}:lease`,
+    attemptId,
+    "EX",
+    SETUP_LEASE_TTL_SECONDS,
+    "NX",
+  );
+  if (acquired !== "OK") {
+    console.log(
+      `[container-service] Coalesced duplicate setup for ${projectId}`,
+    );
+    return;
+  }
+
+  await redis.set(
+    `project:setup:${projectId}:attempt`,
+    JSON.stringify({ attemptId, status: "starting", startedAt: Date.now() }),
+    "EX",
+    SETUP_LEASE_TTL_SECONDS,
+  );
+  const renewal = setInterval(() => {
+    void renewSetupLease(projectId, attemptId);
+  }, 60_000);
+
   try {
+    if (!(await ownsSetupLease(projectId, attemptId))) {
+      await containerService
+        .cleanupContainer(projectId, userId, projectName, { snapshot: false })
+        .catch(() => {});
+      return;
+    }
     await pubsub.publish("container:status", {
       projectId,
       userId,
@@ -226,30 +263,23 @@ const startContainerSetup = async (projectData: ProjectData) => {
 
     if (importSource === "github") {
       // ── GitHub import ────────────────────────────────────────────────────
-      await containerService.setupGithubImport(
-        projectId,
-        projectName,
-        userId,
-        {
-          repoUrl: projectData.repoUrl!,
-          repoBranch: projectData.repoBranch ?? "main",
-          installCommand: projectData.installCommand ?? null,
-          languages: projectData.languages ?? [],
-        },
-      );
+      await containerService.setupGithubImport(projectId, projectName, userId, {
+        repoUrl: projectData.repoUrl!,
+        repoBranch: projectData.repoBranch ?? "main",
+        installCommand: projectData.installCommand ?? null,
+        languages: projectData.languages ?? [],
+      });
     } else if (importSource === "zip") {
       // ── ZIP import ───────────────────────────────────────────────────────
-      const zipStream = await minioClient.getObject(ZIP_BUCKET, projectData.zipKey!);
-      await containerService.setupZipImport(
-        projectId,
-        projectName,
-        userId,
-        {
-          zipStream,
-          installCommand: projectData.installCommand ?? null,
-          languages: projectData.languages ?? [],
-        },
+      const zipStream = await minioClient.getObject(
+        ZIP_BUCKET,
+        projectData.zipKey!,
       );
+      await containerService.setupZipImport(projectId, projectName, userId, {
+        zipStream,
+        installCommand: projectData.installCommand ?? null,
+        languages: projectData.languages ?? [],
+      });
     } else {
       // ── Normal template / blank / raw ────────────────────────────────────
       await containerService.startProjectContainer(
@@ -272,6 +302,12 @@ const startContainerSetup = async (projectData: ProjectData) => {
 
     await redis.del(`container:timeout:${projectId}`);
 
+    if (!(await ownsSetupLease(projectId, attemptId))) {
+      await containerService
+        .cleanupContainer(projectId, userId, projectName, { snapshot: false })
+        .catch(() => {});
+      return;
+    }
     await pubsub.publish("container:status", {
       projectId,
       userId,
@@ -288,14 +324,55 @@ const startContainerSetup = async (projectData: ProjectData) => {
 
     await redis.del(`container:timeout:${projectId}`);
 
-    await pubsub.publish("container:status", {
-      projectId,
-      userId,
-      status: "error",
-      message: err.message || "Failed to set up environment",
-    });
+    if (await ownsSetupLease(projectId, attemptId)) {
+      await pubsub.publish("container:status", {
+        projectId,
+        userId,
+        status: "error",
+        message: err.message || "Failed to set up environment",
+      });
+    }
+  } finally {
+    clearInterval(renewal);
+    await releaseSetupLease(projectId, attemptId);
   }
 };
+
+async function ownsSetupLease(projectId: string, attemptId: string) {
+  return (await redis.get(`project:setup:${projectId}:lease`)) === attemptId;
+}
+
+async function renewSetupLease(projectId: string, attemptId: string) {
+  if (await ownsSetupLease(projectId, attemptId)) {
+    await redis.expire(
+      `project:setup:${projectId}:lease`,
+      SETUP_LEASE_TTL_SECONDS,
+    );
+    await redis.expire(
+      `project:setup:${projectId}:attempt`,
+      SETUP_LEASE_TTL_SECONDS,
+    );
+  }
+}
+
+async function releaseSetupLease(projectId: string, attemptId: string) {
+  const leaseKey = `project:setup:${projectId}:lease`;
+  const attemptKey = `project:setup:${projectId}:attempt`;
+  await redis.eval(
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1], KEYS[2]) end return 0",
+    2,
+    leaseKey,
+    attemptKey,
+    attemptId,
+  );
+}
+
+async function invalidateSetup(projectId: string) {
+  await redis.del(
+    `project:setup:${projectId}:lease`,
+    `project:setup:${projectId}:attempt`,
+  );
+}
 
 const getRuntimeConfig = (
   templateId: string | null,

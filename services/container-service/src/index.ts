@@ -55,7 +55,7 @@ httpServer.on("upgrade", (req) => {
 app.use(express.json());
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", service: "container-service" })
 });
 
 app.get("/openapi.json", (req, res) => {
@@ -89,8 +89,8 @@ const start = async () => {
   await registerSubscribers();
   console.log("[container-service] Subscribers registered");
 
-  httpServer.listen(env.PORT, () => {
-    console.log(`container-service running on port ${env.PORT}`);
+  httpServer.listen(env.CONTAINER_SERVICE_PORT, () => {
+    console.log(`container-service running on port ${env.CONTAINER_SERVICE_PORT}`);
   });
 };
 

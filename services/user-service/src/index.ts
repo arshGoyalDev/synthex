@@ -24,8 +24,7 @@ app.use(cookieParser());
 app.use(passport.initialize());
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
+  res.json({ status: "ok", service: "user-service" })});
 
 app.get("/openapi.json", (req, res) => {
   res.json(openapiSpec);
@@ -53,6 +52,6 @@ app.use(
   },
 );
 
-const server = app.listen(env.PORT, () => {
-  console.log(`user-service running on port ${env.PORT}`);
+const server = app.listen(env.USER_SERVICE_PORT, () => {
+  console.log(`user-service running on port ${env.USER_SERVICE_PORT}`);
 });

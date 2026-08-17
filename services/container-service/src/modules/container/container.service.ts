@@ -182,7 +182,9 @@ class ContainerService {
         await this.takeSnapshot(container, projectId, userId, projectName);
       } else {
         const totalCommands =
-          installCommands.length + setupCommands.length + postSetupCommands.length;
+          installCommands.length +
+          setupCommands.length +
+          postSetupCommands.length;
 
         await this.initSetupLogging(projectId);
 
@@ -397,7 +399,8 @@ class ContainerService {
     // Stream the ZIP directly into the container and unzip after stdin closes.
     console.log(`[container-service] Extracting ZIP for ${projectName}`);
 
-    const totalCommands = createWorkspaceCommands.length + 1 + (installCommand ? 1 : 0);
+    const totalCommands =
+      createWorkspaceCommands.length + 1 + (installCommand ? 1 : 0);
     await this.initSetupLogging(projectId);
 
     let commandIndex = 0;
@@ -580,14 +583,8 @@ class ContainerService {
     commandIndex: number;
     totalCommands: number;
   }) {
-    const {
-      container,
-      commands,
-      projectId,
-      stage,
-      stageName,
-      totalCommands,
-    } = options;
+    const { container, commands, projectId, stage, stageName, totalCommands } =
+      options;
     let { commandIndex } = options;
 
     if (commands.length === 0) return commandIndex;
@@ -630,7 +627,8 @@ class ContainerService {
     commandIndex: number;
     totalCommands: number;
   }) {
-    const { container, command, projectId, commandIndex, totalCommands } = options;
+    const { container, command, projectId, commandIndex, totalCommands } =
+      options;
     const startedAt = Date.now();
     const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]/g; // eslint-disable-line no-control-regex
 
@@ -682,7 +680,10 @@ class ContainerService {
         if (!stream) return resolve();
 
         let processing = false;
-        const pendingFrames: Array<{ type: "stdout" | "stderr"; payload: Buffer }> = [];
+        const pendingFrames: Array<{
+          type: "stdout" | "stderr";
+          payload: Buffer;
+        }> = [];
 
         const drainFrames = async () => {
           if (processing || pendingFrames.length === 0) return;
@@ -825,7 +826,10 @@ class ContainerService {
 
         let settled = false;
         let processing = false;
-        const pendingFrames: Array<{ type: "stdout" | "stderr"; payload: Buffer }> = [];
+        const pendingFrames: Array<{
+          type: "stdout" | "stderr";
+          payload: Buffer;
+        }> = [];
 
         const fail = (error: Error) => {
           if (settled) return;
@@ -1062,7 +1066,7 @@ class ContainerService {
     event: "change" | "delete" | "rename";
     filePath: string;
     newPath?: string;
-    content?: string;
+    contentHash?: string;
   }) {
     const container = this.docker.getContainer(`synthex-${data.projectId}`);
     let info: Dockerode.ContainerInspectInfo;
@@ -1104,21 +1108,14 @@ class ContainerService {
         newPath,
       );
 
-      if (data.content !== undefined) {
-        await this.writeFileToContainer(
-          container,
-          projectName,
-          newPath,
-          Buffer.from(data.content, "utf8"),
-        );
-      }
       return;
     }
 
-    const content =
-      data.content !== undefined
-        ? Buffer.from(data.content, "utf8")
-        : await this.readStoredFile(data.userId, data.projectId, filePath);
+    const content = await this.readStoredFile(
+      data.userId,
+      data.projectId,
+      filePath,
+    );
     await this.writeFileToContainer(container, projectName, filePath, content);
   }
 

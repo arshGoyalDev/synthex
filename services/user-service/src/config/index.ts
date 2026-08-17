@@ -1,7 +1,7 @@
 import z from "zod";
 
 const envSchema = z.object({
-  PORT: z.string().default("3001"),
+  USER_SERVICE_PORT: z.string().default("3001"),
 
   JWT_SECRET: z.string(),
   ACCESS_TOKEN_EXPIRATION: z.string().default("15m"),

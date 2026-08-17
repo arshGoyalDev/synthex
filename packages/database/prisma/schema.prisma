@@ -109,6 +109,7 @@ model ProjectFile {
   minioPath  String   @map("minio_path")
 
   sizeBytes  BigInt   @map("size_bytes")
+  contentHash String? @map("content_hash")
   mimeType   String?  @map("mime_type")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
