@@ -254,6 +254,15 @@ export const useEditorStore = create<EditorState>((set) => ({
         } else {
           nextFiles.set(file.path, {
             ...file,
+            // Preserve existing content & saved-state when the server
+            // payload is metadata-only (listFiles doesn't return content)
+            content: file.content !== undefined ? file.content : existing?.content,
+            lastSavedContent:
+              file.content !== undefined
+                ? file.content
+                : existing?.lastSavedContent,
+            lastSavedAt: existing?.lastSavedAt,
+            lastSaveAttemptContent: existing?.lastSaveAttemptContent,
             isDirty: false,
             isSaving: false,
           });

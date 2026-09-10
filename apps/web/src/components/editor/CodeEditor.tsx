@@ -36,7 +36,23 @@ export function CodeEditor({ groupId }: { groupId: string }) {
       fetchedPathsRef.current.add(file.path);
       syncActions.fetchFileContent(file.path);
     }
+    // If content was reset to undefined (e.g. after a server merge),
+    // clear the tracking so the next render will trigger a re-fetch
+    if (file.content !== undefined) {
+      // keep the path in the set (already fetched)
+    } else if (fetchedPathsRef.current.has(file.path)) {
+      // Already fetching – do nothing
+    }
   }, [file?.path, file?.content, file?.isFolder, syncActions]);
+
+  // Clear stale fetch-tracking when switching to a different file
+  useEffect(() => {
+    return () => {
+      if (file?.path) {
+        fetchedPathsRef.current.delete(file.path);
+      }
+    };
+  }, [file?.path]);
 
   const handleEditorMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
