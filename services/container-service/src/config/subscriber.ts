@@ -211,11 +211,71 @@ const registerSubscribers = async () => {
     });
   });
 
+
   await pubsub.subscribe("preview:stop", async (data) => {
     console.log(`[container-service] preview:stop ${data.projectId}`);
     await previewHandler
       .stopPreview(data.projectId)
       .catch((err) => console.error(`Preview stop failed:`, err.message));
+  });
+
+  // ── Post-execution snapshot ─────────────────────────────────────────────
+  // After a command finishes (e.g. `cargo run`), new files may have been
+  // created inside the container (Cargo.lock, compiled artefacts, generated
+  // source, lock files, etc.).  Take a snapshot so the storage-service index
+  // and frontend file explorer reflect those new files.
+  //
+  // Debounced per-project: if the user runs several commands quickly, we
+  // coalesce into a single snapshot 2 s after the last one finishes.
+
+  const postExecTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  await pubsub.subscribe("execution:done", async (data) => {
+    // Skip killed / errored / timed-out executions — unlikely to have
+    // produced meaningful new files, and the container may be in a bad state.
+    if (data.killed || data.timedOut || data.error) return;
+
+    const { projectId } = data;
+
+    // Clear any previous timer for this project (debounce)
+    const existing = postExecTimers.get(projectId);
+    if (existing) clearTimeout(existing);
+
+    postExecTimers.set(
+      projectId,
+      setTimeout(async () => {
+        postExecTimers.delete(projectId);
+
+        try {
+          const container = containerService.docker.getContainer(
+            `synthex-${projectId}`,
+          );
+          const info = await container.inspect();
+          if (!info.State.Running) return;
+
+          const labels = info.Config?.Labels ?? {};
+          const userId = labels.userId;
+          const projectName = labels.projectName;
+          if (!userId || !projectName) return;
+
+          console.log(
+            `[container-service] Post-execution snapshot for ${projectId}`,
+          );
+          await containerService.takeSnapshot(
+            container,
+            projectId,
+            userId,
+            projectName,
+          );
+        } catch (err: any) {
+          // Best-effort — don't crash the service if snapshot fails
+          console.error(
+            `[container-service] Post-execution snapshot failed for ${projectId}:`,
+            err.message,
+          );
+        }
+      }, 2000),
+    );
   });
 };
 
