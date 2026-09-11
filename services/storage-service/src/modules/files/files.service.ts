@@ -169,6 +169,24 @@ class FilesService {
   ) {
     const deletedPaths = await this.listMarkedDeletedPaths(userId, projectId);
     const savedObjectPaths = await this.listSavedObjectPaths(userId, projectId);
+
+    // If a file appears in the fresh snapshot manifest, it currently exists
+    // inside the container.  Any previous delete marker is now stale (the
+    // file was recreated by execution, terminal, etc.) — clear it so the
+    // file is indexed and visible in the explorer again.
+    const staleDeleteMarkers: string[] = [];
+    for (const entry of manifestInput) {
+      if (deletedPaths.has(entry.filePath)) {
+        staleDeleteMarkers.push(entry.filePath);
+      }
+    }
+    await Promise.all(
+      staleDeleteMarkers.map((filePath) => {
+        deletedPaths.delete(filePath);
+        return this.removeDeleteMarker(userId, projectId, filePath);
+      }),
+    );
+
     const manifest = manifestInput.filter((f) => !deletedPaths.has(f.filePath));
     const manifestPaths = new Set(manifest.map((f) => f.filePath));
     const savedOnlyPaths = [...savedObjectPaths].filter(
