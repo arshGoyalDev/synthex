@@ -251,6 +251,7 @@ class ProjectService {
 
       await pubsub.publish("project:stop", {
         projectId: project.id,
+        projectName: project.folderName,
         userId: project.userId,
       });
       return { wasRunning: true };

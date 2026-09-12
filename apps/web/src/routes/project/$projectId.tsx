@@ -149,8 +149,15 @@ function ProjectPage() {
   const requestStart = async () => {
     startRequestedRef.current = true;
     const startData = await startProject(projectId);
-    setContainerStatus(startData.status);
-    currentStatusRef.current = startData.status;
+
+    // Guard against a race: the WebSocket `container:status → ready` event
+    // can arrive before this API response.  Don't downgrade from "ready"
+    // back to "starting".
+    if (currentStatusRef.current !== "ready") {
+      setContainerStatus(startData.status);
+      currentStatusRef.current = startData.status;
+    }
+
     setRuntimeConfig((current) => ({
       installCommand: current.installCommand,
       runCommand: startData.runCommand ?? current.runCommand,

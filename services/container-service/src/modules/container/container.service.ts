@@ -473,7 +473,18 @@ class ContainerService {
       const info = await container.inspect();
 
       if (info.State.Running) {
-        await this.takeSnapshot(container, projectId, userId, projectName);
+        // Best-effort snapshot — don't let a snapshot failure prevent the
+        // container from being stopped (that leaves a ghost container running
+        // while the DB says "stopped").
+        try {
+          await this.takeSnapshot(container, projectId, userId, projectName);
+        } catch (snapErr: any) {
+          console.warn(
+            `[container-service] Snapshot failed during stop for ${projectId}, stopping anyway:`,
+            snapErr.message,
+          );
+        }
+
         await container.stop({ t: 10 });
 
         console.log(`[container-service] Stopped container for ${projectId}`);
