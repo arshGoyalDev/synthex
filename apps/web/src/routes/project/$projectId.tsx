@@ -262,11 +262,17 @@ function ProjectPage() {
     async function initializeProject() {
       try {
         setLoading(true);
-        let p = projects.find((x) => x.id === projectId);
 
-        if (!p) {
-          p = await getProjectById(projectId);
+        // Use the store for an instant first paint (name, template, etc.),
+        // but ALWAYS fetch from the API to get the authoritative
+        // containerStatus from the DB.  The store can be stale if the user
+        // stopped the project, navigated to the dashboard, and came back.
+        const storeProject = projects.find((x) => x.id === projectId);
+        if (storeProject) {
+          setProject(storeProject);
         }
+
+        const p = await getProjectById(projectId);
 
         if (isCancelled) return;
 
