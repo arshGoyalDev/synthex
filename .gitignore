@@ -52,3 +52,4 @@ packages/database/src/generated
 .codex
 *.md
 !README.md
+docs/
