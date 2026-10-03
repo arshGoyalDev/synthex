@@ -8,6 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { ActivityGraph } from "./ActivityGraph";
 import { ProjectCard } from "./ProjectCard";
 import { DeleteDialog, RenameDialog } from "./ProjectDialogs";
+import { CommandPalette } from "./CommandPalette";
 
 /* ——— Projects Grid ——— */
 function ProjectsGrid() {
@@ -36,9 +37,11 @@ function ProjectsGrid() {
   }, [projects, searchQuery]);
 
   const sorted = [...filteredProjects].sort((a, b) => {
-    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
+
+  const pinnedProjects = sorted.filter((p) => p.isPinned);
+  const recentProjects = sorted.filter((p) => !p.isPinned);
 
   const handleProjectClick = async (projectId: string) => {
     navigate({ to: `/project/${projectId}` });
@@ -125,20 +128,53 @@ function ProjectsGrid() {
         )}
 
         {!isLoading && projects.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 animate-fade-in">
-            {sorted.map((p) => (
-              <ProjectCard
-                key={p.id}
-                project={p}
-                onDelete={() => setDeleteTarget(p)}
-                onTogglePin={() => togglePin(p.id)}
-                onEdit={() => setEditTarget(p)}
-                onClick={() => handleProjectClick(p.id)}
-              />
-            ))}
+          <div className="flex flex-col gap-10">
+            {pinnedProjects.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2 m-0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                  Pinned Projects
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 animate-fade-in">
+                  {pinnedProjects.map((p) => (
+                    <ProjectCard
+                      key={p.id}
+                      project={p}
+                      onDelete={() => setDeleteTarget(p)}
+                      onTogglePin={() => togglePin(p.id)}
+                      onEdit={() => setEditTarget(p)}
+                      onClick={() => handleProjectClick(p.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {recentProjects.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2 m-0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  Recently Opened
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 animate-fade-in">
+                  {recentProjects.map((p) => (
+                    <ProjectCard
+                      key={p.id}
+                      project={p}
+                      onDelete={() => setDeleteTarget(p)}
+                      onTogglePin={() => togglePin(p.id)}
+                      onEdit={() => setEditTarget(p)}
+                      onClick={() => handleProjectClick(p.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      <CommandPalette />
 
       <DeleteDialog
         project={deleteTarget}
