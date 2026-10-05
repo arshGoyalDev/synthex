@@ -1,4 +1,4 @@
-import { Client as MinioClient } from "minio";
+import { Client as S3Client } from "minio";
 
 import type { Readable } from "stream";
 
@@ -7,33 +7,33 @@ function createClientFromConfig(options?: {
   port?: number;
   useSSL?: boolean;
 }) {
-  const accessKey = process.env.MINIO_ACCESS_KEY;
-  const secretKey = process.env.MINIO_SECRET_KEY;
+  const accessKey = process.env.RUSTFS_ACCESS_KEY;
+  const secretKey = process.env.RUSTFS_SECRET_KEY;
 
   if (
     process.env.NODE_ENV === "production" &&
     (!accessKey?.trim() || !secretKey?.trim())
   ) {
     throw new Error(
-      "MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be set in production",
+      "RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY must be set in production",
     );
   }
 
-  return new MinioClient({
-    endPoint: options?.endPoint ?? (process.env.MINIO_ENDPOINT || "localhost"),
-    port: options?.port ?? parseInt(process.env.MINIO_PORT || "9000"),
-    useSSL: options?.useSSL ?? process.env.MINIO_USE_SSL === "true",
+  return new S3Client({
+    endPoint: options?.endPoint ?? (process.env.RUSTFS_ENDPOINT || "localhost"),
+    port: options?.port ?? parseInt(process.env.RUSTFS_PORT || "9000"),
+    useSSL: options?.useSSL ?? process.env.RUSTFS_USE_SSL === "true",
     accessKey: accessKey || "minioadmin",
     secretKey: secretKey || "minioadmin123",
   });
 }
 
-export function createMinioClient() {
+export function createStorageClient() {
   return createClientFromConfig();
 }
 
-export function createPresignedMinioClient() {
-  const publicUrl = process.env.MINIO_PUBLIC_URL?.trim();
+export function createPresignedStorageClient() {
+  const publicUrl = process.env.RUSTFS_PUBLIC_URL?.trim();
 
   if (!publicUrl) {
     return createClientFromConfig();
@@ -47,8 +47,8 @@ export function createPresignedMinioClient() {
   });
 }
 
-export class MinioManager {
-  constructor(private client: MinioClient) {
+export class StorageManager {
+  constructor(private client: S3Client) {
     this.client = client;
   }
 

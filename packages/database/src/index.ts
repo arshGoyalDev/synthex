@@ -20,12 +20,12 @@ export {
 export { createRedisClient, CacheManager, PubSubManager, createRedisSubscriber } from "./redis";
 export type { RedisClient } from "./redis";
 export {
-  createMinioClient,
-  createPresignedMinioClient,
-  MinioManager,
+  createStorageClient,
+  createPresignedStorageClient,
+  StorageManager,
   SNAPSHOT_BUCKET,
   FILES_BUCKET,
-} from "./minio";
+} from "./storage";
 
 export type { OutputChunk } from "./buffer";
 export {
