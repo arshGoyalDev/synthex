@@ -1,5 +1,5 @@
 import Dockerode from "dockerode";
-import { minioClient, SNAPSHOT_BUCKET } from "../config/database";
+import { storageClient, SNAPSHOT_BUCKET } from "../config/database";
 
 export async function restoreSnapshot(
   container: Dockerode.Container,
@@ -8,7 +8,7 @@ export async function restoreSnapshot(
 ): Promise<void> {
   console.log(`[snapshot] Restoring from ${snapshotKey}`);
 
-  const snapshotStream = await minioClient.getObject(
+  const snapshotStream = await storageClient.getObject(
     SNAPSHOT_BUCKET,
     snapshotKey,
   );

@@ -6,7 +6,7 @@ import { restoreSnapshot } from "../../utils/restore";
 import { createDockerFrameParser } from "../../utils/dockerStream";
 import {
   FILES_BUCKET,
-  minioClient,
+  storageClient,
   pubsub,
   redis,
 } from "../../config/database";
@@ -1255,7 +1255,7 @@ class ContainerService {
     projectId: string,
     filePath: string,
   ): Promise<Buffer> {
-    const stream = await minioClient.getObject(
+    const stream = await storageClient.getObject(
       FILES_BUCKET,
       `${this.filesPrefix(userId, projectId)}${filePath}`,
     );
@@ -1271,7 +1271,7 @@ class ContainerService {
   private async listObjectPaths(bucket: string, prefix: string) {
     return new Promise<Set<string>>((resolve, reject) => {
       const paths = new Set<string>();
-      const stream = minioClient.listObjects(bucket, prefix, true);
+      const stream = storageClient.listObjects(bucket, prefix, true);
 
       stream.on("data", (obj) => {
         if (!obj.name || obj.name === prefix) return;

@@ -5,7 +5,7 @@ import {
   getContainerRepository,
   PubSubManager,
   type RedisClient,
-  createMinioClient,
+  createStorageClient,
   FILES_BUCKET,
   SNAPSHOT_BUCKET,
   createRedisSubscriber,
@@ -14,16 +14,16 @@ import {
 const prisma = getContainerDbClient();
 export const db = getContainerRepository(prisma);
 
-export const minioClient = createMinioClient();
+export const storageClient = createStorageClient();
 export { SNAPSHOT_BUCKET, FILES_BUCKET };
 
 export const ensureBuckets = async () => {
   for (const bucket of [SNAPSHOT_BUCKET, FILES_BUCKET]) {
-    const exists = await minioClient.bucketExists(bucket);
+    const exists = await storageClient.bucketExists(bucket);
 
     if (!exists) {
-      await minioClient.makeBucket(bucket);
-      console.log(`[minio] Created bucket: ${bucket}`);
+      await storageClient.makeBucket(bucket);
+      console.log(`[rustfs] Created bucket: ${bucket}`);
     }
   }
 };

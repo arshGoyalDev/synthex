@@ -1,7 +1,7 @@
 import Dockerode from "dockerode";
 import archiver from "archiver";
 import { Readable } from "stream";
-import { minioClient, SNAPSHOT_BUCKET } from "../config/database";
+import { storageClient, SNAPSHOT_BUCKET } from "../config/database";
 import { shouldIgnore } from "./ignore";
 import { getMimeType } from "./mime";
 import { computeChecksum } from "./checksum";
@@ -27,7 +27,7 @@ export async function createSnapshot(
   projectName: string,
 ): Promise<SnapshotResult> {
   const timestamp = Date.now();
-  const minioKey = `${userId}/${projectId}/snapshots/${timestamp}.tar.gz`;
+  const objectKey = `${userId}/${projectId}/snapshots/${timestamp}.tar.gz`;
 
   const dockerTarStream = await container.getArchive({
     path: `/workspace/${projectName}`,
@@ -97,20 +97,20 @@ export async function createSnapshot(
   const buffer = await archiveReady;
   const totalSize = buffer.length;
 
-  await minioClient.putObject(
+  await storageClient.putObject(
     SNAPSHOT_BUCKET,
-    minioKey,
+    objectKey,
     buffer,
     buffer.length,
     { "Content-Type": "application/gzip" },
   );
 
   console.log(
-    `[snapshot] Created ${minioKey} — ${manifest.length} files, ${(totalSize / 1024).toFixed(1)}KB`,
+    `[snapshot] Created ${objectKey} — ${manifest.length} files, ${(totalSize / 1024).toFixed(1)}KB`,
   );
 
   return {
-    minioKey,
+    minioKey: objectKey,
     sizeBytes: totalSize,
     fileCount: manifest.length,
     manifest,
@@ -125,7 +125,7 @@ export async function getLatestSnapshotKey(
 
   return new Promise((resolve, reject) => {
     const objects: { name: string; lastModified: Date }[] = [];
-    const stream = minioClient.listObjects(SNAPSHOT_BUCKET, prefix, true);
+    const stream = storageClient.listObjects(SNAPSHOT_BUCKET, prefix, true);
 
     stream.on("data", (obj) => {
       if (obj.name) objects.push({ name: obj.name, lastModified: obj.lastModified! });

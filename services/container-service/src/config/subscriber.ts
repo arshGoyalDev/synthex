@@ -2,7 +2,7 @@ import { ContainerService } from "../modules/container/container.service";
 import { ExecutionHandler } from "../modules/execution/execution.handler";
 import { PreviewHandler } from "../modules/preview/preview.handler";
 
-import { pubsub, redis, minioClient, FILES_BUCKET } from "./database";
+import { pubsub, redis, storageClient, FILES_BUCKET } from "./database";
 import { LANGUAGES, TEMPLATES, PREVIEW_TEMPLATE_IDS } from "@synthex/templates";
 import { randomUUID } from "crypto";
 
@@ -331,7 +331,7 @@ const startContainerSetup = async (projectData: ProjectData) => {
       });
     } else if (importSource === "zip") {
       // ── ZIP import ───────────────────────────────────────────────────────
-      const zipStream = await minioClient.getObject(
+      const zipStream = await storageClient.getObject(
         ZIP_BUCKET,
         projectData.zipKey!,
       );
