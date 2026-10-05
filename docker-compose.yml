@@ -36,40 +36,41 @@ services:
     networks:
       - synthex-network
 
-  minio:
-    image: minio/minio:latest
-    container_name: synthex-minio
+  rustfs:
+    image: rustfs/rustfs:1.0.1
+    container_name: synthex-rustfs
     profiles: ["infra", "full"]
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
     ports:
       - "9000:9000"
       - "9001:9001"
     networks:
       - synthex-network
 
-  minio-setup:
-    image: minio/mc:latest
-    container_name: synthex-minio-setup
+  rustfs-setup:
+    image: rustfs/rc:latest
+    container_name: synthex-rustfs-setup
     profiles: ["infra", "full"]
     depends_on:
-      minio:
+      rustfs:
         condition: service_started
     entrypoint:
       - /bin/sh
       - -c
       - |
-        until /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}; do sleep 2; done
-        /usr/bin/mc mb myminio/user-files --ignore-existing
-        /usr/bin/mc mb myminio/project-files --ignore-existing
-        /usr/bin/mc mb myminio/project-zips --ignore-existing
-        /usr/bin/mc mb myminio/execution-outputs --ignore-existing
+        until rc alias set myrustfs http://rustfs:9000 ${RUSTFS_ACCESS_KEY} ${RUSTFS_SECRET_KEY}; do sleep 2; done
+        rc mb myrustfs/user-files --ignore-existing
+        rc mb myrustfs/project-files --ignore-existing
+        rc mb myrustfs/project-zips --ignore-existing
+        rc mb myrustfs/execution-outputs --ignore-existing
+        rc mb myrustfs/project-snapshots --ignore-existing
         printf '%s' '[{"AllowedOrigin":["${ORIGIN}"],"AllowedMethod":["GET","HEAD","PUT"],"AllowedHeader":["*"],"ExposeHeader":["ETag"],"MaxAgeSeconds":3600}]' > /tmp/project-zips-cors.json
-        /usr/bin/mc cors set myminio/project-zips /tmp/project-zips-cors.json
+        rc cors set myrustfs/project-zips /tmp/project-zips-cors.json
     restart: "no"
     networks:
       - synthex-network
@@ -187,15 +188,15 @@ services:
       REDIS_HOST: synthex-redis
       REDIS_PORT: ${REDIS_PORT}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      MINIO_ENDPOINT: synthex-minio
-      MINIO_PORT: ${MINIO_PORT}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL}
-      MINIO_USER_FILES_BUCKET: ${MINIO_USER_FILES_BUCKET}
-      MINIO_PROJECT_FILES_BUCKET: ${MINIO_PROJECT_FILES_BUCKET}
-      MINIO_EXECUTION_OUTPUTS_BUCKET: ${MINIO_EXECUTION_OUTPUTS_BUCKET}
+      RUSTFS_ENDPOINT: synthex-rustfs
+      RUSTFS_PORT: ${RUSTFS_PORT}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_USE_SSL: ${RUSTFS_USE_SSL}
+      RUSTFS_PUBLIC_URL: ${RUSTFS_PUBLIC_URL}
+      RUSTFS_USER_FILES_BUCKET: ${RUSTFS_USER_FILES_BUCKET}
+      RUSTFS_PROJECT_FILES_BUCKET: ${RUSTFS_PROJECT_FILES_BUCKET}
+      RUSTFS_EXECUTION_OUTPUTS_BUCKET: ${RUSTFS_EXECUTION_OUTPUTS_BUCKET}
       USER_SERVICE_URL: http://synthex-user-service:${USER_SERVICE_PORT}
       PROJECT_SERVICE_URL: http://synthex-project-service:${PROJECT_SERVICE_PORT}
       EXECUTION_SERVICE_URL: http://synthex-execution-service:${EXECUTION_SERVICE_PORT}
@@ -271,14 +272,14 @@ services:
       REDIS_HOST: synthex-redis
       REDIS_PORT: ${REDIS_PORT}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-      MINIO_ENDPOINT: synthex-minio
-      MINIO_PORT: ${MINIO_PORT}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      MINIO_USE_SSL: ${MINIO_USE_SSL}
-      MINIO_USER_FILES_BUCKET: ${MINIO_USER_FILES_BUCKET}
-      MINIO_PROJECT_FILES_BUCKET: ${MINIO_PROJECT_FILES_BUCKET}
-      MINIO_EXECUTION_OUTPUTS_BUCKET: ${MINIO_EXECUTION_OUTPUTS_BUCKET}
+      RUSTFS_ENDPOINT: synthex-rustfs
+      RUSTFS_PORT: ${RUSTFS_PORT}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_USE_SSL: ${RUSTFS_USE_SSL}
+      RUSTFS_USER_FILES_BUCKET: ${RUSTFS_USER_FILES_BUCKET}
+      RUSTFS_PROJECT_FILES_BUCKET: ${RUSTFS_PROJECT_FILES_BUCKET}
+      RUSTFS_EXECUTION_OUTPUTS_BUCKET: ${RUSTFS_EXECUTION_OUTPUTS_BUCKET}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -286,9 +287,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio:
+      rustfs:
         condition: service_started
-      minio-setup:
+      rustfs-setup:
         condition: service_completed_successfully
       project-service:
         condition: service_healthy
@@ -372,7 +373,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  minio_data:
+  rustfs_data:
 
 networks:
   synthex-network:
