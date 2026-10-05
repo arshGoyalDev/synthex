@@ -7,7 +7,7 @@ const spec: OpenAPIObject = {
     title: "Storage Service",
     version: "1.0.0",
     description:
-      "Manages project file storage (backed by MinIO): list, read, save, rename, delete files and snapshots. Also handles ZIP file uploads.",
+      "Manages project file storage (backed by RustFS): list, read, save, rename, delete files and snapshots. Also handles ZIP file uploads.",
   },
   tags: [
     { name: "Files", description: "Project file operations" },

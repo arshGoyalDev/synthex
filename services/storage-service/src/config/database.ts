@@ -3,9 +3,9 @@ import {
   createRedisClient,
   PubSubManager,
   type RedisClient,
-  createMinioClient,
-  createPresignedMinioClient,
-  MinioManager,
+  createStorageClient,
+  createPresignedStorageClient,
+  StorageManager,
   getStorageDbClient,
   getStorageRepository,
   createRedisSubscriber,
@@ -29,8 +29,8 @@ redisSubscriber.on("error", (err) => console.error("Redis subscriber error:", er
 export const cache = new CacheManager(redis);
 export const pubsub = new PubSubManager(redis, redisSubscriber);
 
-export const minioClient = createMinioClient();
-export const minioManager = new MinioManager(minioClient);
-export const minioPresignClient = createPresignedMinioClient();
+export const storageClient = createStorageClient();
+export const storageManager = new StorageManager(storageClient);
+export const storagePresignClient = createPresignedStorageClient();
 
 export { SNAPSHOT_BUCKET, FILES_BUCKET } from "@synthex/database";

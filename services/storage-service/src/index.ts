@@ -5,7 +5,7 @@ import openapiSpec from "./openapi";
 import { filesRoutes } from "./modules/files/files.routes";
 import { uploadRoutes } from "./modules/upload/upload.routes";
 import { registerSubscribers } from "./config/subscriber";
-import { minioClient, SNAPSHOT_BUCKET, FILES_BUCKET } from "./config/database";
+import { storageClient, SNAPSHOT_BUCKET, FILES_BUCKET } from "./config/database";
 
 import { env } from "./config";
 
@@ -48,11 +48,11 @@ app.use(
 
 const ensureBuckets = async () => {
   for (const bucket of [SNAPSHOT_BUCKET, FILES_BUCKET]) {
-    const exists = await minioClient.bucketExists(bucket);
+    const exists = await storageClient.bucketExists(bucket);
 
     if (!exists) {
-      await minioClient.makeBucket(bucket);
-      console.log(`[minio] Created bucket: ${bucket}`);
+      await storageClient.makeBucket(bucket);
+      console.log(`[rustfs] Created bucket: ${bucket}`);
     }
   }
 };

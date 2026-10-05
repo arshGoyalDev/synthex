@@ -1,5 +1,5 @@
 import {
-  minioClient,
+  storageClient,
   pubsub,
   redis,
   SNAPSHOT_BUCKET,
@@ -104,7 +104,7 @@ class FilesService {
     // 3. keep only last 5 snapshots — delete old ones from MinIO too
     const deleted = await this.snapshotRepo.deleteOld(data.projectId, 5);
     for (const snap of deleted) {
-      await minioClient
+      await storageClient
         .removeObject(SNAPSHOT_BUCKET, snap.minioKey)
         .catch(() => {});
     }
@@ -208,7 +208,7 @@ class FilesService {
       ...(await Promise.all(
         savedOnlyPaths.map(async (filePath) => {
           const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
-          const stat = await minioClient.statObject(FILES_BUCKET, minioPath);
+          const stat = await storageClient.statObject(FILES_BUCKET, minioPath);
 
           return {
             projectId,
@@ -318,7 +318,7 @@ class FilesService {
 
     await this.assertProjectQuota(projectId, filePath, buffer.length);
 
-    await minioClient.putObject(
+    await storageClient.putObject(
       FILES_BUCKET,
       minioPath,
       buffer,
@@ -376,7 +376,7 @@ class FilesService {
 
     await this.filesRepo.delete(projectId, filePath);
 
-    await minioClient
+    await storageClient
       .removeObject(FILES_BUCKET, file.minioPath)
       .catch(() => {});
     await this.putDeleteMarker(ownerId, projectId, filePath);
@@ -410,7 +410,7 @@ class FilesService {
       publish: false,
     });
     await this.filesRepo.delete(projectId, oldPath);
-    await minioClient
+    await storageClient
       .removeObject(FILES_BUCKET, file.minioPath)
       .catch(() => {});
     await this.putDeleteMarker(ownerId, projectId, oldPath);
@@ -456,7 +456,7 @@ class FilesService {
     const zlib = require("zlib");
 
     const tryExtract = async (useGzip: boolean): Promise<string> => {
-      const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
+      const stream = await storageClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
       const extract = tarStream.extract();
 
       return new Promise<string>((resolve, reject) => {
@@ -525,7 +525,7 @@ class FilesService {
     };
 
     const tryExtract = async (useGzip: boolean): Promise<ManifestEntry[]> => {
-      const stream = await minioClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
+      const stream = await storageClient.getObject(SNAPSHOT_BUCKET, snapshotKey);
       const extract = tarStream.extract();
       const manifest: ManifestEntry[] = [];
 
@@ -584,7 +584,7 @@ class FilesService {
 
   private async objectExists(bucket: string, key: string): Promise<boolean> {
     try {
-      await minioClient.statObject(bucket, key);
+      await storageClient.statObject(bucket, key);
       return true;
     } catch {
       return false;
@@ -592,7 +592,7 @@ class FilesService {
   }
 
   private async readObjectAsUtf8(bucket: string, key: string): Promise<string> {
-    const stream = await minioClient.getObject(bucket, key);
+    const stream = await storageClient.getObject(bucket, key);
 
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -608,7 +608,7 @@ class FilesService {
     projectId: string,
     filePath: string,
   ) {
-    await minioClient.putObject(
+    await storageClient.putObject(
       FILES_BUCKET,
       `${this.deletesPrefix(userId, projectId)}${filePath}`,
       Buffer.alloc(0),
@@ -621,7 +621,7 @@ class FilesService {
     projectId: string,
     filePath: string,
   ) {
-    await minioClient
+    await storageClient
       .removeObject(
         FILES_BUCKET,
         `${this.deletesPrefix(userId, projectId)}${filePath}`,
@@ -646,7 +646,7 @@ class FilesService {
   private async listObjectPaths(bucket: string, prefix: string) {
     return new Promise<Set<string>>((resolve, reject) => {
       const paths = new Set<string>();
-      const stream = minioClient.listObjects(bucket, prefix, true);
+      const stream = storageClient.listObjects(bucket, prefix, true);
 
       stream.on("data", (obj) => {
         if (!obj.name || obj.name === prefix) return;
@@ -661,7 +661,7 @@ class FilesService {
   private async listObjectNames(bucket: string, prefix: string) {
     return new Promise<string[]>((resolve, reject) => {
       const names: string[] = [];
-      const stream = minioClient.listObjects(bucket, prefix, true);
+      const stream = storageClient.listObjects(bucket, prefix, true);
 
       stream.on("data", (obj) => {
         if (obj.name) names.push(obj.name);
@@ -674,7 +674,7 @@ class FilesService {
   private async removeObjects(bucket: string, objectNames: string[]) {
     if (objectNames.length === 0) return;
 
-    await minioClient.removeObjects(bucket, objectNames);
+    await storageClient.removeObjects(bucket, objectNames);
   }
 }
 

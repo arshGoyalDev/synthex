@@ -7,7 +7,7 @@ import { pipeline } from "stream/promises";
 import { v4 as uuid } from "uuid";
 import z from "zod";
 
-import { minioClient, minioPresignClient, redis } from "../../config/database";
+import { storageClient, storagePresignClient, redis } from "../../config/database";
 import { AppError } from "../../utils/AppError";
 
 const ZIP_BUCKET = "project-zips";
@@ -52,8 +52,8 @@ const uploadRoutes: Router = Router();
 let bucketReady = false;
 async function ensureZipBucket() {
   if (bucketReady) return;
-  const exists = await minioClient.bucketExists(ZIP_BUCKET);
-  if (!exists) await minioClient.makeBucket(ZIP_BUCKET);
+  const exists = await storageClient.bucketExists(ZIP_BUCKET);
+  if (!exists) await storageClient.makeBucket(ZIP_BUCKET);
   bucketReady = true;
 }
 
@@ -120,7 +120,7 @@ async function downloadZipToTempFile(zipKey: string) {
   const tempFile = path.join(tempDir, `${uuid()}.zip`);
 
   try {
-    const objectStream = await minioClient.getObject(ZIP_BUCKET, zipKey);
+    const objectStream = await storageClient.getObject(ZIP_BUCKET, zipKey);
     await pipeline(objectStream, createWriteStream(tempFile));
     return { tempDir, tempFile };
   } catch (error) {
@@ -130,7 +130,7 @@ async function downloadZipToTempFile(zipKey: string) {
 }
 
 async function removeUploadedZip(zipKey: string) {
-  await minioClient.removeObject(ZIP_BUCKET, zipKey).catch(() => {});
+  await storageClient.removeObject(ZIP_BUCKET, zipKey).catch(() => {});
 }
 
 function buildZipManifest(zip: AdmZip): ZipManifest {
@@ -239,7 +239,7 @@ uploadRoutes.post(
         } satisfies PendingZipUpload),
       );
 
-      const uploadUrl = await minioPresignClient.presignedPutObject(
+      const uploadUrl = await storagePresignClient.presignedPutObject(
         ZIP_BUCKET,
         zipKey,
         PRESIGNED_UPLOAD_EXPIRY_SEC,
@@ -277,7 +277,7 @@ uploadRoutes.post(
 
       await ensureZipBucket();
 
-      const stat = await minioClient
+      const stat = await storageClient
         .statObject(ZIP_BUCKET, zipKey)
         .catch(() => null);
       if (!stat) {
