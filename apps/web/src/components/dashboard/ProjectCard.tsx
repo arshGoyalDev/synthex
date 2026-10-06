@@ -124,8 +124,8 @@ function ProjectMenu({
             }}
           />
           <MenuBtn
-            icon={<IconPin size={14} filled={project.isPinned} />}
-            label={project.isPinned ? "Unpin" : "Pin"}
+            icon={<IconPin size={14} filled={project.pinned} />}
+            label={project.pinned ? "Unpin" : "Pin"}
             onClick={() => {
               onTogglePin();
               setIsOpen(false);
@@ -208,7 +208,7 @@ export function ProjectCard({
         >
           <IconCode size={24} />
         </div>
-        {project.isPinned && (
+        {project.pinned && (
           <div className="absolute top-3 left-3 text-amber-500 z-10 drop-shadow-md">
             <IconPin size={14} filled />
           </div>

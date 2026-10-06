@@ -18,5 +18,6 @@ projectRoutes.patch("/:id", controller.updateProject.bind(controller));
 projectRoutes.delete("/:id", controller.deleteProject.bind(controller));
 projectRoutes.post("/:id/start", controller.startProject.bind(controller));
 projectRoutes.post("/:id/stop", controller.stopProject.bind(controller));
+projectRoutes.patch("/:id/pin", controller.togglePin.bind(controller));
 
 export { projectRoutes };

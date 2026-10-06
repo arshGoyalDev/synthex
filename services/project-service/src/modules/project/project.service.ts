@@ -260,6 +260,23 @@ class ProjectService {
     return { wasRunning: false };
   }
 
+  async togglePin(id: string, userId: string) {
+    if (!id) throw new AppError("Project ID is required", 400);
+
+    const project = await db.project.findFirst({
+      where: { id, userId },
+    });
+
+    if (!project) throw new AppError("Project not found", 404);
+
+    const updated = await db.project.update({
+      where: { id },
+      data: { pinned: !project.pinned },
+    });
+
+    return this.withRuntimeConfig(updated);
+  }
+
   private withRuntimeConfig(project: any) {
     // Imported projects use their stored runtime config directly
     if (project.importSource) {

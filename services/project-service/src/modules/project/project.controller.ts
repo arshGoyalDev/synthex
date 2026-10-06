@@ -184,6 +184,26 @@ class ProjectController {
       next(err);
     }
   }
+
+  async togglePin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      const projectId = req.params.id;
+
+      if (!projectId) {
+        throw new AppError("Project ID is required", 400);
+      }
+      if (!userId) {
+        throw new AppError("Unauthorized", 401);
+      }
+
+      const project = await projectService.togglePin(projectId, userId);
+
+      res.json({ data: project });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export { ProjectController };

@@ -82,6 +82,7 @@ model Project {
 
   envVars         Json?    @map("env_vars")
   autoSaveEnabled Boolean  @default(true) @map("auto_save_enabled")
+  pinned          Boolean  @default(false)
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

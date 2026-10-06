@@ -104,6 +104,11 @@ export const updateProject = async (
   return data.data;
 };
 
+export const toggleProjectPin = async (id: string): Promise<Project> => {
+  const { data } = await api.patch(`/api/projects/${id}/pin`);
+  return data.data;
+};
+
 export const updateProjectConfig = async (
   id: string,
   payload: UpdateProjectConfigPayload,

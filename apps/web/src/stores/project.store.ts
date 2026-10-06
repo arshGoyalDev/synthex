@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import {
   deleteProject as apiDeleteProject,
   renameProject as apiRenameProject,
+  toggleProjectPin as apiToggleProjectPin,
 } from "../services/project.service";
 
 interface ProjectState {
@@ -13,7 +14,7 @@ interface ProjectState {
   fetchProjects: () => Promise<void>;
   renameProject: (id: string, name: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
-  togglePin: (id: string) => void;
+  togglePin: (id: string) => Promise<void>;
   updateProject: (id: string, data: Partial<Project>) => void;
 }
 
@@ -63,12 +64,12 @@ export const useProjectStore = create<ProjectState>()((set) => ({
     }
   },
 
-  togglePin: (id) =>
+  togglePin: async (id) => {
+    const project = await apiToggleProjectPin(id);
     set((s) => ({
-      projects: s.projects.map((p) =>
-        p.id === id ? { ...p, isPinned: !p.isPinned } : p,
-      ),
-    })),
+      projects: s.projects.map((p) => (p.id === id ? project : p)),
+    }));
+  },
 
   updateProject: (id, data) =>
     set((s) => ({

@@ -40,11 +40,19 @@ function ProjectsGrid() {
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
 
-  const pinnedProjects = sorted.filter((p) => p.isPinned);
-  const recentProjects = sorted.filter((p) => !p.isPinned);
+  const pinnedProjects = sorted.filter((p) => p.pinned);
+  const recentProjects = sorted.filter((p) => !p.pinned);
 
   const handleProjectClick = async (projectId: string) => {
     navigate({ to: `/project/${projectId}` });
+  };
+
+  const handleTogglePin = async (projectId: string) => {
+    try {
+      await togglePin(projectId);
+    } catch (error) {
+      console.error("Failed to update project pin state", error);
+    }
   };
 
   return (
@@ -141,7 +149,7 @@ function ProjectsGrid() {
                       key={p.id}
                       project={p}
                       onDelete={() => setDeleteTarget(p)}
-                      onTogglePin={() => togglePin(p.id)}
+                      onTogglePin={() => void handleTogglePin(p.id)}
                       onEdit={() => setEditTarget(p)}
                       onClick={() => handleProjectClick(p.id)}
                     />
@@ -162,7 +170,7 @@ function ProjectsGrid() {
                       key={p.id}
                       project={p}
                       onDelete={() => setDeleteTarget(p)}
-                      onTogglePin={() => togglePin(p.id)}
+                      onTogglePin={() => void handleTogglePin(p.id)}
                       onEdit={() => setEditTarget(p)}
                       onClick={() => handleProjectClick(p.id)}
                     />

@@ -16,7 +16,7 @@ export interface Project {
     | "error"
     | "timeout";
   folderName: string;
-  isPinned?: boolean;
+  pinned: boolean;
   installCommand?: string | null;
   runCommand?: string | null;
   previewCommand?: string | null;
