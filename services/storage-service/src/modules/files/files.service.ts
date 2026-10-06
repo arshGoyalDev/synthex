@@ -74,7 +74,7 @@ class FilesService {
   async handleSnapshot(data: {
     projectId: string;
     userId: string;
-    minioKey: string;
+    objectKey: string;
     sizeBytes: number;
     fileCount: number;
     manifest: Array<{
@@ -88,7 +88,7 @@ class FilesService {
     await this.snapshotRepo.create({
       projectId: data.projectId,
       userId: data.userId,
-      minioKey: data.minioKey,
+      objectKey: data.objectKey,
       sizeBytes: data.sizeBytes,
       fileCount: data.fileCount,
     });
@@ -96,7 +96,7 @@ class FilesService {
     await this.reconcileFileIndex(data.projectId, data.userId, data.manifest);
 
     await redis.setex(
-      `files:snapshot:indexed:${data.projectId}:${data.minioKey}`,
+      `files:snapshot:indexed:${data.projectId}:${data.objectKey}`,
       300,
       "1",
     );
@@ -105,7 +105,7 @@ class FilesService {
     const deleted = await this.snapshotRepo.deleteOld(data.projectId, 5);
     for (const snap of deleted) {
       await storageClient
-        .removeObject(SNAPSHOT_BUCKET, snap.minioKey)
+        .removeObject(SNAPSHOT_BUCKET, snap.objectKey)
         .catch(() => {});
     }
 
@@ -121,9 +121,9 @@ class FilesService {
 
     const existing = await this.filesRepo.findByProject(projectId);
     if (existing.length > 0) {
-      // Verify ownership via the first file record's minioPath prefix
+      // Verify ownership via the first file record's objectPath prefix
       const ownerMatch = existing.some((f) =>
-        f.minioPath.startsWith(`${userId}/`),
+        f.objectPath.startsWith(`${userId}/`),
       );
       if (!ownerMatch) throw new AppError("Forbidden", 403);
       return this.withoutInlineContent(existing);
@@ -138,7 +138,7 @@ class FilesService {
     }
 
     const manifest = await this.extractManifestFromSnapshot(
-      latestSnapshot.minioKey,
+      latestSnapshot.objectKey,
     );
     if (manifest.length === 0) {
       return this.withoutInlineContent(existing);
@@ -199,7 +199,7 @@ class FilesService {
         projectId,
         filePath: f.filePath,
         fileName: f.filePath.split("/").pop()!,
-        minioPath: `${this.filesPrefix(userId, projectId)}${f.filePath}`,
+        objectPath: `${this.filesPrefix(userId, projectId)}${f.filePath}`,
         sizeBytes: f.sizeBytes,
         mimeType: f.mimeType,
         content: null,
@@ -207,14 +207,14 @@ class FilesService {
       })),
       ...(await Promise.all(
         savedOnlyPaths.map(async (filePath) => {
-          const minioPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
-          const stat = await storageClient.statObject(FILES_BUCKET, minioPath);
+          const objectPath = `${this.filesPrefix(userId, projectId)}${filePath}`;
+          const stat = await storageClient.statObject(FILES_BUCKET, objectPath);
 
           return {
             projectId,
             filePath,
             fileName: filePath.split("/").pop() ?? filePath,
-            minioPath,
+            objectPath,
             sizeBytes: stat.size,
             mimeType: getMimeType(filePath),
             content: null,
@@ -248,12 +248,12 @@ class FilesService {
     const file = await this.filesRepo.findByPath(projectId, filePath);
     if (!file) throw new AppError("File not found", 404);
 
-    // Ownership check: the file's minioPath encodes the owner as the first path segment
-    if (!file.minioPath.startsWith(`${userId}/`)) {
+    // Ownership check: the file's objectPath encodes the owner as the first path segment
+    if (!file.objectPath.startsWith(`${userId}/`)) {
       throw new AppError("Forbidden", 403);
     }
 
-    const fileObjectKey = file.minioPath;
+    const fileObjectKey = file.objectPath;
     const hasFileObject = await this.objectExists(FILES_BUCKET, fileObjectKey);
 
     if (hasFileObject) {
@@ -266,7 +266,7 @@ class FilesService {
 
     try {
       const content = await this.extractFileFromSnapshot(
-        snapshot.minioKey,
+        snapshot.objectKey,
         filePath,
       );
       return { ...file, content };
@@ -290,7 +290,7 @@ class FilesService {
     const snapshot = await this.snapshotRepo.getLatest(projectId);
     if (!snapshot) return null;
     if (snapshot.userId !== userId) throw new AppError("Forbidden", 403);
-    return snapshot.minioKey;
+    return snapshot.objectKey;
   }
 
   // ─── Delete file from manifest ───────────────────────────────────────────
@@ -311,7 +311,7 @@ class FilesService {
     const ownerId = project.userId;
 
     filePath = this.normalizeFilePath(filePath);
-    const minioPath = `${this.filesPrefix(ownerId, projectId)}${filePath}`;
+    const objectPath = `${this.filesPrefix(ownerId, projectId)}${filePath}`;
     const buffer = Buffer.from(content, "utf8");
     const mimeType = getMimeType(filePath);
     const contentHash = this.contentHash(buffer);
@@ -320,7 +320,7 @@ class FilesService {
 
     await storageClient.putObject(
       FILES_BUCKET,
-      minioPath,
+      objectPath,
       buffer,
       buffer.length,
       { "Content-Type": mimeType },
@@ -331,7 +331,7 @@ class FilesService {
         projectId,
         filePath,
         fileName: filePath.split("/").pop() ?? filePath,
-        minioPath,
+        objectPath,
         sizeBytes: buffer.length,
         mimeType,
         content: buffer.length <= INLINE_CONTENT_BYTES ? content : null,
@@ -370,14 +370,14 @@ class FilesService {
     if (!file) {
       throw new AppError("File not found", 404);
     }
-    if (!file.minioPath.startsWith(`${ownerId}/`)) {
+    if (!file.objectPath.startsWith(`${ownerId}/`)) {
       throw new AppError("Forbidden", 403);
     }
 
     await this.filesRepo.delete(projectId, filePath);
 
     await storageClient
-      .removeObject(FILES_BUCKET, file.minioPath)
+      .removeObject(FILES_BUCKET, file.objectPath)
       .catch(() => {});
     await this.putDeleteMarker(ownerId, projectId, filePath);
 
@@ -404,14 +404,14 @@ class FilesService {
 
     const file = await this.getFile(projectId, oldPath, userId);
     const content = file.content ?? "";
-    const ownerId = file.minioPath.split("/")[0] ?? userId;
+    const ownerId = file.objectPath.split("/")[0] ?? userId;
 
     await this.saveFile(projectId, userId, newPath, content, {
       publish: false,
     });
     await this.filesRepo.delete(projectId, oldPath);
     await storageClient
-      .removeObject(FILES_BUCKET, file.minioPath)
+      .removeObject(FILES_BUCKET, file.objectPath)
       .catch(() => {});
     await this.putDeleteMarker(ownerId, projectId, oldPath);
     await this.removeDeleteMarker(ownerId, projectId, newPath);

@@ -28,7 +28,7 @@ class FilesRepository {
       projectId: string;
       filePath: string;
       fileName: string;
-      minioPath: string;
+      objectPath: string;
       sizeBytes: number;
       mimeType: string | null;
       content: string | null;
@@ -48,7 +48,7 @@ class FilesRepository {
             projectId: file.projectId,
             filePath: file.filePath,
             fileName: file.fileName,
-            minioPath: file.minioPath,
+            objectPath: file.objectPath,
             sizeBytes: BigInt(file.sizeBytes),
             contentHash: file.contentHash ?? null,
             mimeType: file.mimeType,
@@ -56,7 +56,7 @@ class FilesRepository {
           },
           update: {
             fileName: file.fileName,
-            minioPath: file.minioPath,
+            objectPath: file.objectPath,
             sizeBytes: BigInt(file.sizeBytes),
             contentHash: file.contentHash ?? null,
             mimeType: file.mimeType,

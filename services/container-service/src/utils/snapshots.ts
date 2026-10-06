@@ -14,7 +14,7 @@ export interface FileManifestEntry {
 }
 
 export interface SnapshotResult {
-  minioKey: string;
+  objectKey: string;
   sizeBytes: number;
   fileCount: number;
   manifest: FileManifestEntry[];
@@ -110,7 +110,7 @@ export async function createSnapshot(
   );
 
   return {
-    minioKey: objectKey,
+    objectKey,
     sizeBytes: totalSize,
     fileCount: manifest.length,
     manifest,

@@ -104,9 +104,9 @@ model ProjectFile {
   filePath   String   @map("file_path")
   fileName   String   @map("file_name")
 
-  // content is populated for small files (<50KB), null for large files stored in MinIO
+  // content is populated for small files (<50KB), null for large files stored in object storage
   content    String?  @db.Text
-  minioPath  String   @map("minio_path")
+  objectPath String   @map("object_path")
 
   sizeBytes  BigInt   @map("size_bytes")
   contentHash String? @map("content_hash")
@@ -127,7 +127,7 @@ model ProjectSnapshot {
   id          String   @id @default(uuid())
   projectId   String   @map("project_id")
   userId      String   @map("user_id")
-  minioKey    String   @map("minio_key")
+  objectKey   String   @map("object_key")
   sizeBytes   BigInt   @map("size_bytes")
   fileCount   Int      @map("file_count")
   createdAt   DateTime @default(now()) @map("created_at")

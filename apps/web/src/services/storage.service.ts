@@ -7,7 +7,7 @@ export interface StorageFileEntry {
   projectId: string;
   filePath: string;
   fileName: string;
-  minioPath: string;
+  objectPath: string;
   sizeBytes: number | null;
   mimeType: string | null;
   contentHash?: string | null;

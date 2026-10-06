@@ -1047,13 +1047,13 @@ class ContainerService {
       await pubsub.publish("files:snapshot", {
         projectId,
         userId,
-        minioKey: result.minioKey,
+        objectKey: result.objectKey,
         sizeBytes: result.sizeBytes,
         fileCount: result.fileCount,
         manifest: result.manifest,
       });
 
-      await this.waitForSnapshotIndex(projectId, result.minioKey);
+      await this.waitForSnapshotIndex(projectId, result.objectKey);
 
       console.log(
         `[container-service] Snapshot taken: ${result.fileCount} files`,
@@ -1130,8 +1130,8 @@ class ContainerService {
     await this.writeFileToContainer(container, projectName, filePath, content);
   }
 
-  private async waitForSnapshotIndex(projectId: string, minioKey: string) {
-    const key = `files:snapshot:indexed:${projectId}:${minioKey}`;
+  private async waitForSnapshotIndex(projectId: string, objectKey: string) {
+    const key = `files:snapshot:indexed:${projectId}:${objectKey}`;
     const startedAt = Date.now();
     const timeoutMs = 15000;
 
@@ -1146,7 +1146,7 @@ class ContainerService {
     }
 
     console.warn(
-      `[container-service] Timed out waiting for storage to index ${minioKey}`,
+      `[container-service] Timed out waiting for storage to index ${objectKey}`,
     );
   }
 

@@ -4,7 +4,7 @@ class SnapshotRepository {
   async create(data: {
     projectId: string;
     userId: string;
-    minioKey: string;
+    objectKey: string;
     sizeBytes: number;
     fileCount: number;
   }) {
