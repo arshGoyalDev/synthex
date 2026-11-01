@@ -12,6 +12,7 @@ const IGNORE_DIRS = new Set([
   "build",
   "venv",
   ".venv",
+  ".synthex-deps",
 ]);
 
 // Exact filenames to exclude (matched against the basename only)

@@ -172,6 +172,7 @@ class ContainerService {
         console.log(
           `[container-service] Found existing snapshot, restoring...`,
         );
+        await this.ensureWorkspace(container, projectName);
         await restoreSnapshot(container, snapshotKey, projectName);
         await this.applyStoredFileState(
           container,
@@ -261,9 +262,10 @@ class ContainerService {
     projectId: string,
     userId: string,
     projectName: string,
+    installCommand?: string | null,
   ) {
     const workspace = `/workspace/${projectName}`;
-    const userCommand = [
+    const detectedCommands = [
       `cd ${this.shellQuote(workspace)}`,
       `set -e`,
       `if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; ` +
@@ -284,7 +286,15 @@ class ContainerService {
       `if [ -f mix.exs ]; then mix local.hex --force && mix local.rebar --force && mix deps.get; fi`,
       `for file in ./*.csproj ./*.fsproj ./*.sln; do if [ -f "$file" ]; then dotnet restore; break; fi; done`,
       `if [ -f build.zig.zon ]; then zig build; fi`,
-    ].join(" && ");
+    ];
+    const userCommand = installCommand
+      ? [
+          `cd ${this.shellQuote(workspace)}`,
+          `set -e`,
+          `if [ -f requirements.txt ] || [ -f pyproject.toml ]; then python3 -m venv venv; export VIRTUAL_ENV="$PWD/venv"; export PATH="$VIRTUAL_ENV/bin:$PATH"; fi`,
+          installCommand,
+        ].join(" && ")
+      : detectedCommands.join(" && ");
     const command = `chown -R synthex:synthex -- ${this.shellQuote(workspace)} && ` +
       `su -s /bin/sh synthex -c ${this.shellQuote(userCommand)}`;
 
@@ -305,6 +315,41 @@ class ContainerService {
       totalCommands: 1,
     });
     await this.completeSetupLogging(projectId, 1);
+  }
+
+  private async restoreImportedProject(
+    container: Dockerode.Container,
+    projectId: string,
+    userId: string,
+    projectName: string,
+    installCommand?: string | null,
+  ) {
+    const snapshotKey = await getLatestSnapshotKey(projectId, userId);
+    if (!snapshotKey) return false;
+    await this.ensureWorkspace(container, projectName);
+    await restoreSnapshot(container, snapshotKey, projectName);
+    await this.applyStoredFileState(container, projectId, userId, projectName);
+    await this.restoreProjectDependencies(container, projectId, userId, projectName, installCommand);
+    await this.takeSnapshot(container, projectId, userId, projectName);
+    return true;
+  }
+
+  private async ensureWorkspace(container: Dockerode.Container, projectName: string) {
+    const exec = await container.exec({
+      Cmd: ["mkdir", "-p", "--", `/workspace/${projectName}`],
+      WorkingDir: "/workspace",
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+    const stream = await exec.start({ hijack: false, stdin: false });
+    await new Promise<void>((resolve, reject) => {
+      stream.on("data", () => {});
+      stream.on("end", resolve);
+      stream.on("error", reject);
+    });
+    if ((await exec.inspect()).ExitCode !== 0) {
+      throw new AppError("Unable to create project workspace", 500);
+    }
   }
 
   async setupGithubImport(
@@ -340,7 +385,7 @@ class ContainerService {
         WorkingDir: `/workspace/${projectName}`,
         Tty: true,
         OpenStdin: true,
-        Labels: { projectId, userId, projectName },
+        Labels: { projectId, userId, projectName, languages: languages.join(",") },
         HostConfig: {
           Memory: 512 * 1024 * 1024,
           CpuPeriod: 100000,
@@ -348,6 +393,10 @@ class ContainerService {
         },
       });
       await container.start();
+    }
+
+    if (await this.restoreImportedProject(container, projectId, userId, projectName, installCommand)) {
+      return { containerId: container.id };
     }
 
     // git clone (skip if repo already present)
@@ -409,12 +458,12 @@ class ContainerService {
     projectName: string,
     userId: string,
     opts: {
-      zipStream: NodeJS.ReadableStream;
+      openZipStream: () => Promise<NodeJS.ReadableStream>;
       installCommand: string | null;
       languages: string[];
     },
   ) {
-    const { zipStream, installCommand, languages } = opts;
+    const { openZipStream, installCommand, languages } = opts;
 
     const primaryLang = languages[0];
     const langConfig = primaryLang ? LANGUAGES[primaryLang] : null;
@@ -435,7 +484,7 @@ class ContainerService {
         WorkingDir: `/workspace/${projectName}`,
         Tty: true,
         OpenStdin: true,
-        Labels: { projectId, userId, projectName },
+        Labels: { projectId, userId, projectName, languages: languages.join(",") },
         HostConfig: {
           Memory: 512 * 1024 * 1024,
           CpuPeriod: 100000,
@@ -444,6 +493,12 @@ class ContainerService {
       });
       await container.start();
     }
+
+    if (await this.restoreImportedProject(container, projectId, userId, projectName, installCommand)) {
+      return { containerId: container.id };
+    }
+
+    const zipStream = await openZipStream();
 
     // Create workspace directory
     const createWorkspaceCommands = [`mkdir -p /workspace/${projectName}`];

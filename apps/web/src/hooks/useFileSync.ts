@@ -119,12 +119,14 @@ export function useFileSync({
         );
         if (
           snapshot?.content !== undefined &&
-          snapshot.content !== (file.content ?? "")
+          snapshot.content !== (file.content ?? "") &&
+          !useEditorStore.getState().files.get(filePath)?.isDirty &&
+          !useEditorStore.getState().files.get(filePath)?.isSaving
         ) {
           useEditorStore
             .getState()
             .updateFileContent(filePath, snapshot.content);
-        } else if (snapshot) {
+        } else if (snapshot?.content === (file.content ?? "")) {
           await removeLocalSnapshot(projectId, filePath).catch(() => {});
         }
       } catch (err: any) {

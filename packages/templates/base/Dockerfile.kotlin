@@ -1,3 +1,8 @@
 FROM synthex/base:latest
 
-RUN apk add --no-cache openjdk21 kotlin maven gradle
+RUN apk add --no-cache openjdk21 maven gradle \
+    && curl -fsSL https://github.com/JetBrains/kotlin/releases/download/v2.1.20/kotlin-compiler-2.1.20.zip -o /tmp/kotlin.zip \
+    && unzip -q /tmp/kotlin.zip -d /opt/kotlin \
+    && ln -s /opt/kotlin/kotlinc/bin/kotlinc /usr/local/bin/kotlinc \
+    && ln -s /opt/kotlin/kotlinc/bin/kotlin /usr/local/bin/kotlin \
+    && rm /tmp/kotlin.zip

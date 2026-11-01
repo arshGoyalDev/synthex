@@ -331,12 +331,8 @@ const startContainerSetup = async (projectData: ProjectData) => {
       });
     } else if (importSource === "zip") {
       // ── ZIP import ───────────────────────────────────────────────────────
-      const zipStream = await storageClient.getObject(
-        ZIP_BUCKET,
-        projectData.zipKey!,
-      );
       await containerService.setupZipImport(projectId, projectName, userId, {
-        zipStream,
+        openZipStream: () => storageClient.getObject(ZIP_BUCKET, projectData.zipKey!),
         installCommand: projectData.installCommand ?? null,
         languages: projectData.languages ?? [],
       });

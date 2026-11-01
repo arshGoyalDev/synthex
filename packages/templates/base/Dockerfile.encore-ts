@@ -30,6 +30,11 @@ RUN mkdir -p /workspace \
     && setfacl -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace \
     && setfacl -d -m u:synthex:rwx,g:synthex:rwx,m:rwx /workspace
 
-RUN curl -fsSL https://encore.dev/install.sh | bash
+RUN curl -fsSL https://encore.dev/install.sh -o /tmp/encore-install.sh \
+    && bash /tmp/encore-install.sh \
+    && rm /tmp/encore-install.sh \
+    && cp -a /root/.encore /opt/encore \
+    && chmod -R a+rX /opt/encore
+ENV PATH="/opt/encore/bin:${PATH}"
 
 SHELL ["/bin/bash", "-c"]

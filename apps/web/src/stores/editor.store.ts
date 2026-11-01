@@ -293,6 +293,8 @@ export const useEditorStore = create<EditorState>((set) => ({
       const nextFiles = new Map(state.files);
       const file = nextFiles.get(path);
       if (!file) return state;
+      // The request can complete after the user has started editing.
+      if (file.isDirty || file.isSaving) return state;
       nextFiles.set(path, {
         ...file,
         content,
