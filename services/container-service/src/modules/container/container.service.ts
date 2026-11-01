@@ -1214,6 +1214,13 @@ class ContainerService {
     await container.putArchive(pack, {
       path: `/workspace/${projectName}`,
     });
+    // Docker extracts archive entries as root unless ownership is supplied.
+    // Keep editor-saved files writable by the terminal user as well.
+    await this.runShell(
+      container,
+      projectName,
+      `chown -h synthex:synthex -- ${this.shellQuote(filePath)}`,
+    );
   }
 
   private async deleteFileInContainer(

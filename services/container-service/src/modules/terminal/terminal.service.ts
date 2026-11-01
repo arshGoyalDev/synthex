@@ -12,6 +12,38 @@ class TerminalService {
   private docker = new Dockerode();
   private sessions = new Map<string, TerminalSession>();
 
+  private async prepareWorkspace(container: Dockerode.Container, workingDir: string) {
+    const exec = await container.exec({
+      User: "root",
+      Cmd: ["sh", "-c", `
+        set -eu
+        chown -R synthex:synthex -- "$1"
+        mkdir -p /home/synthex/.cache
+        chown -R synthex:synthex /home/synthex
+        cat > /etc/synthex-terminal-rc <<'EOF'
+synthex_editor_blocked() { printf '%s\\n' 'Use the project editor to edit files.'; return 1; }
+vi() { synthex_editor_blocked; }
+vim() { synthex_editor_blocked; }
+view() { synthex_editor_blocked; }
+nano() { synthex_editor_blocked; }
+emacs() { synthex_editor_blocked; }
+export EDITOR=false VISUAL=false
+EOF
+        chmod 644 /etc/synthex-terminal-rc
+      `, "synthex-prepare", workingDir],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+    const stream = await exec.start({ hijack: false, stdin: false });
+    await new Promise<void>((resolve, reject) => {
+      stream.on("data", () => {});
+      stream.on("end", resolve);
+      stream.on("error", reject);
+    });
+    const result = await exec.inspect();
+    if (result.ExitCode !== 0) throw new Error("Unable to prepare terminal workspace permissions");
+  }
+
   private async startExecStream(
     exec: Dockerode.Exec,
     projectId: string,
@@ -91,7 +123,12 @@ class TerminalService {
       }
 
       const projectName = info.Config?.Labels?.projectName;
+      if (!projectName || projectName === "." || projectName === ".." || projectName.includes("/")) {
+        throw new Error("Invalid project workspace name");
+      }
       const workingDir = projectName ? `/workspace/${projectName}` : "/workspace";
+
+      await this.prepareWorkspace(container, workingDir);
 
       const attemptLabel = "single shell profile";
 
@@ -103,7 +140,7 @@ class TerminalService {
         AttachStdout: true,
         AttachStderr: true,
         Tty: true,
-        Env: ["TERM=xterm-256color"],
+        Env: ["TERM=xterm-256color", "HOME=/home/synthex", "ENV=/etc/synthex-terminal-rc"],
       });
 
       console.log(
@@ -115,7 +152,12 @@ class TerminalService {
         `[terminal] Exec stream started for ${projectId} using ${attemptLabel}`,
       );
 
-      this.sessions.set(terminalId, {
+      if (!socket.connected) {
+        stream.destroy();
+        return;
+      }
+
+      this.sessions.set(socket.id, {
         stream,
         socketId: socket.id,
         projectId,
@@ -132,7 +174,7 @@ class TerminalService {
           message: "Shell exited",
         });
 
-        this.sessions.delete(terminalId);
+        this.sessions.delete(socket.id);
       });
 
       stream.on("error", (err) => {
@@ -142,11 +184,11 @@ class TerminalService {
 
         console.error(`[terminal] Stream error for ${projectId}:`, err);
 
-        this.sessions.delete(terminalId);
+        this.sessions.delete(socket.id);
       });
 
       socket.on("terminal:input", ({ data }: { data: string }) => {
-        const session = this.sessions.get(terminalId);
+        const session = this.sessions.get(socket.id);
 
         if (session?.stream.writable) {
           session.stream.write(Buffer.from(data, "base64"));
@@ -173,14 +215,14 @@ class TerminalService {
   }
 
   detach(terminalId: string, socketId: string) {
-    const session = this.sessions.get(terminalId);
+    const session = this.sessions.get(socketId);
 
     if (!session) return;
 
     if (session.socketId == socketId) {
       session.stream.destroy();
 
-      this.sessions.delete(terminalId);
+      this.sessions.delete(socketId);
 
       console.log(`[terminal] Session detached from ${session.projectId}`);
     }

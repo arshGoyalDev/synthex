@@ -47,14 +47,16 @@ export function useTerminalSocket({
     });
 
     socketRef.current = socket;
+    const decoder = new TextDecoder();
 
     socket.on("terminal:ready", () => {
       handlersRef.current.onReady();
     });
 
     socket.on("terminal:output", ({ data }: { data: string }) => {
-      const decoded = atob(data);
-      handlersRef.current.onOutput(decoded);
+      const binary = atob(data);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      handlersRef.current.onOutput(decoder.decode(bytes, { stream: true }));
     });
 
     socket.on("terminal:error", ({ message }: { message: string }) => {
@@ -76,7 +78,10 @@ export function useTerminalSocket({
   }, [enabled, projectId, userId, terminalId]);
 
   const sendInput = useCallback((data: string) => {
-    const encoded = btoa(data);
+    const bytes = new TextEncoder().encode(data);
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const encoded = btoa(binary);
     socketRef.current?.emit("terminal:input", { data: encoded });
   }, []);
 
