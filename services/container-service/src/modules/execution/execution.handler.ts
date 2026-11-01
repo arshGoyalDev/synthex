@@ -76,7 +76,7 @@ class ExecutionHandler {
     }
 
     const exec = await container.exec({
-      Cmd: ["bash", "-c", command],
+      Cmd: ["bash", "-c", `if [ -x .venv/bin/python ]; then export VIRTUAL_ENV="$PWD/.venv"; export PATH="$VIRTUAL_ENV/bin:$PATH"; fi\n${command}`],
       Env: envVars
         ? Object.entries(envVars).map(([key, value]) => `${key}=${value}`)
         : undefined,

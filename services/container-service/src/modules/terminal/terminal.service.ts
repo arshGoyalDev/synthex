@@ -11,6 +11,7 @@ interface TerminalSession {
 class TerminalService {
   private docker = new Dockerode();
   private sessions = new Map<string, TerminalSession>();
+  private preparations = new Map<string, Promise<void>>();
 
   private async prepareWorkspace(container: Dockerode.Container, workingDir: string) {
     const exec = await container.exec({
@@ -28,6 +29,10 @@ view() { synthex_editor_blocked; }
 nano() { synthex_editor_blocked; }
 emacs() { synthex_editor_blocked; }
 export EDITOR=false VISUAL=false
+if [ -x "$PWD/.venv/bin/python" ]; then
+  export VIRTUAL_ENV="$PWD/.venv"
+  export PATH="$VIRTUAL_ENV/bin:$PATH"
+fi
 EOF
         chmod 644 /etc/synthex-terminal-rc
       `, "synthex-prepare", workingDir],
@@ -42,6 +47,25 @@ EOF
     });
     const result = await exec.inspect();
     if (result.ExitCode !== 0) throw new Error("Unable to prepare terminal workspace permissions");
+  }
+
+  private async preparePythonEnvironment(container: Dockerode.Container, workingDir: string) {
+    const exec = await container.exec({
+      User: "synthex",
+      WorkingDir: workingDir,
+      Env: ["HOME=/home/synthex"],
+      Cmd: ["sh", "-c", "if [ ! -x .venv/bin/python ]; then python3 -m venv .venv; fi"],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+    const stream = await exec.start({ hijack: false, stdin: false });
+    await new Promise<void>((resolve, reject) => {
+      stream.on("data", () => {});
+      stream.on("end", resolve);
+      stream.on("error", reject);
+    });
+    const result = await exec.inspect();
+    if (result.ExitCode !== 0) throw new Error("Unable to create the project Python environment");
   }
 
   private async startExecStream(
@@ -128,7 +152,21 @@ EOF
       }
       const workingDir = projectName ? `/workspace/${projectName}` : "/workspace";
 
-      await this.prepareWorkspace(container, workingDir);
+      const languages = (info.Config?.Labels?.languages ?? "").split(",");
+      let preparation = this.preparations.get(projectId);
+      if (!preparation) {
+        preparation = (async () => {
+          await this.prepareWorkspace(container, workingDir);
+          if (languages.includes("python") || info.Config?.Image === "synthex/python:latest") {
+            await this.preparePythonEnvironment(container, workingDir);
+          }
+        })();
+        this.preparations.set(projectId, preparation);
+        void preparation.finally(() => {
+          if (this.preparations.get(projectId) === preparation) this.preparations.delete(projectId);
+        }).catch(() => {});
+      }
+      await preparation;
 
       const attemptLabel = "single shell profile";
 
