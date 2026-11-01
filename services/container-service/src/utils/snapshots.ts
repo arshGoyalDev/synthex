@@ -57,10 +57,28 @@ export async function createSnapshot(
       // Docker's getArchive includes the base directory name as a prefix
       // (e.g. "testing-2/src/App.css"). Strip it so paths are relative to
       // the project root (e.g. "src/App.css").
-      const prefixPattern = new RegExp(`^${projectName}/?`);
-      const filePath = rawPath.replace(prefixPattern, "");
+      const root = `${projectName}/`;
+      if (rawPath !== projectName && !rawPath.startsWith(root)) {
+        stream.resume();
+        return next();
+      }
+      const filePath = rawPath === projectName ? "" : rawPath.slice(root.length);
 
-      if (!filePath || header.type === "directory" || shouldIgnore(filePath)) {
+      if (!filePath || shouldIgnore(filePath)) {
+        stream.resume();
+        return next();
+      }
+
+      // Preserve empty directories in the archive so a restore does not
+      // silently discard them. The file index remains file-only for now.
+      if (header.type === "directory") {
+        archive.append(Buffer.alloc(0), { name: `${filePath.replace(/\/$/, "")}/`, mode: header.mode });
+        stream.resume();
+        return next();
+      }
+
+      // Links and special files must not be restored as ordinary empty files.
+      if (header.type !== "file") {
         stream.resume();
         return next();
       }
@@ -77,7 +95,7 @@ export async function createSnapshot(
           checksum: computeChecksum(content),
         });
 
-        archive.append(content, { name: filePath });
+        archive.append(content, { name: filePath, mode: header.mode });
         next();
       });
       stream.on("error", reject);
