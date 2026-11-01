@@ -18,6 +18,7 @@ export interface SnapshotResult {
   sizeBytes: number;
   fileCount: number;
   manifest: FileManifestEntry[];
+  directories: string[];
 }
 
 export async function createSnapshot(
@@ -34,6 +35,7 @@ export async function createSnapshot(
   });
 
   const manifest: FileManifestEntry[] = [];
+  const directories: string[] = [];
   const archive = archiver("tar", { gzip: true });
 
   // Collect all archive output chunks in a single array.
@@ -72,6 +74,7 @@ export async function createSnapshot(
       // Preserve empty directories in the archive so a restore does not
       // silently discard them. The file index remains file-only for now.
       if (header.type === "directory") {
+        directories.push(filePath.replace(/\/$/, ""));
         archive.append(Buffer.alloc(0), { name: `${filePath.replace(/\/$/, "")}/`, mode: header.mode });
         stream.resume();
         return next();
@@ -132,6 +135,7 @@ export async function createSnapshot(
     sizeBytes: totalSize,
     fileCount: manifest.length,
     manifest,
+    directories,
   };
 }
 

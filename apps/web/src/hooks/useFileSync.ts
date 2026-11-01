@@ -22,7 +22,8 @@ function toFileEntry(sf: storageService.StorageFileEntry): FileEntry {
     name: sf.fileName,
     language: getMonacoLanguage(sf.fileName),
     content: sf.content ?? undefined,
-    isFolder: false,
+    isFolder: sf.isFolder ?? false,
+    serverBacked: true,
   };
 }
 

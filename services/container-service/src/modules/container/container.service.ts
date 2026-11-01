@@ -1051,6 +1051,7 @@ class ContainerService {
         sizeBytes: result.sizeBytes,
         fileCount: result.fileCount,
         manifest: result.manifest,
+        directories: result.directories,
       });
 
       await this.waitForSnapshotIndex(projectId, result.objectKey);

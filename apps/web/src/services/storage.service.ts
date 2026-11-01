@@ -12,6 +12,7 @@ export interface StorageFileEntry {
   mimeType: string | null;
   contentHash?: string | null;
   content?: string | null;
+  isFolder?: boolean;
   createdAt: string;
   updatedAt: string;
 }

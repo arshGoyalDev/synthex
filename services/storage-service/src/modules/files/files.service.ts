@@ -29,6 +29,10 @@ class FilesService {
     return `${userId}/${projectId}/deletes/`;
   }
 
+  private directoryIndexKey(userId: string, projectId: string) {
+    return `${userId}/${projectId}/metadata/directories.json`;
+  }
+
   normalizeFilePath(filePath: string): string {
     const normalized = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
     const parts = normalized.split("/").filter(Boolean);
@@ -77,6 +81,7 @@ class FilesService {
     objectKey: string;
     sizeBytes: number;
     fileCount: number;
+    directories?: string[];
     manifest: Array<{
       filePath: string;
       sizeBytes: number;
@@ -93,6 +98,13 @@ class FilesService {
       fileCount: data.fileCount,
     });
 
+    if (data.directories) {
+      const directories = [...new Set(data.directories.map((path) => this.normalizeFilePath(path)))];
+      const content = Buffer.from(JSON.stringify(directories));
+      await storageClient.putObject(FILES_BUCKET, this.directoryIndexKey(data.userId, data.projectId), content, content.length, {
+        "Content-Type": "application/json",
+      });
+    }
     await this.reconcileFileIndex(data.projectId, data.userId, data.manifest);
 
     await redis.setex(
@@ -119,6 +131,26 @@ class FilesService {
   async listFiles(projectId: string, userId: string) {
     await assertProjectOwner(projectId, userId);
 
+    const includeDirectories = async <T extends { filePath: string }>(files: T[]) => {
+      const key = this.directoryIndexKey(userId, projectId);
+      if (!(await this.objectExists(FILES_BUCKET, key))) return files;
+      const raw = await this.readObjectAsUtf8(FILES_BUCKET, key);
+      const paths: unknown = JSON.parse(raw);
+      if (!Array.isArray(paths)) throw new Error("Invalid directory index");
+      const filePaths = new Set(files.map((file) => file.filePath));
+      const directories = paths.filter((path): path is string => typeof path === "string" && !filePaths.has(path)).map((filePath) => ({
+        id: `directory:${filePath}`,
+        projectId,
+        filePath,
+        fileName: filePath.split("/").pop() ?? filePath,
+        objectPath: key,
+        sizeBytes: null,
+        mimeType: null,
+        isFolder: true,
+      }));
+      return [...files, ...directories];
+    };
+
     const existing = await this.filesRepo.findByProject(projectId);
     if (existing.length > 0) {
       // Verify ownership via the first file record's objectPath prefix
@@ -126,12 +158,12 @@ class FilesService {
         f.objectPath.startsWith(`${userId}/`),
       );
       if (!ownerMatch) throw new AppError("Forbidden", 403);
-      return this.withoutInlineContent(existing);
+      return includeDirectories(this.withoutInlineContent(existing));
     }
 
     const latestSnapshot = await this.snapshotRepo.getLatest(projectId);
     if (!latestSnapshot) {
-      return this.withoutInlineContent(existing);
+      return includeDirectories(this.withoutInlineContent(existing));
     }
     if (latestSnapshot.userId !== userId) {
       throw new AppError("Forbidden", 403);
@@ -141,14 +173,14 @@ class FilesService {
       latestSnapshot.objectKey,
     );
     if (manifest.length === 0) {
-      return this.withoutInlineContent(existing);
+      return includeDirectories(this.withoutInlineContent(existing));
     }
 
     await this.reconcileFileIndex(projectId, latestSnapshot.userId, manifest);
 
-    return this.withoutInlineContent(
+    return includeDirectories(this.withoutInlineContent(
       await this.filesRepo.findByProject(projectId),
-    );
+    ));
   }
 
   private withoutInlineContent<T extends { content?: string | null }>(

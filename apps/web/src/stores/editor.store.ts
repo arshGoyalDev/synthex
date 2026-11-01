@@ -9,6 +9,7 @@ export interface FileEntry {
   language?: string;
   content?: string;
   isFolder?: boolean;
+  serverBacked?: boolean;
   isDirty?: boolean;
   isSaving?: boolean;
   lastSavedAt?: number;
@@ -237,7 +238,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       const nextFiles = new Map(state.files);
 
       for (const [path, file] of state.files) {
-        if (!file.isFolder && !file.isDirty && !serverPaths.has(path)) {
+        if ((!file.isFolder || file.serverBacked) && !file.isDirty && !serverPaths.has(path)) {
           nextFiles.delete(path);
         }
       }
