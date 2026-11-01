@@ -179,6 +179,7 @@ class ContainerService {
           userId,
           projectName,
         );
+        await this.restoreProjectDependencies(container, projectId, userId, projectName);
         await this.takeSnapshot(container, projectId, userId, projectName);
       } else {
         const totalCommands =
@@ -254,6 +255,45 @@ class ContainerService {
   }
 
   // ── GitHub import ──────────────────────────────────────────────────────────
+
+  private async restoreProjectDependencies(
+    container: Dockerode.Container,
+    projectId: string,
+    userId: string,
+    projectName: string,
+  ) {
+    const workspace = `/workspace/${projectName}`;
+    const userCommand = [
+      `cd ${this.shellQuote(workspace)}`,
+      `if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; ` +
+        `elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; ` +
+        `elif [ -f package-lock.json ]; then npm ci; ` +
+        `elif [ -f package.json ]; then npm install; ` +
+        `elif [ -f requirements.txt ]; then python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; ` +
+        `elif [ -f pyproject.toml ]; then python3 -m venv .venv && .venv/bin/pip install -e .; ` +
+        `fi`,
+    ].join(" && ");
+    const command = `chown -R synthex:synthex -- ${this.shellQuote(workspace)} && ` +
+      `su -s /bin/sh synthex -c ${this.shellQuote(userCommand)}`;
+
+    await this.initSetupLogging(projectId);
+    await pubsub.publish("container:status", {
+      projectId,
+      userId,
+      status: "installing",
+      message: "Restoring project dependencies...",
+    });
+    await this.runSetupStage({
+      container,
+      commands: [command],
+      projectId,
+      stage: "postSetup",
+      stageName: "Restoring dependencies",
+      commandIndex: 0,
+      totalCommands: 1,
+    });
+    await this.completeSetupLogging(projectId, 1);
+  }
 
   async setupGithubImport(
     projectId: string,
