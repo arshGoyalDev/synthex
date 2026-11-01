@@ -2,5 +2,10 @@ FROM synthex/base:latest
 
 RUN apk add --no-cache curl gcc musl-dev
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-ENV PATH="/root/.cargo/bin:${PATH}"
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal \
+    && chmod -R a+rX /usr/local/rustup /usr/local/cargo
+# Installed toolchain is shared; package downloads and cargo-installed tools are per user.
+ENV CARGO_HOME=/home/synthex/.cargo

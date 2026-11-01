@@ -29,7 +29,10 @@ view() { synthex_editor_blocked; }
 nano() { synthex_editor_blocked; }
 emacs() { synthex_editor_blocked; }
 export EDITOR=false VISUAL=false
-if [ -x "$PWD/.venv/bin/python" ]; then
+if [ -x "$PWD/venv/bin/python" ]; then
+  export VIRTUAL_ENV="$PWD/venv"
+  export PATH="$VIRTUAL_ENV/bin:$PATH"
+elif [ -x "$PWD/.venv/bin/python" ]; then
   export VIRTUAL_ENV="$PWD/.venv"
   export PATH="$VIRTUAL_ENV/bin:$PATH"
 fi
@@ -54,7 +57,7 @@ EOF
       User: "synthex",
       WorkingDir: workingDir,
       Env: ["HOME=/home/synthex"],
-      Cmd: ["sh", "-c", "if [ ! -x .venv/bin/python ]; then python3 -m venv .venv; fi"],
+      Cmd: ["sh", "-c", "if [ ! -x venv/bin/python ] && [ ! -x .venv/bin/python ]; then python3 -m venv venv; fi"],
       AttachStdout: true,
       AttachStderr: true,
     });

@@ -265,13 +265,25 @@ class ContainerService {
     const workspace = `/workspace/${projectName}`;
     const userCommand = [
       `cd ${this.shellQuote(workspace)}`,
+      `set -e`,
       `if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; ` +
         `elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; ` +
         `elif [ -f package-lock.json ]; then npm ci; ` +
-        `elif [ -f package.json ]; then npm install; ` +
-        `elif [ -f requirements.txt ]; then python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; ` +
-        `elif [ -f pyproject.toml ]; then python3 -m venv .venv && .venv/bin/pip install -e .; ` +
+        `elif [ -f package.json ]; then npm install; fi`,
+      `if [ -f requirements.txt ] || [ -f pyproject.toml ]; then ` +
+        `python3 -m venv venv; ` +
+        `if [ -f requirements.txt ]; then venv/bin/pip install -r requirements.txt; ` +
+        `else venv/bin/pip install -e .; fi; ` +
         `fi`,
+      `if [ -f Cargo.toml ]; then cargo fetch; fi`,
+      `if [ -f go.mod ]; then go mod download; fi`,
+      `if [ -f Gemfile ]; then bundle install; fi`,
+      `if [ -f composer.json ]; then composer install --no-interaction; fi`,
+      `if [ -f pom.xml ]; then if [ -f ./mvnw ]; then sh ./mvnw dependency:resolve; else mvn dependency:resolve; fi; fi`,
+      `if [ -f build.gradle ] || [ -f build.gradle.kts ]; then if [ -f ./gradlew ]; then sh ./gradlew dependencies; else gradle dependencies; fi; fi`,
+      `if [ -f mix.exs ]; then mix local.hex --force && mix local.rebar --force && mix deps.get; fi`,
+      `for file in ./*.csproj ./*.fsproj ./*.sln; do if [ -f "$file" ]; then dotnet restore; break; fi; done`,
+      `if [ -f build.zig.zon ]; then zig build; fi`,
     ].join(" && ");
     const command = `chown -R synthex:synthex -- ${this.shellQuote(workspace)} && ` +
       `su -s /bin/sh synthex -c ${this.shellQuote(userCommand)}`;

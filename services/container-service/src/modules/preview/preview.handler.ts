@@ -29,7 +29,7 @@ class PreviewHandler {
       await redis.set(`preview:${projectId}:port`, hostPort.toString());
       await redis.set(`preview:${projectId}:status`, "starting");
 
-      const wrappedCommand = `cd ${this.shellQuote(workDir)} && if [ -x .venv/bin/python ]; then export VIRTUAL_ENV="$PWD/.venv"; export PATH="$VIRTUAL_ENV/bin:$PATH"; fi && exec ${command}`;
+      const wrappedCommand = `cd ${this.shellQuote(workDir)} && if [ -x venv/bin/python ]; then export VIRTUAL_ENV="$PWD/venv"; elif [ -x .venv/bin/python ]; then export VIRTUAL_ENV="$PWD/.venv"; fi && if [ -n "$VIRTUAL_ENV" ]; then export PATH="$VIRTUAL_ENV/bin:$PATH"; fi && exec ${command}`;
 
       const exec = await container.exec({
         Cmd: ["bash", "-lc", wrappedCommand],
